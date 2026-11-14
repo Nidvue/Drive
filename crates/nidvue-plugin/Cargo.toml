@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-plugin"
-description = "Nidvue Drive plugin"
+description = "Nidvue Drive WASM plugin host with capability scoping and resource limits"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,12 @@ homepage.workspace = true
 
 [dependencies]
 nidvue-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+wasmtime = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

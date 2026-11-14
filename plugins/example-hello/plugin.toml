@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+id = "com.example.hello"
+name = "Hello filter"
+version = "0.1.0"
+api_version = 1
+license = "AGPL-3.0-only"
+description = "Skips build caches and temporary files, and logs the first path it sees."
+
+[capabilities]
+paths = []
+hosts = []
+hooks = ["path_filter", "event"]
+ui_panels = []
+
+[limits]
+fuel = 50000000
+memory_mb = 16
+wall_ms = 1000

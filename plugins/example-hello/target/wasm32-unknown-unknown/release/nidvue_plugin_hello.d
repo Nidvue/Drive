@@ -1,0 +1,1 @@
+/home/pingz/Storage/Projects/Nidvue/Drive/plugins/example-hello/target/wasm32-unknown-unknown/release/nidvue_plugin_hello.wasm: /home/pingz/Storage/Projects/Nidvue/Drive/plugins/example-hello/src/lib.rs
