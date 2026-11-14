@@ -89,13 +89,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build libfuse3-dev fuse3 libsecret-1-dev \
-            libgl1-mesa-dev libxkbcommon-dev
-      - uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.1"
-          modules: "qtimageformats"
-          cache: true
+            cmake ninja-build libfuse3-dev fuse3 libgl1-mesa-dev libxkbcommon-dev \
+            qt6-base-dev qt6-declarative-dev qt6-declarative-dev-tools \
+            qml6-module-qtquick qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts qml6-module-qtquick-window \
+            qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
+            libqt6svg6-dev
       - name: build the workspace and the ui
         run: cargo xtask ci
 
