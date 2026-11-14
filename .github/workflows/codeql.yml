@@ -24,7 +24,7 @@ jobs:
         language: [cpp, javascript-typescript]
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
@@ -35,6 +35,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build libfuse3-dev libgl1-mesa-dev libxkbcommon-dev
           cargo build --release -p nidvue-ffi
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
