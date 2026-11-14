@@ -13,9 +13,11 @@ homepage.workspace = true
 
 [dependencies]
 nidvue-core = { workspace = true }
-libc = { workspace = true }
 rusqlite = { workspace = true }
 tempfile = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true }
 
+# `statvfs` is used only on unix; Windows reports the configured cap instead.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
