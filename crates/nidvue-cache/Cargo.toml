@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-cache"
-description = "Nidvue Drive cache"
+description = "Nidvue Drive content-addressed blob cache, metadata index and eviction"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,12 @@ homepage.workspace = true
 
 [dependencies]
 nidvue-core = { workspace = true }
+libc = { workspace = true }
+rusqlite = { workspace = true }
+tempfile = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
