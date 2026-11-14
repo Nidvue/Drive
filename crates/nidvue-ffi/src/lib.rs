@@ -244,6 +244,62 @@ pub unsafe extern "C" fn nidvue_client_status_json(
     }
 }
 
+/// Pause or resume every sync pair.
+///
+/// # Safety
+/// `client` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_set_paused(
+    client: *mut NidvueClient,
+    paused: i32,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| client.client.set_paused(paused != 0))) {
+        Ok(Ok(())) => NIDVUE_OK,
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_set_paused");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Set the aggregate bandwidth cap in bytes/second (0 = unlimited).
+///
+/// # Safety
+/// `client` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_set_bandwidth_limit(
+    client: *mut NidvueClient,
+    bytes_per_second: u64,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.set_bandwidth_limit_bps(bytes_per_second)
+    })) {
+        Ok(Ok(())) => NIDVUE_OK,
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_set_bandwidth_limit");
+            NIDVUE_PANIC
+        }
+    }
+}
+
 /// Mount at `mountpoint`.
 ///
 /// # Safety

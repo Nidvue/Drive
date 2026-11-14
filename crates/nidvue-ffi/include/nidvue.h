@@ -46,6 +46,13 @@ int32_t nidvue_client_logout(NidvueClient *client, char **err);
 /* Write the status JSON into *out (caller frees). */
 int32_t nidvue_client_status_json(NidvueClient *client, char **out);
 
+/* Pause or resume every sync pair. */
+int32_t nidvue_client_set_paused(NidvueClient *client, int32_t paused, char **err);
+
+/* Set the aggregate bandwidth cap in bytes/second (0 = unlimited). */
+int32_t nidvue_client_set_bandwidth_limit(NidvueClient *client,
+                                          uint64_t bytes_per_second, char **err);
+
 /* Mount the account at mountpoint. */
 int32_t nidvue_client_mount(NidvueClient *client, const char *mountpoint,
                             int32_t read_only, char **err);
