@@ -36,6 +36,8 @@ fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
         "secrets" => secrets(),
         "dco" => dco(rest.first().map(String::as_str)),
         "ui" => ui(),
+        "ui-smoke" => ui_smoke(),
+        "plugins" => plugins(),
         "bench" => bench(),
         "package" => package(),
         "schema" => schema(),
@@ -61,7 +63,9 @@ fn help() {
          spdx      verify the SPDX header on every tracked source file\n\
          secrets   scan tracked files for credential-shaped strings\n\
          dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
-         ui        configure and build the Qt/QML application\n\
+         ui        configure and build the Qt/QML application
+         ui-smoke  launch the built UI headlessly and assert it initialises
+         plugins   build the two example WASM plugins\n\
          bench     run the performance suite\n\
          package   build release binaries and package recipes\n\
          schema    regenerate the JSON schema and C header\n\
@@ -118,10 +122,12 @@ fn ci(skip_ui: bool) -> Result<(), String> {
     spdx()?;
     secrets()?;
     dco(None)?;
+    plugins()?;
     if skip_ui {
         println!("+ ui build skipped by --skip-ui");
     } else {
         ui()?;
+        ui_smoke()?;
     }
     println!("\nxtask ci: green");
     Ok(())
@@ -185,6 +191,62 @@ fn ui() -> Result<(), String> {
     if !status.success() {
         return Err("cmake build failed".into());
     }
+    Ok(())
+}
+
+/// Build the example plugins to wasm32 and copy them beside their manifests.
+fn plugins() -> Result<(), String> {
+    let root = workspace_root();
+    let examples = [
+        ("plugins/example-hello", "nidvue_plugin_hello.wasm", "com_example_hello.wasm"),
+        ("plugins/example-filter", "nidvue_plugin_filter.wasm", "com_example_filter.wasm"),
+    ];
+    for (dir, built, target) in examples {
+        let status = Command::new("cargo")
+            .args(["build", "--release", "--target", "wasm32-unknown-unknown"])
+            .current_dir(root.join(dir))
+            .status()
+            .map_err(|e| format!("build {dir}: {e}"))?;
+        if !status.success() {
+            return Err(format!("building {dir} failed"));
+        }
+        let from = root.join(dir).join("target/wasm32-unknown-unknown/release").join(built);
+        let to = root.join(dir).join(target);
+        std::fs::copy(&from, &to).map_err(|e| format!("copy {}: {e}", from.display()))?;
+        println!("+ plugin {target}");
+    }
+    Ok(())
+}
+
+/// Launch the built UI headlessly and assert that it initialises the engine.
+fn ui_smoke() -> Result<(), String> {
+    let root = workspace_root();
+    let binary = root.join("apps/nidvue-ui/build/nidvue-ui");
+    if !binary.exists() {
+        return Err(format!("{} is missing; run `cargo xtask ui` first", binary.display()));
+    }
+    let state = std::env::temp_dir().join(format!("nidvue-ui-smoke-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&state);
+    let mut child = Command::new(&binary)
+        .env("QT_QPA_PLATFORM", "offscreen")
+        .env("NIDVUE_STATE", &state)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("launch ui: {e}"))?;
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    let _ = child.kill();
+    let output = child.wait_with_output().map_err(|e| format!("wait ui: {e}"))?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("qrc:/") || stderr.contains("Cannot assign") || stderr.contains("is not a type") {
+        return Err(format!("QML errors:\n{stderr}"));
+    }
+    let initialised = state.join("db").join("index.sqlite").exists();
+    let _ = std::fs::remove_dir_all(&state);
+    if !initialised {
+        return Err("the UI did not initialise the engine state directory".into());
+    }
+    println!("+ ui smoke: engine initialised, no QML errors");
     Ok(())
 }
 

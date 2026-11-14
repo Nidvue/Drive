@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-ffi"
-description = "Nidvue Drive ffi"
+description = "C ABI bridge between the Nidvue Drive engine and the Qt application"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,5 +11,15 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
 [dependencies]
 nidvue-core = { workspace = true }
+nidvue-mount = { workspace = true }
+nidvue-sdk = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
