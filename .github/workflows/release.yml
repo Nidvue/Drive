@@ -24,8 +24,8 @@ jobs:
         include:
           - os: ubuntu-24.04
             artifact: linux-x86_64
-          - os: macos-14
-            artifact: macos-aarch64
+          # macOS is omitted: this organisation cannot start a macOS runner.
+          # The packaging recipe is in packaging/macos.sh, ready for a runner.
           - os: windows-2022
             artifact: windows-x86_64
     steps:

@@ -37,9 +37,9 @@ Jottacloud is a trademark of its owner. Licensed **AGPL-3.0-only**.
 ## Status
 
 `v0.1.0` — first public pre-release. The engine, cache, sync planner, journal,
-FUSE3 mount, WASM plugin host, CLI, SDK and Qt UI are implemented and tested;
-the Windows (WinFSP) and macOS (macFUSE) mount adapters are compiled on their
-platforms and exercised in CI where a mount is possible. What is not done yet is
+FUSE3 mount, WASM plugin host, CLI, SDK and Qt UI are implemented and tested.
+The Linux FUSE mount is exercised against a real mount in CI; the Windows and
+macOS mount backends are not compiled yet (see `docs/deviations.md`). What is not done yet is
 listed honestly in [`docs/deviations.md`](docs/deviations.md) — with numbers,
 not adjectives.
 
