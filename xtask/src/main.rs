@@ -433,40 +433,49 @@ fn secrets() -> Result<(), String> {
 }
 
 fn dco(range: Option<&str>) -> Result<(), String> {
-    // On a pull request GitHub checks out a synthetic merge commit; use the
-    // base the host reports, and never judge a commit nobody authored.
+    // On a pull request GitHub checks out a synthetic merge commit, and the
+    // base it reports may not be in the checkout. Try the narrowest range that
+    // resolves, then fall back to the branch, and never judge a commit nobody
+    // authored (a synthetic "Merge ..." commit).
     let base = std::env::var("GITHUB_BASE_SHA")
         .ok()
         .filter(|s| !s.is_empty());
-    let default_range = match &base {
-        Some(sha) => format!("{sha}..HEAD"),
-        None => "origin/main..HEAD".to_string(),
-    };
-    let range = range.unwrap_or(&default_range);
-    let out = Command::new("git")
-        .args(["rev-list", "--no-merges", range])
-        .current_dir(workspace_root())
-        .output();
-    let Ok(out) = out else {
-        println!("dco: not a git checkout, skipped");
-        return Ok(());
-    };
-    if !out.status.success() {
-        if base.is_none() && range != "HEAD" {
-            // No origin/main yet (first push): check every commit on the branch.
-            return dco(Some("HEAD"));
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(range) = range {
+        candidates.push(range.to_string());
+    } else {
+        if let Some(sha) = &base {
+            candidates.push(format!("{sha}..HEAD"));
         }
-        return Err(format!("dco: cannot resolve the range {range}"));
+        candidates.push("origin/main..HEAD".to_string());
+        candidates.push("HEAD".to_string());
     }
-    let shas: BTreeSet<String> = String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(str::to_string)
-        .collect();
+
+    let mut resolved: Option<String> = None;
+    for candidate in &candidates {
+        let out = Command::new("git")
+            .args(["rev-list", "--no-merges", candidate])
+            .current_dir(workspace_root())
+            .output();
+        match out {
+            Ok(out) if out.status.success() => {
+                resolved = Some(String::from_utf8_lossy(&out.stdout).into_owned());
+                break;
+            }
+            Ok(_) => continue,
+            Err(_) => {
+                println!("dco: not a git checkout, skipped");
+                return Ok(());
+            }
+        }
+    }
+    let Some(shas) = resolved else {
+        return Err(format!("dco: none of these ranges resolve: {candidates:?}"));
+    };
+
     let mut bad = Vec::new();
-    for sha in shas {
+    for sha in shas.lines().map(str::to_string) {
         let body = capture("git", &["log", "-1", "--format=%B", &sha])?;
-        // A synthetic merge commit ("Merge <sha> into <sha>") has no author
-        // sign-off and is not part of the change under review.
         if body.starts_with("Merge ") {
             continue;
         }
