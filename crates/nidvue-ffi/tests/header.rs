@@ -10,18 +10,25 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 fn exported_symbols() -> BTreeSet<String> {
-    let source = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")).unwrap();
+    let source =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs")).unwrap();
     let mut out = BTreeSet::new();
     for line in source.lines() {
         let line = line.trim();
         if let Some(rest) = line.strip_prefix("pub unsafe extern \"C\" fn ") {
-            let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
             if name.starts_with("nidvue_") {
                 out.insert(name);
             }
         }
         if let Some(rest) = line.strip_prefix("pub extern \"C\" fn ") {
-            let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
             if name.starts_with("nidvue_") {
                 out.insert(name);
             }
@@ -32,7 +39,8 @@ fn exported_symbols() -> BTreeSet<String> {
 
 fn declared_symbols() -> BTreeSet<String> {
     let header =
-        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("include/nidvue.h")).unwrap();
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("include/nidvue.h"))
+            .unwrap();
     let mut out = BTreeSet::new();
     for line in header.lines() {
         let line = line.trim();
@@ -57,13 +65,20 @@ fn every_exported_symbol_is_declared_and_vice_versa() {
     assert!(!exported.is_empty());
     let missing_in_header: Vec<_> = exported.difference(&declared).cloned().collect();
     let missing_in_lib: Vec<_> = declared.difference(&exported).cloned().collect();
-    assert!(missing_in_header.is_empty(), "not in include/nidvue.h: {missing_in_header:?}");
-    assert!(missing_in_lib.is_empty(), "declared but not exported: {missing_in_lib:?}");
+    assert!(
+        missing_in_header.is_empty(),
+        "not in include/nidvue.h: {missing_in_header:?}"
+    );
+    assert!(
+        missing_in_lib.is_empty(),
+        "declared but not exported: {missing_in_lib:?}"
+    );
 }
 
 #[test]
 fn the_header_carries_its_licence() {
     let header =
-        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("include/nidvue.h")).unwrap();
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("include/nidvue.h"))
+            .unwrap();
     assert!(header.contains("SPDX-License-Identifier: AGPL-3.0-only"));
 }

@@ -76,7 +76,10 @@ impl JottaConfig {
     pub fn jfs_url(&self, path: &RemotePath) -> String {
         let suffix = path.as_str().trim_start_matches('/');
         if suffix.is_empty() {
-            format!("{}/{}/{}/{}", self.base_url, self.username, self.device, self.mountpoint)
+            format!(
+                "{}/{}/{}/{}",
+                self.base_url, self.username, self.device, self.mountpoint
+            )
         } else {
             format!(
                 "{}/{}/{}/{}{}",
@@ -145,7 +148,11 @@ pub type ProgressFn = Arc<dyn Fn(u64, u64) + Send + Sync>;
 enum Body {
     None,
     Json(serde_json::Value),
-    File { path: PathBuf, offset: u64, len: u64 },
+    File {
+        path: PathBuf,
+        offset: u64,
+        len: u64,
+    },
 }
 
 /// The Jottacloud client.
@@ -235,7 +242,10 @@ impl JottaClient {
             .run(key, || async {
                 let url = self.cfg.jfs_url(path);
                 let response = self.send(Method::GET, &url, Body::None).await?;
-                let body = response.text().await.map_err(|e| NidvueError::Network(e.to_string()))?;
+                let body = response
+                    .text()
+                    .await
+                    .map_err(|e| NidvueError::Network(e.to_string()))?;
                 xml::parse_entry(&body)
             })
             .await
@@ -287,7 +297,10 @@ impl JottaClient {
     pub async fn quota(&self) -> Result<Quota> {
         let url = "https://api.jottacloud.com/account/v1/customer";
         let response = self.send(Method::GET, url, Body::None).await?;
-        response.json().await.map_err(|e| NidvueError::Network(format!("quota body: {e}")))
+        response
+            .json()
+            .await
+            .map_err(|e| NidvueError::Network(format!("quota body: {e}")))
     }
 
     /// Download a file into an async writer, reporting progress.
@@ -313,7 +326,10 @@ impl JottaClient {
             let chunk = chunk.map_err(|e| NidvueError::Network(format!("download {path}: {e}")))?;
             tokio::io::AsyncWriteExt::write_all(writer, &chunk)
                 .await
-                .map_err(|e| NidvueError::Io { path: path.to_string(), source: e })?;
+                .map_err(|e| NidvueError::Io {
+                    path: path.to_string(),
+                    source: e,
+                })?;
             done += chunk.len() as u64;
             if let Some(cb) = &progress {
                 cb(done, total);
@@ -321,7 +337,10 @@ impl JottaClient {
         }
         tokio::io::AsyncWriteExt::flush(writer)
             .await
-            .map_err(|e| NidvueError::Io { path: path.to_string(), source: e })?;
+            .map_err(|e| NidvueError::Io {
+                path: path.to_string(),
+                source: e,
+            })?;
         if let Some(expected) = expected_size {
             if done != expected {
                 return Err(NidvueError::Verification(format!(
@@ -407,7 +426,9 @@ impl JottaClient {
                 );
             }
             let request = self.with_body(request, body).await?;
-            let response = self.execute(request, Method::POST, &allocated.upload_url).await?;
+            let response = self
+                .execute(request, Method::POST, &allocated.upload_url)
+                .await?;
             if let Some(cb) = &progress {
                 cb(size, size);
             }
@@ -436,7 +457,12 @@ impl JottaClient {
     /// Check that the remote entry matches an expected size and MD5.
     pub async fn verify(&self, remote: &RemotePath, size: u64, md5: &str) -> Result<bool> {
         let entry = self.stat(remote).await?;
-        Ok(entry.size == size && entry.md5.as_deref().map(|m| digests_match(m, md5)).unwrap_or(true))
+        Ok(entry.size == size
+            && entry
+                .md5
+                .as_deref()
+                .map(|m| digests_match(m, md5))
+                .unwrap_or(true))
     }
 
     /// Whether a path exists (404 is `false`, not an error).
@@ -457,7 +483,11 @@ impl JottaClient {
         }
     }
 
-    async fn with_body(&self, request: reqwest::RequestBuilder, body: Body) -> Result<reqwest::RequestBuilder> {
+    async fn with_body(
+        &self,
+        request: reqwest::RequestBuilder,
+        body: Body,
+    ) -> Result<reqwest::RequestBuilder> {
         Ok(match body {
             Body::None => request,
             Body::Json(value) => request.json(&value),
@@ -500,9 +530,9 @@ impl JottaClient {
             let token = self.auth.access_token().await?;
             let rb = match pending.as_ref().and_then(|r| r.try_clone()) {
                 Some(clone) => clone,
-                None => pending
-                    .take()
-                    .ok_or_else(|| NidvueError::Internal("request body cannot be retried".into()))?,
+                None => pending.take().ok_or_else(|| {
+                    NidvueError::Internal("request body cannot be retried".into())
+                })?,
             };
             let rb = rb.bearer_auth(token.expose());
             let outcome = tokio::select! {

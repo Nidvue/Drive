@@ -26,6 +26,8 @@ pub mod scanner;
 pub mod scheduler;
 
 pub use engine::{scan_remote, spawn_watcher, RecoveryReport, SyncEngine, SyncReport};
-pub use reconciler::{conflict_copy_path, decide_conflict, plan, plan_path, Action, ConflictDecision};
+pub use reconciler::{
+    conflict_copy_path, decide_conflict, plan, plan_path, Action, ConflictDecision,
+};
 pub use scanner::{scan_local, PathFilter};
 pub use scheduler::{Bandwidth, PathLocks, Scheduler};

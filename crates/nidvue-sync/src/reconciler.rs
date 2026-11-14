@@ -113,8 +113,14 @@ pub fn plan_path(
     if kind == EntryKind::Dir {
         return match (local, remote, baseline) {
             (Some(_), Some(_), _) => Action::Skip { path: path.clone() },
-            (Some(_), None, None) => Action::CreateRemote { path: path.clone(), local: Version::default() },
-            (None, Some(_), None) => Action::CreateLocal { path: path.clone(), remote: Version::default() },
+            (Some(_), None, None) => Action::CreateRemote {
+                path: path.clone(),
+                local: Version::default(),
+            },
+            (None, Some(_), None) => Action::CreateLocal {
+                path: path.clone(),
+                remote: Version::default(),
+            },
             (Some(_), None, Some(_)) => Action::DeleteRemote { path: path.clone() },
             (None, Some(_), Some(_)) => Action::DeleteLocal { path: path.clone() },
             (None, None, Some(_)) => Action::Forget { path: path.clone() },
@@ -137,18 +143,34 @@ pub fn plan_path(
 
     match (local, remote, baseline) {
         // Only one side has it and there is no baseline: a creation.
-        (Some(l), None, None) => Action::CreateRemote { path: path.clone(), local: l.clone() },
-        (None, Some(r), None) => Action::CreateLocal { path: path.clone(), remote: r.clone() },
+        (Some(l), None, None) => Action::CreateRemote {
+            path: path.clone(),
+            local: l.clone(),
+        },
+        (None, Some(r), None) => Action::CreateLocal {
+            path: path.clone(),
+            remote: r.clone(),
+        },
         // Both sides have it.
         (Some(l), Some(r), _) => {
             if !local_changed && !remote_changed {
                 Action::Skip { path: path.clone() }
             } else if local_changed && !remote_changed {
-                Action::Upload { path: path.clone(), local: l.clone() }
+                Action::Upload {
+                    path: path.clone(),
+                    local: l.clone(),
+                }
             } else if !local_changed && remote_changed {
-                Action::Download { path: path.clone(), remote: r.clone() }
+                Action::Download {
+                    path: path.clone(),
+                    remote: r.clone(),
+                }
             } else if l.content_differs(r) {
-                Action::Conflict { path: path.clone(), local: l.clone(), remote: r.clone() }
+                Action::Conflict {
+                    path: path.clone(),
+                    local: l.clone(),
+                    remote: r.clone(),
+                }
             } else {
                 // Both changed to the same content: no conflict, just record it.
                 Action::Skip { path: path.clone() }
@@ -226,7 +248,10 @@ pub fn decide_conflict(
         nidvue_core::types::ConflictPolicy::PreferLocal => Side::Local,
         nidvue_core::types::ConflictPolicy::PreferRemote => Side::Remote,
     };
-    ConflictDecision { keep, copy_to: conflict_copy_path(path, now_ms) }
+    ConflictDecision {
+        keep,
+        copy_to: conflict_copy_path(path, now_ms),
+    }
 }
 
 /// `<name> (conflict Nidvue YYYY-MM-DD HHMMSS)<ext>` beside the original.
@@ -254,7 +279,13 @@ mod tests {
     }
 
     fn baseline(local: Version, remote: Version) -> BaselineEntry {
-        BaselineEntry { path: p(), kind: EntryKind::File, local, remote, synced_at_ms: 0 }
+        BaselineEntry {
+            path: p(),
+            kind: EntryKind::File,
+            local,
+            remote,
+            synced_at_ms: 0,
+        }
     }
 
     #[test]
@@ -282,12 +313,24 @@ mod tests {
         ));
         // Both changed to different content.
         assert!(matches!(
-            plan_path(&p(), EntryKind::File, Some(&changed), Some(&v(b"three", 300)), Some(&b)),
+            plan_path(
+                &p(),
+                EntryKind::File,
+                Some(&changed),
+                Some(&v(b"three", 300)),
+                Some(&b)
+            ),
             Action::Conflict { .. }
         ));
         // Both changed to the same content: no conflict.
         assert!(matches!(
-            plan_path(&p(), EntryKind::File, Some(&changed), Some(&changed), Some(&b)),
+            plan_path(
+                &p(),
+                EntryKind::File,
+                Some(&changed),
+                Some(&changed),
+                Some(&b)
+            ),
             Action::Skip { .. }
         ));
         // Deletions.
@@ -346,10 +389,25 @@ mod tests {
 
     #[test]
     fn conflict_copies_keep_both_and_name_the_time() {
-        let d = decide_conflict(&p(), &v(b"a", 100), &v(b"b", 200), ConflictPolicy::KeepBoth, 0);
+        let d = decide_conflict(
+            &p(),
+            &v(b"a", 100),
+            &v(b"b", 200),
+            ConflictPolicy::KeepBoth,
+            0,
+        );
         assert_eq!(d.keep, Side::Remote);
-        assert_eq!(d.copy_to.as_str(), "/Docs/a (conflict Nidvue 1970-01-01 000000).txt");
-        let d = decide_conflict(&p(), &v(b"a", 100), &v(b"b", 200), ConflictPolicy::PreferLocal, 0);
+        assert_eq!(
+            d.copy_to.as_str(),
+            "/Docs/a (conflict Nidvue 1970-01-01 000000).txt"
+        );
+        let d = decide_conflict(
+            &p(),
+            &v(b"a", 100),
+            &v(b"b", 200),
+            ConflictPolicy::PreferLocal,
+            0,
+        );
         assert_eq!(d.keep, Side::Local);
     }
 
@@ -397,7 +455,11 @@ mod proptests {
     }
 
     /// Apply one action to the model, returning the surviving versions.
-    fn apply(action: &Action, local: &mut BTreeMap<String, Version>, remote: &mut BTreeMap<String, Version>) {
+    fn apply(
+        action: &Action,
+        local: &mut BTreeMap<String, Version>,
+        remote: &mut BTreeMap<String, Version>,
+    ) {
         let key = action.path().as_str().to_string();
         match action {
             Action::CreateLocal { remote: r, .. } => {

@@ -26,7 +26,9 @@ impl PathLocks {
     pub async fn lock(&self, path: &str) -> OwnedMutexGuard<()> {
         let lock = {
             let mut map = self.locks.lock().unwrap_or_else(|e| e.into_inner());
-            map.entry(path.to_string()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+            map.entry(path.to_string())
+                .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+                .clone()
         };
         lock.lock_owned().await
     }
@@ -182,7 +184,11 @@ mod tests {
         bw.account(500).await; // within the first second
         let start = Instant::now();
         bw.account(1_000).await;
-        assert!(start.elapsed() >= Duration::from_millis(400), "{:?}", start.elapsed());
+        assert!(
+            start.elapsed() >= Duration::from_millis(400),
+            "{:?}",
+            start.elapsed()
+        );
     }
 
     #[tokio::test]

@@ -80,7 +80,9 @@ pub fn parse_jotta_time(input: &str) -> Result<i64> {
     let offset_secs = if let Some(stripped) = rest.strip_suffix('Z') {
         rest = stripped.to_string();
         0
-    } else if rest.len() >= 5 && (rest.as_bytes()[rest.len() - 5] == b'+' || rest.as_bytes()[rest.len() - 5] == b'-') {
+    } else if rest.len() >= 5
+        && (rest.as_bytes()[rest.len() - 5] == b'+' || rest.as_bytes()[rest.len() - 5] == b'-')
+    {
         let off = rest.split_off(rest.len() - 5);
         let sign = if off.starts_with('-') { -1i64 } else { 1i64 };
         let hh: i64 = off[1..3]

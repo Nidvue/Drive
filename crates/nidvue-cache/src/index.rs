@@ -129,7 +129,9 @@ impl Index {
         let conn = Connection::open(path)
             .map_err(|e| NidvueError::Index(format!("{}: {e}", path.display())))?;
         Self::configure(&conn)?;
-        let index = Self { conn: std::sync::Mutex::new(conn) };
+        let index = Self {
+            conn: std::sync::Mutex::new(conn),
+        };
         index.migrate()?;
         Ok(index)
     }
@@ -138,7 +140,9 @@ impl Index {
     pub fn in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory().map_err(|e| NidvueError::Index(e.to_string()))?;
         Self::configure(&conn)?;
-        let index = Self { conn: std::sync::Mutex::new(conn) };
+        let index = Self {
+            conn: std::sync::Mutex::new(conn),
+        };
         index.migrate()?;
         Ok(index)
     }
@@ -283,7 +287,11 @@ impl Index {
     /// pattern cannot use the index and turns a 1000-entry listing into a
     /// million-row scan (measured: 49 ms vs 40 µs).
     pub fn list_dir(&self, path: &str) -> Result<Vec<EntryRow>> {
-        let prefix = if path == "/" { "/".to_string() } else { format!("{path}/") };
+        let prefix = if path == "/" {
+            "/".to_string()
+        } else {
+            format!("{path}/")
+        };
         let upper = prefix_upper_bound(&prefix);
         let conn = self.conn();
         let mut stmt = conn
@@ -294,7 +302,10 @@ impl Index {
             )
             .map_err(|e| NidvueError::Index(e.to_string()))?;
         let rows = stmt
-            .query_map(params![prefix, upper, prefix.trim_end_matches('/')], row_to_entry)
+            .query_map(
+                params![prefix, upper, prefix.trim_end_matches('/')],
+                row_to_entry,
+            )
             .map_err(|e| NidvueError::Index(e.to_string()))?;
         let mut out = Vec::new();
         let mut seen_dirs = std::collections::BTreeSet::new();
@@ -569,7 +580,10 @@ impl Index {
     /// Move a journal row to `applied` or `commit`.
     pub fn journal_mark(&self, id: i64, state: &str) -> Result<()> {
         self.conn()
-            .execute("UPDATE journal SET state=?2 WHERE id=?1", params![id, state])
+            .execute(
+                "UPDATE journal SET state=?2 WHERE id=?1",
+                params![id, state],
+            )
             .map_err(|e| NidvueError::Journal(format!("mark {id}: {e}")))?;
         Ok(())
     }
@@ -652,7 +666,9 @@ impl Index {
              FROM conflicts ORDER BY detected_ms DESC"
         };
         let conn = self.conn();
-        let mut stmt = conn.prepare(sql).map_err(|e| NidvueError::Index(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| NidvueError::Index(e.to_string()))?;
         let rows = stmt
             .query_map([], row_to_conflict)
             .map_err(|e| NidvueError::Index(e.to_string()))?;
@@ -674,7 +690,12 @@ impl Index {
     // ---- scan cursor and meta -----------------------------------------
 
     /// Record that a remote root was scanned.
-    pub fn set_scan_cursor(&self, root: &str, last_scan_ms: i64, last_path: Option<&str>) -> Result<()> {
+    pub fn set_scan_cursor(
+        &self,
+        root: &str,
+        last_scan_ms: i64,
+        last_path: Option<&str>,
+    ) -> Result<()> {
         self.conn()
             .execute(
                 "INSERT INTO scan_cursor(root, last_scan_ms, last_path) VALUES (?1, ?2, ?3)
@@ -688,9 +709,11 @@ impl Index {
     /// The last scan time for a root.
     pub fn scan_cursor(&self, root: &str) -> Result<Option<i64>> {
         self.conn()
-            .query_row("SELECT last_scan_ms FROM scan_cursor WHERE root=?1", params![root], |r| {
-                r.get::<_, i64>(0)
-            })
+            .query_row(
+                "SELECT last_scan_ms FROM scan_cursor WHERE root=?1",
+                params![root],
+                |r| r.get::<_, i64>(0),
+            )
             .optional()
             .map_err(|e| NidvueError::Index(format!("scan cursor {root}: {e}")))
     }
@@ -698,7 +721,9 @@ impl Index {
     /// A meta value.
     pub fn meta(&self, key: &str) -> Result<Option<String>> {
         self.conn()
-            .query_row("SELECT value FROM meta WHERE key=?1", params![key], |r| r.get::<_, String>(0))
+            .query_row("SELECT value FROM meta WHERE key=?1", params![key], |r| {
+                r.get::<_, String>(0)
+            })
             .optional()
             .map_err(|e| NidvueError::Index(format!("meta {key}: {e}")))
     }
@@ -835,7 +860,12 @@ mod tests {
         for p in ["/a/one", "/a/two", "/a/sub/three", "/b/other"] {
             idx.upsert_entry(&file(p, 1, &"b".repeat(64))).unwrap();
         }
-        let names: Vec<String> = idx.list_dir("/a").unwrap().into_iter().map(|e| e.path).collect();
+        let names: Vec<String> = idx
+            .list_dir("/a")
+            .unwrap()
+            .into_iter()
+            .map(|e| e.path)
+            .collect();
         assert_eq!(names, vec!["/a/one", "/a/sub", "/a/two"]);
         assert_eq!(idx.list_dir("/a/sub").unwrap().len(), 1);
         assert_eq!(idx.list_dir("/a/sub").unwrap()[0].path, "/a/sub/three");
@@ -848,7 +878,8 @@ mod tests {
         let idx = Index::in_memory().unwrap();
         let local = Version::new(1, 10, Some(Hash::of(b"a")));
         let remote = Version::new(1, 20, Some(Hash::of(b"a")));
-        idx.set_baseline("/a", EntryKind::File, &local, &remote, 30).unwrap();
+        idx.set_baseline("/a", EntryKind::File, &local, &remote, 30)
+            .unwrap();
         let b = idx.baseline("/a").unwrap().unwrap();
         assert_eq!(b.local.size, 1);
         assert_eq!(b.remote.mtime_ms, 20);
@@ -903,8 +934,11 @@ mod tests {
         let path = dir.path().join("index.sqlite");
         {
             let idx = Index::open(&path).unwrap();
-            let id = idx.journal_append("op-1", "/a", "upload", Some("h"), Some(3), None).unwrap();
-            idx.journal_append("op-2", "/b", "download", None, None, Some("{}")).unwrap();
+            let id = idx
+                .journal_append("op-1", "/a", "upload", Some("h"), Some(3), None)
+                .unwrap();
+            idx.journal_append("op-2", "/b", "download", None, None, Some("{}"))
+                .unwrap();
             idx.journal_mark(id, "applied").unwrap();
             assert_eq!(idx.journal_pending().unwrap().len(), 2);
         }
@@ -934,7 +968,8 @@ mod tests {
         idx.add_conflict(&row("c2", true)).unwrap();
         assert_eq!(idx.conflicts(true).unwrap().len(), 1);
         assert_eq!(idx.conflicts(false).unwrap().len(), 2);
-        idx.resolve_conflict("c1", ConflictPolicy::PreferRemote).unwrap();
+        idx.resolve_conflict("c1", ConflictPolicy::PreferRemote)
+            .unwrap();
         assert!(idx.conflicts(true).unwrap().is_empty());
     }
 
@@ -944,7 +979,8 @@ mod tests {
         assert!(idx.meta("k").unwrap().is_none());
         idx.set_meta("k", "v").unwrap();
         assert_eq!(idx.meta("k").unwrap().as_deref(), Some("v"));
-        idx.set_scan_cursor("/Archive", 42, Some("/Archive/x")).unwrap();
+        idx.set_scan_cursor("/Archive", 42, Some("/Archive/x"))
+            .unwrap();
         assert_eq!(idx.scan_cursor("/Archive").unwrap(), Some(42));
     }
 }

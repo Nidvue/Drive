@@ -65,7 +65,12 @@ pub trait Vfs: Send + Sync {
     async fn getattr(&self, path: &RemotePath) -> Result<EntryMeta>;
 
     /// One page of a directory listing, sorted by name.
-    async fn readdir(&self, path: &RemotePath, offset: usize, limit: usize) -> Result<Vec<EntryMeta>>;
+    async fn readdir(
+        &self,
+        path: &RemotePath,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<EntryMeta>>;
 
     /// Read `size` bytes at `offset`. A short read means end of file.
     async fn read(&self, path: &RemotePath, offset: u64, size: usize) -> Result<Vec<u8>>;
@@ -167,7 +172,8 @@ impl Spool {
     }
 
     fn file_for(&self, path: &RemotePath) -> PathBuf {
-        self.dir.join(format!("{}.data", Hash::of(path.as_str().as_bytes())))
+        self.dir
+            .join(format!("{}.data", Hash::of(path.as_str().as_bytes())))
     }
 
     /// The spool file for a path, if one exists.
@@ -190,23 +196,36 @@ impl Spool {
         file.seek(std::io::SeekFrom::Start(offset))
             .await
             .map_err(|e| NidvueError::io(&file_path, e))?;
-        file.write_all(data).await.map_err(|e| NidvueError::io(&file_path, e))?;
-        file.sync_all().await.map_err(|e| NidvueError::io(&file_path, e))?;
-        let len = file.metadata().await.map_err(|e| NidvueError::io(&file_path, e))?.len();
+        file.write_all(data)
+            .await
+            .map_err(|e| NidvueError::io(&file_path, e))?;
+        file.sync_all()
+            .await
+            .map_err(|e| NidvueError::io(&file_path, e))?;
+        let len = file
+            .metadata()
+            .await
+            .map_err(|e| NidvueError::io(&file_path, e))?
+            .len();
         Ok(len)
     }
 
     /// Read a range from a spooled file.
     pub async fn read_at(&self, path: &RemotePath, offset: u64, size: usize) -> Result<Vec<u8>> {
         let file_path = self.file_for(path);
-        let mut file = tokio::fs::File::open(&file_path).await.map_err(|e| NidvueError::io(&file_path, e))?;
+        let mut file = tokio::fs::File::open(&file_path)
+            .await
+            .map_err(|e| NidvueError::io(&file_path, e))?;
         file.seek(std::io::SeekFrom::Start(offset))
             .await
             .map_err(|e| NidvueError::io(&file_path, e))?;
         let mut buf = vec![0u8; size];
         let mut filled = 0usize;
         while filled < size {
-            let n = file.read(&mut buf[filled..]).await.map_err(|e| NidvueError::io(&file_path, e))?;
+            let n = file
+                .read(&mut buf[filled..])
+                .await
+                .map_err(|e| NidvueError::io(&file_path, e))?;
             if n == 0 {
                 break;
             }
@@ -231,7 +250,9 @@ impl Spool {
             .open(&file_path)
             .await
             .map_err(|e| NidvueError::io(&file_path, e))?;
-        file.set_len(size).await.map_err(|e| NidvueError::io(&file_path, e))
+        file.set_len(size)
+            .await
+            .map_err(|e| NidvueError::io(&file_path, e))
     }
 
     /// Remove a spooled file.
@@ -270,7 +291,11 @@ pub struct EngineVfs {
 
 impl EngineVfs {
     /// Build the filesystem over a remote, a cache and a spool directory.
-    pub fn new(remote: Arc<dyn Remote>, cache: Arc<Cache>, spool_dir: impl Into<PathBuf>) -> Result<Self> {
+    pub fn new(
+        remote: Arc<dyn Remote>,
+        cache: Arc<Cache>,
+        spool_dir: impl Into<PathBuf>,
+    ) -> Result<Self> {
         let spool = Spool::open(spool_dir)?;
         Ok(Self {
             remote,
@@ -322,7 +347,9 @@ impl EngineVfs {
 
     async fn lock_for(&self, path: &str) -> Arc<Mutex<()>> {
         let mut map = self.locks.lock().await;
-        map.entry(path.to_string()).or_insert_with(|| Arc::new(Mutex::new(()))).clone()
+        map.entry(path.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 
     fn entry_to_meta(&self, row: &EntryRow) -> EntryMeta {
@@ -381,7 +408,10 @@ impl EngineVfs {
                 }
             }
         }
-        let tmp = self.spool.dir.join(format!(".fetch-{}", CorrelationId::new("dl")));
+        let tmp = self
+            .spool
+            .dir
+            .join(format!(".fetch-{}", CorrelationId::new("dl")));
         let result = async {
             let mut file = tokio::fs::File::create(&tmp)
                 .await
@@ -390,7 +420,9 @@ impl EngineVfs {
                 .remote
                 .remote_download(&self.absolute(path), &mut file, Some(row.size))
                 .await?;
-            file.sync_all().await.map_err(|e| NidvueError::io(&tmp, e))?;
+            file.sync_all()
+                .await
+                .map_err(|e| NidvueError::io(&tmp, e))?;
             drop(file);
             if size != row.size {
                 return Err(NidvueError::Verification(format!(
@@ -400,7 +432,9 @@ impl EngineVfs {
             }
             let (hash, stored) = self.cache.put_file(&tmp)?;
             if stored != row.size {
-                return Err(NidvueError::Verification(format!("{path}: cache stored {stored} bytes")));
+                return Err(NidvueError::Verification(format!(
+                    "{path}: cache stored {stored} bytes"
+                )));
             }
             Ok(hash)
         }
@@ -423,7 +457,12 @@ impl Vfs for EngineVfs {
         Ok(self.entry_to_meta(&row))
     }
 
-    async fn readdir(&self, path: &RemotePath, offset: usize, limit: usize) -> Result<Vec<EntryMeta>> {
+    async fn readdir(
+        &self,
+        path: &RemotePath,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<EntryMeta>> {
         let abs = self.absolute(path);
         let mut children = self.index().list_dir(abs.as_str())?;
         let stale = self
@@ -466,7 +505,9 @@ impl Vfs for EngineVfs {
                     self.index().set_scan_cursor(abs.as_str(), now_ms(), None)?;
                     children = self.index().list_dir(abs.as_str())?;
                 }
-                Err(NidvueError::NotFound(_)) => return Err(NidvueError::NotFound(abs.to_string())),
+                Err(NidvueError::NotFound(_)) => {
+                    return Err(NidvueError::NotFound(abs.to_string()))
+                }
                 Err(e) => {
                     warn!(path = %abs, error = %e, "listing failed; serving cached directory");
                 }
@@ -501,10 +542,11 @@ impl Vfs for EngineVfs {
             let mut file = self.cache.open_read(&hash)?;
             tokio::task::spawn_blocking(move || {
                 use std::io::{Read, Seek, SeekFrom};
-                file.seek(SeekFrom::Start(offset)).map_err(|e| NidvueError::Io {
-                    path: path_display.clone(),
-                    source: e,
-                })?;
+                file.seek(SeekFrom::Start(offset))
+                    .map_err(|e| NidvueError::Io {
+                        path: path_display.clone(),
+                        source: e,
+                    })?;
                 let mut buf = vec![0u8; size];
                 let mut filled = 0usize;
                 while filled < size {
@@ -563,7 +605,9 @@ impl Vfs for EngineVfs {
             return Err(NidvueError::Mount("read-only filesystem".into()));
         }
         let abs = self.absolute(path);
-        let id = self.next_handle.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = self
+            .next_handle
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         match kind {
             EntryKind::Dir => {
                 self.index().journal_append(
@@ -605,7 +649,12 @@ impl Vfs for EngineVfs {
                 })?;
             }
         }
-        Ok(Handle { id, path: abs, writable: true, hash: None })
+        Ok(Handle {
+            id,
+            path: abs,
+            writable: true,
+            hash: None,
+        })
     }
 
     async fn unlink(&self, path: &RemotePath) -> Result<()> {
@@ -641,7 +690,11 @@ impl Vfs for EngineVfs {
         let a = self.absolute(from);
         let b = self.absolute(to);
         // Deterministic lock order prevents two renames deadlocking.
-        let (first, second) = if a.as_str() <= b.as_str() { (a.clone(), b.clone()) } else { (b.clone(), a.clone()) };
+        let (first, second) = if a.as_str() <= b.as_str() {
+            (a.clone(), b.clone())
+        } else {
+            (b.clone(), a.clone())
+        };
         let l1 = self.lock_for(first.as_str()).await;
         let g1 = l1.lock().await;
         let l2 = self.lock_for(second.as_str()).await;
@@ -664,14 +717,20 @@ impl Vfs for EngineVfs {
             self.spool.remove(&a)?;
         }
         self.index().delete_entry(a.as_str())?;
-        self.index().upsert_entry(&EntryRow { path: b.as_str().into(), ..row })?;
+        self.index().upsert_entry(&EntryRow {
+            path: b.as_str().into(),
+            ..row
+        })?;
         // Re-point children for a directory rename.
         if row.kind == EntryKind::Dir {
             for child in self.index().all_entries()? {
                 if let Some(rest) = child.path.strip_prefix(&format!("{}/", a.as_str())) {
                     let new_path = format!("{}/{rest}", b.as_str());
                     self.index().delete_entry(&child.path)?;
-                    self.index().upsert_entry(&EntryRow { path: new_path, ..child })?;
+                    self.index().upsert_entry(&EntryRow {
+                        path: new_path,
+                        ..child
+                    })?;
                 }
             }
         }
@@ -719,7 +778,11 @@ impl Vfs for EngineVfs {
         Ok(FsStats {
             total_bytes: self.cache.config().max_size_bytes,
             used_bytes: usage.bytes,
-            free_bytes: self.cache.config().max_size_bytes.saturating_sub(usage.bytes),
+            free_bytes: self
+                .cache
+                .config()
+                .max_size_bytes
+                .saturating_sub(usage.bytes),
         })
     }
 
@@ -730,7 +793,9 @@ impl Vfs for EngineVfs {
             let file = tokio::fs::File::open(&spool_path)
                 .await
                 .map_err(|e| NidvueError::io(&spool_path, e))?;
-            file.sync_all().await.map_err(|e| NidvueError::io(&spool_path, e))?;
+            file.sync_all()
+                .await
+                .map_err(|e| NidvueError::io(&spool_path, e))?;
         }
         Ok(())
     }
@@ -741,8 +806,12 @@ fn join_remote(base: &RemotePath, relative: &str) -> RemotePath {
     if trimmed.is_empty() {
         return base.clone();
     }
-    RemotePath::parse(&format!("{}/{}", base.as_str().trim_end_matches('/'), trimmed))
-        .unwrap_or_else(|_| base.clone())
+    RemotePath::parse(&format!(
+        "{}/{}",
+        base.as_str().trim_end_matches('/'),
+        trimmed
+    ))
+    .unwrap_or_else(|_| base.clone())
 }
 
 /// Upload every spooled file through the remote, clearing the dirty flag on
@@ -754,7 +823,9 @@ pub async fn drain_spool(vfs: &EngineVfs, limit: usize) -> Result<Vec<RemotePath
             continue;
         }
         let path = RemotePath::parse(&row.path)?;
-        let Some(spool_path) = vfs.spool.path_of(&path) else { continue };
+        let Some(spool_path) = vfs.spool.path_of(&path) else {
+            continue;
+        };
         if let Some(parent) = path.parent() {
             vfs.remote.remote_mkdir(&parent).await?;
         }
@@ -827,12 +898,23 @@ impl Vfs for MemoryVfs {
         }
     }
 
-    async fn readdir(&self, path: &RemotePath, offset: usize, limit: usize) -> Result<Vec<EntryMeta>> {
+    async fn readdir(
+        &self,
+        path: &RemotePath,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<EntryMeta>> {
         let files = self.files.lock().await;
-        let prefix = if path.is_root() { "/".to_string() } else { format!("{path}/") };
+        let prefix = if path.is_root() {
+            "/".to_string()
+        } else {
+            format!("{path}/")
+        };
         let mut out: Vec<EntryMeta> = Vec::new();
         for (p, (kind, data, mtime)) in files.iter() {
-            let Some(rest) = p.strip_prefix(&prefix) else { continue };
+            let Some(rest) = p.strip_prefix(&prefix) else {
+                continue;
+            };
             if rest.is_empty() || rest.contains('/') {
                 continue;
             }
@@ -849,7 +931,9 @@ impl Vfs for MemoryVfs {
 
     async fn read(&self, path: &RemotePath, offset: u64, size: usize) -> Result<Vec<u8>> {
         let files = self.files.lock().await;
-        let (_, data, _) = files.get(path.as_str()).ok_or_else(|| NidvueError::NotFound(path.to_string()))?;
+        let (_, data, _) = files
+            .get(path.as_str())
+            .ok_or_else(|| NidvueError::NotFound(path.to_string()))?;
         let start = (offset as usize).min(data.len());
         let end = (start + size).min(data.len());
         Ok(data[start..end].to_vec())
@@ -881,7 +965,12 @@ impl Vfs for MemoryVfs {
             return Err(NidvueError::AlreadyExists(path.to_string()));
         }
         files.insert(path.as_str().to_string(), (kind, Vec::new(), now_ms()));
-        Ok(Handle { id: 1, path: path.clone(), writable: true, hash: None })
+        Ok(Handle {
+            id: 1,
+            path: path.clone(),
+            writable: true,
+            hash: None,
+        })
     }
 
     async fn unlink(&self, path: &RemotePath) -> Result<()> {
@@ -900,7 +989,9 @@ impl Vfs for MemoryVfs {
             return Err(NidvueError::Mount("read-only filesystem".into()));
         }
         let mut files = self.files.lock().await;
-        let entry = files.remove(from.as_str()).ok_or_else(|| NidvueError::NotFound(from.to_string()))?;
+        let entry = files
+            .remove(from.as_str())
+            .ok_or_else(|| NidvueError::NotFound(from.to_string()))?;
         files.insert(to.as_str().to_string(), entry);
         Ok(())
     }
@@ -910,13 +1001,19 @@ impl Vfs for MemoryVfs {
             return Err(NidvueError::Mount("read-only filesystem".into()));
         }
         let mut files = self.files.lock().await;
-        let entry = files.get_mut(path.as_str()).ok_or_else(|| NidvueError::NotFound(path.to_string()))?;
+        let entry = files
+            .get_mut(path.as_str())
+            .ok_or_else(|| NidvueError::NotFound(path.to_string()))?;
         entry.1.resize(size as usize, 0);
         Ok(())
     }
 
     async fn statfs(&self) -> Result<FsStats> {
-        Ok(FsStats { total_bytes: 1 << 30, used_bytes: 0, free_bytes: 1 << 30 })
+        Ok(FsStats {
+            total_bytes: 1 << 30,
+            used_bytes: 0,
+            free_bytes: 1 << 30,
+        })
     }
 
     async fn flush(&self, _path: &RemotePath) -> Result<()> {
@@ -930,7 +1027,9 @@ mod tests {
 
     async fn vfs() -> MemoryVfs {
         let vfs = MemoryVfs::new();
-        vfs.create(&RemotePath::parse("/a").unwrap(), EntryKind::Dir).await.unwrap();
+        vfs.create(&RemotePath::parse("/a").unwrap(), EntryKind::Dir)
+            .await
+            .unwrap();
         vfs
     }
 
@@ -954,10 +1053,16 @@ mod tests {
             let p = RemotePath::parse(&format!("/a/{name}")).unwrap();
             vfs.create(&p, EntryKind::File).await.unwrap();
         }
-        let page = vfs.readdir(&RemotePath::parse("/a").unwrap(), 0, 2).await.unwrap();
+        let page = vfs
+            .readdir(&RemotePath::parse("/a").unwrap(), 0, 2)
+            .await
+            .unwrap();
         assert_eq!(page.len(), 2);
         assert_eq!(page[0].path.as_str(), "/a/a");
-        let page2 = vfs.readdir(&RemotePath::parse("/a").unwrap(), 2, 2).await.unwrap();
+        let page2 = vfs
+            .readdir(&RemotePath::parse("/a").unwrap(), 2, 2)
+            .await
+            .unwrap();
         assert_eq!(page2.len(), 1);
         assert_eq!(page2[0].path.as_str(), "/a/c");
     }
@@ -980,8 +1085,14 @@ mod tests {
     async fn read_only_refuses_mutation() {
         let vfs = MemoryVfs::new().read_only();
         let p = RemotePath::parse("/f").unwrap();
-        assert!(matches!(vfs.write(&p, 0, b"x").await, Err(NidvueError::Mount(_))));
-        assert!(matches!(vfs.create(&p, EntryKind::File).await, Err(NidvueError::Mount(_))));
+        assert!(matches!(
+            vfs.write(&p, 0, b"x").await,
+            Err(NidvueError::Mount(_))
+        ));
+        assert!(matches!(
+            vfs.create(&p, EntryKind::File).await,
+            Err(NidvueError::Mount(_))
+        ));
     }
 
     #[tokio::test]

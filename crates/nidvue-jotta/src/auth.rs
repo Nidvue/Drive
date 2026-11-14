@@ -113,7 +113,12 @@ pub struct AuthManager {
 impl AuthManager {
     /// Build an auth manager over an HTTP client and a credential store.
     pub fn new(http: reqwest::Client, store: Arc<dyn SecretStore>) -> Self {
-        Self { http, store, token: Mutex::new(None), refresh_lock: Mutex::new(()) }
+        Self {
+            http,
+            store,
+            token: Mutex::new(None),
+            refresh_lock: Mutex::new(()),
+        }
     }
 
     /// Exchange a Personal Login Token and persist the result.
@@ -171,7 +176,9 @@ impl AuthManager {
 
     /// Load a persisted token. Returns false when none is stored.
     pub async fn restore(&self) -> Result<bool> {
-        let Some(raw) = self.store.load(STORE_KEY)? else { return Ok(false) };
+        let Some(raw) = self.store.load(STORE_KEY)? else {
+            return Ok(false);
+        };
         let set: TokenSet = serde_json::from_str(raw.expose())
             .map_err(|e| NidvueError::Secret(format!("stored token is corrupt: {e}")))?;
         *self.token.lock().await = Some(set);
@@ -250,7 +257,9 @@ impl AuthManager {
         }
         let current = {
             let guard = self.token.lock().await;
-            guard.clone().ok_or_else(|| NidvueError::Auth("not logged in".into()))?
+            guard
+                .clone()
+                .ok_or_else(|| NidvueError::Auth("not logged in".into()))?
         };
         let refresh_token = current
             .refresh_token

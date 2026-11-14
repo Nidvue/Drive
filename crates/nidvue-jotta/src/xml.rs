@@ -129,11 +129,16 @@ impl Node {
         if let Some(v) = self.attrs.get(name) {
             return Some(v);
         }
-        self.child(name).map(|c| c.text.trim()).filter(|s| !s.is_empty())
+        self.child(name)
+            .map(|c| c.text.trim())
+            .filter(|s| !s.is_empty())
     }
 
     fn child_text(&self, parent: &str, name: &str) -> Option<&str> {
-        self.child(parent)?.child(name).map(|c| c.text.trim()).filter(|s| !s.is_empty())
+        self.child(parent)?
+            .child(name)
+            .map(|c| c.text.trim())
+            .filter(|s| !s.is_empty())
     }
 }
 
@@ -159,9 +164,13 @@ fn unescape(input: &str) -> String {
             "quot" => Some('"'),
             "apos" => Some('\''),
             _ if entity.starts_with("#x") || entity.starts_with("#X") => {
-                u32::from_str_radix(&entity[2..], 16).ok().and_then(char::from_u32)
+                u32::from_str_radix(&entity[2..], 16)
+                    .ok()
+                    .and_then(char::from_u32)
             }
-            _ if entity.starts_with('#') => entity[1..].parse::<u32>().ok().and_then(char::from_u32),
+            _ if entity.starts_with('#') => {
+                entity[1..].parse::<u32>().ok().and_then(char::from_u32)
+            }
             _ => None,
         };
         match replacement {
@@ -175,7 +184,10 @@ fn unescape(input: &str) -> String {
 }
 
 fn malformed(detail: impl std::fmt::Display) -> NidvueError {
-    NidvueError::Server { status: 0, message: format!("malformed JFS XML: {detail}") }
+    NidvueError::Server {
+        status: 0,
+        message: format!("malformed JFS XML: {detail}"),
+    }
 }
 
 fn owned_attrs(e: &BytesStart<'_>) -> BTreeMap<String, String> {
@@ -196,7 +208,11 @@ fn read_node<R: BufRead>(
     name: String,
     attrs: BTreeMap<String, String>,
 ) -> Result<Node> {
-    let mut root = Node { name, attrs, ..Default::default() };
+    let mut root = Node {
+        name,
+        attrs,
+        ..Default::default()
+    };
     let mut stack: Vec<Node> = Vec::new();
     let mut buf = Vec::new();
     loop {
@@ -278,7 +294,11 @@ pub fn parse_list_stream_reader<R: BufRead>(input: R) -> Result<ListStream> {
                 let tag = e.local_name().as_ref().to_string();
                 let attrs = owned_attrs(&e);
                 if matches!(tag.as_str(), "file" | "folder" | "stats") {
-                    let node = Node { name: tag, attrs, ..Default::default() };
+                    let node = Node {
+                        name: tag,
+                        attrs,
+                        ..Default::default()
+                    };
                     absorb(&mut out, &node)?;
                 }
             }
@@ -304,7 +324,9 @@ fn absorb(out: &mut ListStream, node: &Node) -> Result<()> {
                     absorb(out, child)?;
                 }
             } else if let Some(path) = entry_path {
-                out.folders.push(RemoteFolder { path: path.trim_matches('/').to_string() });
+                out.folders.push(RemoteFolder {
+                    path: path.trim_matches('/').to_string(),
+                });
             }
         }
         "folders" | "files" => {
@@ -313,8 +335,15 @@ fn absorb(out: &mut ListStream, node: &Node) -> Result<()> {
             }
         }
         "stats" => {
-            let num = |k: &str| node.field(k).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
-            out.stats = Some(Stats { folders: num("folders"), files: num("files") });
+            let num = |k: &str| {
+                node.field(k)
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .unwrap_or(0)
+            };
+            out.stats = Some(Stats {
+                folders: num("folders"),
+                files: num("files"),
+            });
         }
         _ => {}
     }
@@ -338,7 +367,11 @@ fn file_from(node: &Node) -> Result<RemoteFile> {
         .field("size")
         .and_then(|v| v.parse::<u64>().ok())
         .ok_or_else(|| malformed("<file> without a numeric size"))?;
-    let time = |k: &str| node.field(k).and_then(|v| parse_jotta_time(v).ok()).unwrap_or(0);
+    let time = |k: &str| {
+        node.field(k)
+            .and_then(|v| parse_jotta_time(v).ok())
+            .unwrap_or(0)
+    };
     Ok(RemoteFile {
         path: raw_path,
         name,
@@ -417,15 +450,25 @@ pub fn parse_entry(xml: &str) -> Result<RemoteEntry> {
         .find(|n| n.name == "file" || n.name == "folder")
         .ok_or_else(|| malformed("no <file> or <folder> element"))?;
     let is_file = root.name == "file";
-    let name = root.field("name").or_else(|| root.field("filename")).unwrap_or("").to_string();
-    let path = root.field("path").unwrap_or("").trim_matches('/').to_string();
+    let name = root
+        .field("name")
+        .or_else(|| root.field("filename"))
+        .unwrap_or("")
+        .to_string();
+    let path = root
+        .field("path")
+        .unwrap_or("")
+        .trim_matches('/')
+        .to_string();
     let size = if is_file {
         root.child_text("currentRevision", "size")
             .or_else(|| root.field("size"))
             .and_then(|v| v.parse::<u64>().ok())
             .ok_or_else(|| malformed("<file> without a size"))?
     } else {
-        root.field("size").and_then(|v| v.parse::<u64>().ok()).unwrap_or(0)
+        root.field("size")
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0)
     };
     let time = |k: &str| {
         root.child_text("currentRevision", k)
@@ -438,12 +481,18 @@ pub fn parse_entry(xml: &str) -> Result<RemoteEntry> {
         .or_else(|| root.field("md5"))
         .map(|s| s.to_ascii_lowercase());
     Ok(RemoteEntry {
-        kind: if is_file { EntryKind::File } else { EntryKind::Dir },
+        kind: if is_file {
+            EntryKind::File
+        } else {
+            EntryKind::Dir
+        },
         name,
         path,
         size,
         md5,
-        state: root.child_text("currentRevision", "state").map(str::to_string),
+        state: root
+            .child_text("currentRevision", "state")
+            .map(str::to_string),
         modified_ms: time("modified"),
         created_ms: time("created"),
     })
@@ -453,7 +502,10 @@ pub fn parse_entry(xml: &str) -> Result<RemoteEntry> {
 pub fn parse_error(xml: &str) -> Option<(u16, String)> {
     let roots = parse_document(xml).ok()?;
     let root = roots.iter().find(|n| n.name == "error")?;
-    let code = root.child("code").and_then(|c| c.text.trim().parse::<u16>().ok()).unwrap_or(0);
+    let code = root
+        .child("code")
+        .and_then(|c| c.text.trim().parse::<u16>().ok())
+        .unwrap_or(0);
     let message = root
         .child("message")
         .map(|c| c.text.trim().to_string())
@@ -490,10 +542,19 @@ mod tests {
         assert!(!s.is_partial());
         assert_eq!(s.files[0].name, "a & b.jpg");
         assert_eq!(s.files[0].size, 12345);
-        assert_eq!(s.files[0].md5.as_deref(), Some("1e8a7b728ab678048df00075c9507158"));
+        assert_eq!(
+            s.files[0].md5.as_deref(),
+            Some("1e8a7b728ab678048df00075c9507158")
+        );
         assert_eq!(s.files[0].path, "Photos");
         assert!(s.files[0].modified_ms > 0);
-        assert_eq!(s.stats, Some(Stats { folders: 2, files: 2 }));
+        assert_eq!(
+            s.stats,
+            Some(Stats {
+                folders: 2,
+                files: 2
+            })
+        );
     }
 
     #[test]
@@ -552,7 +613,8 @@ mod tests {
 
     #[test]
     fn parses_directories() {
-        let xml = r#"<folder name="Photos"><path>/Jotta/Archive/Photos</path><size>0</size></folder>"#;
+        let xml =
+            r#"<folder name="Photos"><path>/Jotta/Archive/Photos</path><size>0</size></folder>"#;
         let e = parse_entry(xml).unwrap();
         assert_eq!(e.kind, EntryKind::Dir);
         assert_eq!(e.path, "Jotta/Archive/Photos");
@@ -571,7 +633,10 @@ mod tests {
 
     #[test]
     fn unescapes_entities() {
-        assert_eq!(unescape("a &amp; b &lt;c&gt; &#65; &#x42;"), "a & b <c> A B");
+        assert_eq!(
+            unescape("a &amp; b &lt;c&gt; &#65; &#x42;"),
+            "a & b <c> A B"
+        );
         assert_eq!(unescape("100% &nonsense; &"), "100% &nonsense; &");
     }
 }

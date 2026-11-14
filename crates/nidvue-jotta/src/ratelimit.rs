@@ -37,7 +37,10 @@ impl TokenBucket {
         Self {
             rate: rate.max(0.001),
             burst,
-            state: Mutex::new(BucketState { tokens: burst, last: Instant::now() }),
+            state: Mutex::new(BucketState {
+                tokens: burst,
+                last: Instant::now(),
+            }),
         }
     }
 
@@ -87,7 +90,11 @@ pub struct RetryPolicy {
 
 impl Default for RetryPolicy {
     fn default() -> Self {
-        Self { base: Duration::from_millis(500), max: Duration::from_secs(30), attempts: 6 }
+        Self {
+            base: Duration::from_millis(500),
+            max: Duration::from_secs(30),
+            attempts: 6,
+        }
     }
 }
 
@@ -126,7 +133,11 @@ impl Aimd {
     pub fn new(min: u32, max: u32) -> Self {
         let min = min.max(1);
         let max = max.max(min);
-        Self { current: AtomicU32::new(min), min, max }
+        Self {
+            current: AtomicU32::new(min),
+            min,
+            max,
+        }
     }
 
     /// The current concurrency limit.
@@ -138,14 +149,18 @@ impl Aimd {
     pub fn on_success(&self) {
         let _ = self
             .current
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some((c + 1).min(self.max)));
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
+                Some((c + 1).min(self.max))
+            });
     }
 
     /// A request was rate limited or failed: halve, down to the minimum.
     pub fn on_congestion(&self) {
         let _ = self
             .current
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some((c / 2).max(self.min)));
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
+                Some((c / 2).max(self.min))
+            });
     }
 
     /// The floor.
@@ -200,7 +215,9 @@ where
         }
         let lock = {
             let mut map = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
-            map.entry(key.clone()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+            map.entry(key.clone())
+                .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+                .clone()
         };
         let _guard = lock.lock().await;
         {
@@ -249,13 +266,23 @@ mod tests {
 
     #[test]
     fn backoff_grows_and_respects_hints() {
-        let p = RetryPolicy { base: Duration::from_millis(100), max: Duration::from_secs(10), attempts: 5 };
+        let p = RetryPolicy {
+            base: Duration::from_millis(100),
+            max: Duration::from_secs(10),
+            attempts: 5,
+        };
         let d1 = p.delay(1, None);
         let d5 = p.delay(5, None);
         assert!(d1 <= Duration::from_millis(100));
         assert!(d5 <= Duration::from_secs(10));
-        assert_eq!(p.delay(3, Some(Duration::from_secs(2))), Duration::from_secs(2));
-        assert_eq!(p.delay(3, Some(Duration::from_secs(60))), Duration::from_secs(10));
+        assert_eq!(
+            p.delay(3, Some(Duration::from_secs(2))),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            p.delay(3, Some(Duration::from_secs(60))),
+            Duration::from_secs(10)
+        );
         assert!(p.should_retry(4));
         assert!(!p.should_retry(5));
     }

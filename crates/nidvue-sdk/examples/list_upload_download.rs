@@ -15,7 +15,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let dir = RemotePath::parse("/")?;
     let listing = client.list(&dir).await?;
-    println!("{} files, {} folders at the root", listing.files.len(), listing.folders.len());
+    println!(
+        "{} files, {} folders at the root",
+        listing.files.len(),
+        listing.folders.len()
+    );
 
     let local = std::path::Path::new("/tmp/nidvue-example.txt");
     std::fs::write(local, b"hello from the Nidvue SDK\n")?;

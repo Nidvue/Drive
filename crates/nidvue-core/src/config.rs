@@ -256,7 +256,11 @@ pub struct UiConfig {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: "system".into(), language: "en".into(), start_minimised: false }
+        Self {
+            theme: "system".into(),
+            language: "en".into(),
+            start_minimised: false,
+        }
     }
 }
 
@@ -301,12 +305,15 @@ impl AppConfig {
     pub fn load_or_default(state_dir: &Path) -> Result<Self> {
         let path = Self::path_in(state_dir);
         if !path.exists() {
-            return Ok(Self { state_dir: state_dir.to_path_buf(), ..Default::default() });
+            return Ok(Self {
+                state_dir: state_dir.to_path_buf(),
+                ..Default::default()
+            });
         }
         let text = std::fs::read_to_string(&path)
             .map_err(|e| NidvueError::Config(format!("{}: {e}", path.display())))?;
-        let mut cfg: AppConfig =
-            toml::from_str(&text).map_err(|e| NidvueError::Config(format!("{}: {e}", path.display())))?;
+        let mut cfg: AppConfig = toml::from_str(&text)
+            .map_err(|e| NidvueError::Config(format!("{}: {e}", path.display())))?;
         cfg.state_dir = state_dir.to_path_buf();
         cfg.validate()?;
         Ok(cfg)
@@ -355,10 +362,14 @@ impl AppConfig {
     pub fn validate(&self) -> Result<()> {
         let c = &self.cache;
         if c.max_size_bytes == 0 {
-            return Err(NidvueError::Config("cache.max_size_bytes must be > 0".into()));
+            return Err(NidvueError::Config(
+                "cache.max_size_bytes must be > 0".into(),
+            ));
         }
         if !(0.0..=1.0).contains(&c.low_watermark) || !(0.0..=1.0).contains(&c.high_watermark) {
-            return Err(NidvueError::Config("cache watermarks must be within 0..=1".into()));
+            return Err(NidvueError::Config(
+                "cache watermarks must be within 0..=1".into(),
+            ));
         }
         if c.low_watermark >= c.high_watermark {
             return Err(NidvueError::Config(
@@ -369,7 +380,9 @@ impl AppConfig {
             return Err(NidvueError::Config("sync.workers must be > 0".into()));
         }
         if self.sync.poll_interval_ms == 0 {
-            return Err(NidvueError::Config("sync.poll_interval_ms must be > 0".into()));
+            return Err(NidvueError::Config(
+                "sync.poll_interval_ms must be > 0".into(),
+            ));
         }
         if self.sync.max_poll_interval_ms < self.sync.poll_interval_ms {
             return Err(NidvueError::Config(
@@ -383,15 +396,22 @@ impl AppConfig {
             ));
         }
         if !n.requests_per_second.is_finite() || n.requests_per_second <= 0.0 {
-            return Err(NidvueError::Config("network.requests_per_second must be > 0".into()));
+            return Err(NidvueError::Config(
+                "network.requests_per_second must be > 0".into(),
+            ));
         }
         let mut names = std::collections::HashSet::new();
         for p in &self.sync.pairs {
             if p.name.trim().is_empty() {
-                return Err(NidvueError::Config("sync pair name must not be empty".into()));
+                return Err(NidvueError::Config(
+                    "sync pair name must not be empty".into(),
+                ));
             }
             if !names.insert(p.name.as_str()) {
-                return Err(NidvueError::Config(format!("duplicate sync pair: {}", p.name)));
+                return Err(NidvueError::Config(format!(
+                    "duplicate sync pair: {}",
+                    p.name
+                )));
             }
             for glob in p.include.iter().chain(p.exclude.iter()) {
                 globset::Glob::new(glob).map_err(|e| {
@@ -460,6 +480,8 @@ mod tests {
     #[test]
     fn hot_projection_is_serialisable() {
         let h = AppConfig::default().hot();
-        assert!(serde_json::to_string(&h).unwrap().contains("max_size_bytes"));
+        assert!(serde_json::to_string(&h)
+            .unwrap()
+            .contains("max_size_bytes"));
     }
 }

@@ -82,7 +82,7 @@ never aborts the engine or the mount.
 | Plugin | Shows |
 |---|---|
 | [`plugins/example-hello`](../plugins/example-hello) | a manifest, a path filter, event logging, capability checks |
-| [`plugins/example-filter`](../plugins/example-filter) | a content transformer and a post-download processor |
+| [`plugins/example-filter`](../plugins/example-filter) | a folder-scoped path filter and a conflict policy |
 
 Build an example:
 

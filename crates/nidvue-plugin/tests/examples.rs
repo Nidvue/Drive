@@ -11,7 +11,12 @@ use std::path::Path;
 use nidvue_plugin::PluginHost;
 
 fn repo_root() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 #[test]
@@ -25,14 +30,19 @@ fn hello_filters_caches_and_temp_files() {
     let id = host.load(&dir).unwrap();
     let plugin = host.plugin_mut(&id).unwrap();
     let keep = plugin
-        .call_hook("path_filter", r#"{"path":"/Archive/Documents/a.txt","kind":"file"}"#)
+        .call_hook(
+            "path_filter",
+            r#"{"path":"/Archive/Documents/a.txt","kind":"file"}"#,
+        )
         .unwrap();
     assert_eq!(keep, r#"{"include":true}"#);
     let skip = plugin
         .call_hook("path_filter", r#"{"path":"/Archive/project/target/x.o"}"#)
         .unwrap();
     assert_eq!(skip, r#"{"include":false}"#);
-    let tmp = plugin.call_hook("path_filter", r#"{"path":"/Archive/a.tmp"}"#).unwrap();
+    let tmp = plugin
+        .call_hook("path_filter", r#"{"path":"/Archive/a.tmp"}"#)
+        .unwrap();
     assert_eq!(tmp, r#"{"include":false}"#);
 }
 
@@ -71,6 +81,10 @@ fn an_undeclared_hook_is_refused_even_for_a_real_plugin() {
     }
     let mut host = PluginHost::new().unwrap();
     let id = host.load(&dir).unwrap();
-    let err = host.plugin_mut(&id).unwrap().call_hook("pre_upload", "{}").unwrap_err();
+    let err = host
+        .plugin_mut(&id)
+        .unwrap()
+        .call_hook("pre_upload", "{}")
+        .unwrap_err();
     assert!(err.to_string().contains("not declared"), "{err}");
 }

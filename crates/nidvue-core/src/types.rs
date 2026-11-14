@@ -57,7 +57,11 @@ pub struct Version {
 impl Version {
     /// Build a version from size, mtime and an optional hash.
     pub fn new(size: u64, mtime_ms: i64, hash: Option<Hash>) -> Self {
-        Self { size, mtime_ms, hash }
+        Self {
+            size,
+            mtime_ms,
+            hash,
+        }
     }
 
     /// True when the two versions have different content.
@@ -91,7 +95,12 @@ pub struct EntryMeta {
 impl EntryMeta {
     /// A directory entry.
     pub fn dir(path: RemotePath, mtime_ms: i64) -> Self {
-        Self { path, kind: EntryKind::Dir, version: Version::new(0, mtime_ms, None), remote_rev: None }
+        Self {
+            path,
+            kind: EntryKind::Dir,
+            version: Version::new(0, mtime_ms, None),
+            remote_rev: None,
+        }
     }
 
     /// A file entry.
@@ -126,7 +135,9 @@ pub struct BaselineEntry {
 }
 
 /// What to do when both sides changed the same path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictPolicy {
     /// Keep both: newest at the original path, loser as a conflict copy.
@@ -180,7 +191,11 @@ mod tests {
 
     #[test]
     fn conflict_policy_round_trip() {
-        for p in [ConflictPolicy::KeepBoth, ConflictPolicy::PreferLocal, ConflictPolicy::PreferRemote] {
+        for p in [
+            ConflictPolicy::KeepBoth,
+            ConflictPolicy::PreferLocal,
+            ConflictPolicy::PreferRemote,
+        ] {
             assert_eq!(ConflictPolicy::parse(p.as_str()), Some(p));
         }
         assert_eq!(ConflictPolicy::parse("nonsense"), None);

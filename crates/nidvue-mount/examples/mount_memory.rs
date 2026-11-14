@@ -16,16 +16,24 @@ use nidvue_mount::{mount, MountOptions};
 use nidvue_vfs::{MemoryVfs, Vfs};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mountpoint = std::env::args().nth(1).unwrap_or_else(|| "/tmp/nidvue-demo".into());
+    let mountpoint = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "/tmp/nidvue-demo".into());
     let runtime = tokio::runtime::Runtime::new()?;
     let _guard = runtime.enter();
     let vfs = Arc::new(MemoryVfs::new());
     runtime.block_on(async {
-        vfs.create(&RemotePath::parse("/existing.txt")?, EntryKind::File).await?;
-        vfs.write(&RemotePath::parse("/existing.txt")?, 0, b"seed").await?;
+        vfs.create(&RemotePath::parse("/existing.txt")?, EntryKind::File)
+            .await?;
+        vfs.write(&RemotePath::parse("/existing.txt")?, 0, b"seed")
+            .await?;
         Ok::<_, nidvue_core::NidvueError>(())
     })?;
-    let handle = mount(vfs.clone(), std::path::Path::new(&mountpoint), MountOptions::default())?;
+    let handle = mount(
+        vfs.clone(),
+        std::path::Path::new(&mountpoint),
+        MountOptions::default(),
+    )?;
     println!("mounted at {mountpoint}; unmounting in 15 s");
     std::thread::sleep(std::time::Duration::from_secs(15));
     drop(handle);

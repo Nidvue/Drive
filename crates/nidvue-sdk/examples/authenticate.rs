@@ -12,7 +12,8 @@ use nidvue_sdk::Client;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = std::env::var("NIDVUE_STATE").unwrap_or_else(|_| "/tmp/nidvue-state".into());
-    let token = std::env::var("NIDVUE_TOKEN").map_err(|_| "set NIDVUE_TOKEN to a Personal Login Token")?;
+    let token =
+        std::env::var("NIDVUE_TOKEN").map_err(|_| "set NIDVUE_TOKEN to a Personal Login Token")?;
     let client = Client::open(&state).await?;
     let username = client.login(&token).await?;
     println!("logged in as {username}");
