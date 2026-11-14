@@ -25,8 +25,8 @@ edition = "2021"
 rust-version = "1.95"
 license = "AGPL-3.0-only"
 authors = ["Nidvue"]
-repository = "https://github.com/Nidvue/nidvue-drive"
-homepage = "https://github.com/Nidvue/nidvue-drive"
+repository = "https://github.com/Nidvue/Drive"
+homepage = "https://github.com/Nidvue/Drive"
 documentation = "https://docs.rs/nidvue-sdk"
 
 [workspace.dependencies]

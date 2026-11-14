@@ -25,7 +25,7 @@ fi
 cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$STAGE/usr/share/doc/nidvue-drive/"
 cat > "$STAGE/usr/share/doc/nidvue-drive/SOURCE-OFFER.txt" <<OFFER
 Corresponding source for Nidvue Drive ${VERSION}:
-https://github.com/Nidvue/nidvue-drive/tree/v${VERSION}
+https://github.com/Nidvue/Drive/tree/v${VERSION}
 AGPL-3.0 sections 4-6 are satisfied by the tag above and by the source archive
 attached to the release.
 OFFER
@@ -61,7 +61,7 @@ Architecture: ${ARCH}
 Maintainer: Nidvue <nidvue@example.invalid>
 Depends: libfuse3-3 | fuse3, libc6
 Recommends: libqt6quick6, libqt6qml6
-Homepage: https://github.com/Nidvue/nidvue-drive
+Homepage: https://github.com/Nidvue/Drive
 Description: Unofficial Jottacloud desktop client
  Two-way sync and a mountable filesystem for Jottacloud: Rust engine, Qt UI,
  plugin system. This is an unofficial client, not affiliated with Jottacloud AS.

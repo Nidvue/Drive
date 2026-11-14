@@ -70,7 +70,7 @@ jobs:
           cp ../LICENSE .
           printf '%s\n' \
             "Corresponding source for this release:" \
-            "https://github.com/Nidvue/nidvue-drive/tree/${{ github.ref_name }}" \
+            "https://github.com/Nidvue/Drive/tree/${{ github.ref_name }}" \
             "" \
             "AGPL-3.0 sections 4-6 are satisfied by the source archive attached" \
             "to this release and by the tag above." > SOURCE-OFFER.txt
