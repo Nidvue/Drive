@@ -7,7 +7,6 @@
 //! clippy with warnings denied, the workspace test suite, docs, the licence
 //! allowlist, SPDX headers, the secret scan and the DCO check.
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
