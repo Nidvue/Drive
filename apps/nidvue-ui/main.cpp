@@ -53,13 +53,6 @@ int main(int argc, char *argv[])
             window->raise();
             window->requestActivate();
         });
-        QObject::connect(window, &QQuickWindow::closing, window, [window, &tray](QQuickCloseEvent *) {
-            if (tray.available()) {
-                window->hide();
-            } else {
-                QCoreApplication::quit();
-            }
-        });
     }
     // `--smoke-windows` opens the tray popup and the detailed settings window
     // once, so a headless CI run proves they instantiate without QML errors.
