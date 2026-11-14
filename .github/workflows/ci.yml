@@ -27,8 +27,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # macOS is not in the matrix: this organisation cannot start a macOS
+      # runner, so the job is cancelled before it runs. See docs/deviations.md.
       matrix:
-        os: [ubuntu-24.04, macos-14, windows-2022]
+        os: [ubuntu-24.04, windows-2022]
     steps:
       - uses: actions/checkout@v4
         with:
