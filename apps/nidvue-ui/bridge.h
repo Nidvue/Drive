@@ -30,6 +30,8 @@ public slots:
     void mount(const QString &mountpoint, bool readOnly);
     void unmount();
     void syncNow();
+    void setPaused(bool paused);
+    void setBandwidthLimit(qulonglong bytesPerSecond);
     void resolve(const QString &id, const QString &resolution);
 
 signals:
@@ -57,6 +59,8 @@ class Bridge : public QObject {
     Q_PROPERTY(qulonglong cacheCapacity READ cacheCapacity NOTIFY statusChanged)
     Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY statusChanged)
     Q_PROPERTY(bool mounted READ mounted NOTIFY mountedChanged)
+    Q_PROPERTY(bool paused READ paused NOTIFY pausedChanged)
+    Q_PROPERTY(int bandwidthMbps READ bandwidthMbps NOTIFY bandwidthChanged)
     Q_PROPERTY(QString mountpoint READ mountpoint NOTIFY mountedChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString busyWhat READ busyWhat NOTIFY busyChanged)
@@ -77,6 +81,8 @@ public:
     qulonglong cacheCapacity() const { return m_cacheCapacity; }
     bool loggedIn() const { return m_loggedIn; }
     bool mounted() const { return m_mounted; }
+    bool paused() const { return m_paused; }
+    int bandwidthMbps() const { return m_bandwidthMbps; }
     QString mountpoint() const { return m_mountpoint; }
     bool busy() const { return m_busy; }
     QString busyWhat() const { return m_busyWhat; }
@@ -89,12 +95,19 @@ public:
     Q_INVOKABLE void mount(const QString &mountpoint, bool readOnly);
     Q_INVOKABLE void unmount();
     Q_INVOKABLE void syncNow();
+    Q_INVOKABLE void setPaused(bool paused);
+    Q_INVOKABLE void setBandwidthLimitMbps(int mbps);
+    Q_INVOKABLE void openMount();
+    Q_INVOKABLE void showMainWindow();
     Q_INVOKABLE void resolve(const QString &id, const QString &resolution);
     Q_INVOKABLE void clearError();
 
 signals:
     void statusChanged();
     void mountedChanged();
+    void pausedChanged();
+    void bandwidthChanged();
+    void showMainRequested();
     void busyChanged();
     void conflictsChanged();
     void logsChanged();
@@ -104,6 +117,8 @@ signals:
     void requestMount(const QString &mountpoint, bool readOnly);
     void requestUnmount();
     void requestSync();
+    void requestSetPaused(bool paused);
+    void requestSetBandwidth(qulonglong bytesPerSecond);
     void requestResolve(const QString &id, const QString &resolution);
 
 private slots:
@@ -127,6 +142,8 @@ private:
     qulonglong m_cacheCapacity = 0;
     bool m_loggedIn = false;
     bool m_mounted = false;
+    bool m_paused = false;
+    int m_bandwidthMbps = 0;
     QString m_mountpoint;
     bool m_busy = false;
     QString m_busyWhat;

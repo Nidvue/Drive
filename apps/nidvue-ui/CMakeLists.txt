@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2)
 if(UNIX AND NOT APPLE)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(FUSE3 REQUIRED fuse3)
@@ -27,6 +27,8 @@ qt_add_executable(nidvue-ui
     main.cpp
     bridge.cpp
     bridge.h
+    tray.cpp
+    tray.h
 )
 
 qt_add_resources(nidvue-ui "qml"
@@ -36,6 +38,9 @@ qt_add_resources(nidvue-ui "qml"
         qml/Dashboard.qml
         qml/Conflicts.qml
         qml/Settings.qml
+        qml/SettingsPane.qml
+        qml/SettingsWindow.qml
+        qml/Popup.qml
         qml/Logs.qml
 )
 
@@ -50,6 +55,7 @@ target_compile_definitions(nidvue-ui PRIVATE NIDVUE_UI_VERSION="${PROJECT_VERSIO
 target_link_libraries(nidvue-ui PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Widgets
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2

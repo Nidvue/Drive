@@ -3,7 +3,9 @@
 
 #include "bridge.h"
 
+#include <QDesktopServices>
 #include <QDir>
+#include <QUrl>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -144,6 +146,26 @@ void Worker::unmount()
     poll();
 }
 
+void Worker::setPaused(bool paused)
+{
+    if (!m_client)
+        return;
+    char *err = nullptr;
+    if (nidvue_client_set_paused(m_client, paused ? 1 : 0, &err) != NIDVUE_OK)
+        emit error(takeError(err));
+    poll();
+}
+
+void Worker::setBandwidthLimit(qulonglong bytesPerSecond)
+{
+    if (!m_client)
+        return;
+    char *err = nullptr;
+    if (nidvue_client_set_bandwidth_limit(m_client, bytesPerSecond, &err) != NIDVUE_OK)
+        emit error(takeError(err));
+    poll();
+}
+
 void Worker::syncNow()
 {
     if (!m_client)
@@ -197,6 +219,8 @@ Bridge::Bridge(QObject *parent)
     connect(this, &Bridge::requestMount, m_worker, &Worker::mount);
     connect(this, &Bridge::requestUnmount, m_worker, &Worker::unmount);
     connect(this, &Bridge::requestSync, m_worker, &Worker::syncNow);
+    connect(this, &Bridge::requestSetPaused, m_worker, &Worker::setPaused);
+    connect(this, &Bridge::requestSetBandwidth, m_worker, &Worker::setBandwidthLimit);
     connect(this, &Bridge::requestResolve, m_worker, &Worker::resolve);
 
     const QString state = qEnvironmentVariable("NIDVUE_STATE",
@@ -219,6 +243,33 @@ void Bridge::logout() { emit requestLogout(); }
 void Bridge::mount(const QString &mountpoint, bool readOnly) { emit requestMount(mountpoint, readOnly); }
 void Bridge::unmount() { emit requestUnmount(); }
 void Bridge::syncNow() { emit requestSync(); }
+
+void Bridge::setPaused(bool paused)
+{
+    m_paused = paused;
+    emit pausedChanged();
+    emit requestSetPaused(paused);
+}
+
+void Bridge::setBandwidthLimitMbps(int mbps)
+{
+    m_bandwidthMbps = qMax(0, mbps);
+    emit bandwidthChanged();
+    emit requestSetBandwidth(static_cast<qulonglong>(m_bandwidthMbps) * 1000ull * 1000ull / 8ull);
+}
+
+void Bridge::openMount()
+{
+    // Mounting needs the engine, so it goes through the worker; opening the
+    // folder happens once the mount reports success.
+    if (!m_mounted) {
+        mount(m_mountpoint, false);
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(m_mountpoint));
+}
+
+void Bridge::showMainWindow() { emit showMainRequested(); }
 void Bridge::resolve(const QString &id, const QString &resolution) { emit requestResolve(id, resolution); }
 
 void Bridge::clearError()
@@ -236,6 +287,17 @@ void Bridge::onStatus(const QString &json)
     m_health = object.value("health").toString();
     m_indexEntries = object.value("index_entries").toVariant().toULongLong();
     m_conflictsOpen = object.value("conflicts_open").toVariant().toULongLong();
+    const bool paused = object.value("paused").toBool();
+    if (paused != m_paused) {
+        m_paused = paused;
+        emit pausedChanged();
+    }
+    const auto bps = object.value("bandwidth_limit_bps").toVariant().toULongLong();
+    const int mbps = static_cast<int>((bps * 8ull) / (1000ull * 1000ull));
+    if (mbps != m_bandwidthMbps) {
+        m_bandwidthMbps = mbps;
+        emit bandwidthChanged();
+    }
     const auto cache = object.value("cache").toObject();
     m_cacheBytes = cache.value("bytes").toVariant().toULongLong();
     m_cacheCapacity = 0;

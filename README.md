@@ -30,6 +30,11 @@ Jottacloud is a trademark of its owner. Licensed **AGPL-3.0-only**.
   the newest stays at the original path and the other becomes
   `name (conflict Nidvue 2026-11-14 101500).ext`, listed in the Conflict Center
   with a preview and one-click resolve.
+- **Tray icon** — a cross-platform system-tray icon shows sync health at a
+  glance (green/amber/grey/red), offers pause, sync now, mount and settings, and
+  opens a compact popup with the live numbers. Closing the main window hides it;
+  the tray is the way back. On a desktop without a status-notifier host the app
+  works exactly the same without the tray.
 - **Plugins** — sandboxed WebAssembly, capability-scoped, with two working
   examples. Native plugins are allowed behind an explicit trusted flag and must
   be AGPL-3.0 (see `docs/licensing.md`).

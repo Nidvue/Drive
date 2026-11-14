@@ -29,5 +29,8 @@ First public pre-release.
   limits; two example plugins.
 - Stable SDK with typed events, JSON schema and C header; C ABI bridge; Qt 6 +
   QML desktop application; headless CLI.
+- Cross-platform tray icon with live sync health, pause/resume, sync now,
+  mount/unmount, a compact status popup and a detailed settings window; closing
+  the main window hides it to the tray.
 - CI matrix (Linux, macOS, Windows), release workflow, CodeQL, dependency
   allowlist, SPDX header check and secret scan.
