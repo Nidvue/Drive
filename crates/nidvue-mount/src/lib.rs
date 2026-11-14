@@ -26,7 +26,7 @@ use nidvue_core::path::RemotePath;
 use nidvue_core::types::EntryKind;
 use nidvue_vfs::{FsStats, Vfs};
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "linux")]
 use fuser::{
     Config, Errno, FileAttr, FileHandle, FileType, Filesystem, FopenFlags, Generation, INodeNo,
     LockOwner, MountOption, OpenAccMode, OpenFlags, ReplyAttr, ReplyCreate, ReplyData,
@@ -63,7 +63,7 @@ impl Default for MountOptions {
 }
 
 /// Map a typed error to an `errno`. One function, one place to audit.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "linux")]
 pub fn errno(error: &NidvueError) -> Errno {
     match error {
         NidvueError::NotFound(_) => Errno::ENOENT,
@@ -166,7 +166,7 @@ fn ms_to_time(ms: i64) -> SystemTime {
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "linux")]
 mod fuse {
     use super::*;
 
@@ -685,8 +685,46 @@ mod fuse {
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "linux")]
 pub use fuse::{mount, FuseVfs, MountHandle};
+
+#[cfg(target_os = "macos")]
+mod macfuse {
+    use super::*;
+
+    /// A mount that never started.
+    pub struct MountHandle;
+
+    impl MountHandle {
+        /// Where the filesystem would be mounted.
+        pub fn mountpoint(&self) -> &Path {
+            Path::new("/")
+        }
+
+        /// Unmount explicitly.
+        pub fn unmount(&mut self) {}
+    }
+
+    /// Mount through macFUSE.
+    ///
+    /// The adapter is written against the same [`nidvue_vfs::Vfs`] contract, but
+    /// the macFUSE headers are not available to the build in this release, so
+    /// mounting returns a typed error instead of pretending to work. See
+    /// `docs/deviations.md`.
+    pub fn mount(
+        _vfs: Arc<dyn Vfs>,
+        mountpoint: &Path,
+        _options: MountOptions,
+    ) -> Result<MountHandle> {
+        Err(NidvueError::Unsupported(format!(
+            "macFUSE backend is not compiled in this build (mountpoint {})",
+            mountpoint.display()
+        )))
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub use macfuse::{mount, MountHandle};
 
 #[cfg(target_os = "windows")]
 mod winfsp {
@@ -772,7 +810,7 @@ mod tests {
         assert_eq!(table.path_of(child_ino).unwrap().as_str(), "/c/b");
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn errno_mapping_is_specific() {
         assert_eq!(errno(&NidvueError::NotFound("x".into())), Errno::ENOENT);
