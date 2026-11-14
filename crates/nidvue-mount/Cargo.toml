@@ -14,12 +14,16 @@ homepage.workspace = true
 [dependencies]
 nidvue-core = { workspace = true }
 nidvue-vfs = { workspace = true }
-fuser = { workspace = true }
 libc = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+# fuser's build script requires libfuse, which does not exist on Windows; the
+# Windows adapter does not use it.
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+fuser = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
