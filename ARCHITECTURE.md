@@ -210,6 +210,23 @@ arguably a derivative work and must then be AGPL-3.0, while a WASM module
 communicating through a defined API is a separate work that may carry any licence
 its manifest declares. The UI says exactly this at install time.
 
+## 9a. Tray and windows
+
+The desktop app has three surfaces over one bridge:
+
+- the **main window** (dashboard, Conflict Center, settings, logs);
+- a **tray icon** painted at runtime (`QSystemTrayIcon`, so it scales with the
+  tray and carries the health colour) with a menu for the four actions people
+  use daily: pause/resume, sync now, mount/unmount, settings;
+- a **compact popup** and a **detailed settings window**, both QML windows over
+  the same `SettingsPane` component as the main window, so there is one
+  definition of every control.
+
+`QSystemTrayIcon` is the one Qt Widgets dependency, and it is deliberately the
+only one. Where the desktop has no tray (some Wayland sessions, headless CI),
+`isSystemTrayAvailable()` is false and the controller does nothing: closing the
+main window quits instead of hiding, and nothing pretends to have a tray.
+
 ## 10. Concurrency and the network
 
 - A token bucket per host caps request rate; a burst is allowed but never a

@@ -18,6 +18,7 @@
 //! ```
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -56,6 +57,10 @@ pub struct Status {
     pub index_entries: u64,
     /// Conflicts awaiting a decision.
     pub conflicts_open: u64,
+    /// True when the engine is paused.
+    pub paused: bool,
+    /// Aggregate bandwidth cap in bytes/second (0 = unlimited).
+    pub bandwidth_limit_bps: u64,
     /// Cache counters.
     pub cache: CacheUsageView,
     /// Overall health.
@@ -117,6 +122,8 @@ struct Inner {
     events: broadcast::Sender<EventEnvelope>,
     cancel: CancellationToken,
     started: Instant,
+    paused: AtomicBool,
+    bandwidth_bps: AtomicU64,
 }
 
 /// The Nidvue Drive client.
@@ -157,8 +164,12 @@ impl Client {
             JottaConfig::from_app(&config, username),
         ));
         let (events, _) = broadcast::channel(1024);
+        let paused = AtomicBool::new(config.sync.paused);
+        let bandwidth_bps = AtomicU64::new(config.sync.bandwidth_limit_bps);
         Ok(Self {
             inner: Arc::new(Inner {
+                paused,
+                bandwidth_bps,
                 config,
                 auth,
                 jotta,
@@ -221,6 +232,48 @@ impl Client {
         &self.inner.jotta
     }
 
+    /// True when the engine is paused.
+    pub fn paused(&self) -> bool {
+        self.inner.paused.load(Ordering::Relaxed)
+    }
+
+    /// Pause or resume every sync pair. Persisted in `config.toml`.
+    pub fn set_paused(&self, paused: bool) -> Result<()> {
+        self.inner.paused.store(paused, Ordering::Relaxed);
+        let mut config = self.inner.config.clone();
+        config.sync.paused = paused;
+        config.save(&config.state_dir.clone())?;
+        let _ = self.inner.events.send(EventEnvelope::new(Event::Health {
+            state: if paused {
+                HealthState::Degraded
+            } else {
+                HealthState::Ok
+            },
+            detail: Some(if paused {
+                "paused by the user".into()
+            } else {
+                "running".into()
+            }),
+        }));
+        Ok(())
+    }
+
+    /// The aggregate bandwidth cap in bytes/second (0 = unlimited).
+    pub fn bandwidth_limit_bps(&self) -> u64 {
+        self.inner.bandwidth_bps.load(Ordering::Relaxed)
+    }
+
+    /// Set the aggregate bandwidth cap. Persisted in `config.toml`.
+    pub fn set_bandwidth_limit_bps(&self, bytes_per_second: u64) -> Result<()> {
+        self.inner
+            .bandwidth_bps
+            .store(bytes_per_second, Ordering::Relaxed);
+        let mut config = self.inner.config.clone();
+        config.sync.bandwidth_limit_bps = bytes_per_second;
+        config.save(&config.state_dir.clone())?;
+        Ok(())
+    }
+
     /// A dashboard snapshot.
     pub async fn stats(&self) -> Result<StatsSnapshot> {
         let usage = self.inner.cache.usage()?;
@@ -259,6 +312,8 @@ impl Client {
             username: self.inner.auth.username().await,
             index_entries: stats.index_entries,
             conflicts_open: stats.conflicts_open,
+            paused: self.paused(),
+            bandwidth_limit_bps: self.bandwidth_limit_bps(),
             cache: usage.into(),
             health: stats.health,
             uptime_s: stats.uptime_s,
@@ -279,10 +334,13 @@ impl Client {
 
     /// A sync engine over this client's cache, index and remote.
     pub fn sync_engine(&self) -> SyncEngine {
+        let mut sync = self.inner.config.sync.clone();
+        sync.paused = self.paused();
+        sync.bandwidth_limit_bps = self.bandwidth_limit_bps();
         SyncEngine::new(
             self.inner.jotta.clone(),
             self.inner.index.clone(),
-            self.inner.config.sync.clone(),
+            sync,
             self.inner.config.trash_dir(),
             self.inner.events.clone(),
         )

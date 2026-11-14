@@ -264,13 +264,17 @@ fn ui_smoke() -> Result<(), String> {
     let state = std::env::temp_dir().join(format!("nidvue-ui-smoke-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
     let mut child = Command::new(&binary)
+        .arg("--smoke-windows")
         .env("QT_QPA_PLATFORM", "offscreen")
+        // Without this, Qt on Linux sends diagnostics to the journal instead of
+        // stderr and the check below would see an empty log.
+        .env("QT_ASSUME_STDERR_HAS_CONSOLE", "1")
         .env("NIDVUE_STATE", &state)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("launch ui: {e}"))?;
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    std::thread::sleep(std::time::Duration::from_secs(3));
     let _ = child.kill();
     let output = child
         .wait_with_output()
@@ -281,6 +285,13 @@ fn ui_smoke() -> Result<(), String> {
         || stderr.contains("is not a type")
     {
         return Err(format!("QML errors:\n{stderr}"));
+    }
+    let popup = stderr.contains("tray: popup shown");
+    let settings = stderr.contains("tray: settings window shown");
+    if !popup || !settings {
+        return Err(format!(
+            "tray windows did not open (popup={popup}, settings={settings}):\n{stderr}"
+        ));
     }
     let initialised = state.join("db").join("index.sqlite").exists();
     let _ = std::fs::remove_dir_all(&state);

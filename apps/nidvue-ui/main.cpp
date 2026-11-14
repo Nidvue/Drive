@@ -10,8 +10,11 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
+#include <QTimer>
 
 #include "bridge.h"
+#include "tray.h"
 
 int main(int argc, char *argv[])
 {
@@ -23,14 +26,49 @@ int main(int argc, char *argv[])
     // Basic is always available and keeps the dependency set LGPL-compatible.
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
+    // Closing the main window hides it when a tray is available: the app keeps
+    // syncing, and the tray is the way back. Without a tray it quits.
+    QGuiApplication::setQuitOnLastWindowClosed(false);
+
     Bridge bridge;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("Bridge"), &bridge);
+    TrayController tray(&bridge, &engine);
+    engine.rootContext()->setContextProperty(QStringLiteral("Tray"), &tray);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty())
         return 1;
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    if (window) {
+        QObject::connect(&tray, &TrayController::openMainRequested, window, [window]() {
+            window->show();
+            window->raise();
+            window->requestActivate();
+        });
+        QObject::connect(&bridge, &Bridge::showMainRequested, window, [window]() {
+            window->show();
+            window->raise();
+            window->requestActivate();
+        });
+        QObject::connect(window, &QQuickWindow::closing, window, [window, &tray](QQuickCloseEvent *) {
+            if (tray.available()) {
+                window->hide();
+            } else {
+                QCoreApplication::quit();
+            }
+        });
+    }
+    // `--smoke-windows` opens the tray popup and the detailed settings window
+    // once, so a headless CI run proves they instantiate without QML errors.
+    if (app.arguments().contains(QStringLiteral("--smoke-windows"))) {
+        QTimer::singleShot(200, &tray, [&tray]() {
+            tray.showPopup();
+            tray.openSettingsWindow();
+        });
+        QTimer::singleShot(1200, &app, &QCoreApplication::quit);
+    }
     return app.exec();
 }
