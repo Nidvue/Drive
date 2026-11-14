@@ -67,8 +67,35 @@ Linux, macOS and Windows. It covers:
 - Small, reviewable slices. Every commit leaves `cargo xtask ci` green.
 - A pull request states: what changed, why, how it was verified (the command and
   the result), and what it deliberately does not do.
-- The reviewer merges; the author does not. Squash merge, one commit per
-  change-set, head branch deleted.
+
+### `main` is protected: branch, pull request, rebase
+
+Direct pushes to `main` are rejected for everyone, administrators included. The
+only path is:
+
+```sh
+git switch -c feat/my-change
+git commit -s -m "feat(sync): …"
+git push -u origin feat/my-change
+gh pr create --fill
+# CI must be green on the pull request's head
+gh pr merge --rebase --delete-branch
+```
+
+The repository allows **rebase merges only** (no merge commits, no squash), so
+the history on `main` is linear and every commit keeps its DCO sign-off. A pull
+request must be up to date with `main` before it merges; rebase your branch
+rather than merging `main` into it. Head branches are deleted on merge.
+
+Required on `main`: a pull request, a green `ci` run (rust on Linux and Windows,
+licences/advisories/SPDX/secrets, the Qt build and smoke test, the FUSE mount
+test), resolved conversations, no force-push, no branch deletion. The Release
+Engineer owns these settings and re-reads them from the host API
+(`docs/Remotes.md`), because an unprotected setting is a defect on par with a red
+build.
+
+If a release needs a hotfix, it takes the same path: a branch, a pull request, a
+rebase merge. There is no admin bypass and no "just this once".
 
 ## Adding a dependency
 
