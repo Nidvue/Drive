@@ -12,15 +12,19 @@ use nidvue_cache::{Cache, EntryRow, Index};
 use nidvue_core::config::CacheConfig;
 use nidvue_core::hash::Hash;
 use nidvue_core::path::RemotePath;
-use nidvue_core::secret::SecretString;
 use nidvue_core::secret::EncryptedFileStore;
 use nidvue_core::secret::SecretStore;
+use nidvue_core::secret::SecretString;
 use nidvue_core::types::{ConflictPolicy, EntryKind, Version};
 use nidvue_sync::{conflict_copy_path, decide_conflict, plan, Action, PathLocks};
 use nidvue_vfs::{MemoryVfs, Vfs};
 
 fn cache(max: u64) -> (Cache, tempfile::TempDir) {
-    let cfg = CacheConfig { max_size_bytes: max, min_free_disk_bytes: 0, ..Default::default() };
+    let cfg = CacheConfig {
+        max_size_bytes: max,
+        min_free_disk_bytes: 0,
+        ..Default::default()
+    };
     Cache::temporary(&cfg).unwrap()
 }
 
@@ -51,7 +55,9 @@ fn invariant_2_journal_survives_a_crash() {
     let path = dir.path().join("index.sqlite");
     {
         let index = Index::open(&path).unwrap();
-        let id = index.journal_append("op", "/a", "upload", Some("h"), Some(3), None).unwrap();
+        let id = index
+            .journal_append("op", "/a", "upload", Some("h"), Some(3), None)
+            .unwrap();
         index.journal_mark(id, "applied").unwrap();
         // Crash here: no commit, no clean shutdown.
     }
@@ -128,7 +134,10 @@ fn invariant_4_conflicts_keep_both_versions() {
     ));
     assert_eq!(decision.keep, nidvue_core::types::Side::Local);
     assert_ne!(decision.copy_to, path);
-    assert_eq!(conflict_copy_path(&path, 0).parent().unwrap().as_str(), "/Docs");
+    assert_eq!(
+        conflict_copy_path(&path, 0).parent().unwrap().as_str(),
+        "/Docs"
+    );
 }
 
 /// 5. Eviction never removes a pinned, dirty, or open file.
@@ -189,7 +198,9 @@ fn invariant_7_panics_are_contained() {
     }
     // And the VFS reports failures as typed errors rather than panicking.
     let vfs = MemoryVfs::new();
-    let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
     let err = runtime
         .block_on(vfs.getattr(&RemotePath::parse("/absent").unwrap()))
         .unwrap_err();

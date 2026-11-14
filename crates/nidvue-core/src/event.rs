@@ -24,7 +24,9 @@ pub enum Direction {
 }
 
 /// Overall engine health, surfaced in the tray and the dashboard.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthState {
     /// Everything is working.
@@ -194,7 +196,11 @@ pub struct EventEnvelope {
 impl EventEnvelope {
     /// Wrap an event with a fresh correlation id.
     pub fn new(event: Event) -> Self {
-        Self { id: CorrelationId::new("ev"), ts_ms: crate::time::now_ms(), event }
+        Self {
+            id: CorrelationId::new("ev"),
+            ts_ms: crate::time::now_ms(),
+            event,
+        }
     }
 }
 

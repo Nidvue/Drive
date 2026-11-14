@@ -140,7 +140,10 @@ fn init_logging() {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_env("NIDVUE_LOG")
         .unwrap_or_else(|_| EnvFilter::new("info,nidvue_jotta=warn"));
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).with_target(false).try_init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .try_init();
 }
 
 #[tokio::main]
@@ -178,7 +181,10 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             let client = Client::open(state).await?;
             let username = client.login(&value).await?;
             println!("logged in as {username}");
-            println!("token stored encrypted in {}", state.join("credentials.enc").display());
+            println!(
+                "token stored encrypted in {}",
+                state.join("credentials.enc").display()
+            );
             Ok(())
         }
         Command::Logout => {
@@ -191,12 +197,18 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             let client = Client::open(state).await?;
             let status = client.status().await?;
             if cli.json {
-                println!("{}", serde_json::to_string_pretty(&status).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&status).unwrap_or_default()
+                );
             } else {
                 println!("Nidvue Drive {}", status.version);
                 println!(
                     "account:   {}",
-                    status.username.clone().unwrap_or_else(|| "not logged in".into())
+                    status
+                        .username
+                        .clone()
+                        .unwrap_or_else(|| "not logged in".into())
                 );
                 println!("health:    {:?}", status.health);
                 println!("indexed:   {} entries", status.index_entries);
@@ -215,7 +227,10 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             }
             Ok(())
         }
-        Command::Mount { mountpoint, read_only } => {
+        Command::Mount {
+            mountpoint,
+            read_only,
+        } => {
             let client = Client::open(state).await?;
             if !client.is_logged_in().await {
                 return Err(NidvueError::Auth("log in first: nidvue-cli login".into()));
@@ -223,7 +238,10 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             let target = mountpoint
                 .clone()
                 .unwrap_or_else(|| client.config().mount.mountpoint.clone());
-            let options = MountOptions { read_only: *read_only, ..Default::default() };
+            let options = MountOptions {
+                read_only: *read_only,
+                ..Default::default()
+            };
             let handle = client.mount(&target, options)?;
             println!("mounted at {}", handle.mountpoint().display());
             println!("press Ctrl-C to unmount");
@@ -233,7 +251,11 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             Ok(())
         }
         Command::Sync { action } => match action {
-            SyncAction::Add { name, local, remote } => {
+            SyncAction::Add {
+                name,
+                local,
+                remote,
+            } => {
                 let mut config = AppConfig::load_or_default(state)?;
                 if config.sync.pairs.iter().any(|p| &p.name == name) {
                     return Err(NidvueError::Config(format!("pair {name} already exists")));
@@ -303,7 +325,10 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 let client = Client::open(state).await?;
                 let conflicts = client.conflicts()?;
                 if cli.json {
-                    println!("{}", serde_json::to_string_pretty(&conflicts).unwrap_or_default());
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&conflicts).unwrap_or_default()
+                    );
                 } else if conflicts.is_empty() {
                     println!("no open conflicts");
                 } else {
@@ -362,7 +387,12 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                     std::fs::copy(entry.path(), target.join(&name))
                         .map_err(|e| NidvueError::io(entry.path(), e))?;
                 }
-                println!("installed {} {} at {}", manifest.id, manifest.version, target.display());
+                println!(
+                    "installed {} {} at {}",
+                    manifest.id,
+                    manifest.version,
+                    target.display()
+                );
                 Ok(())
             }
             PluginAction::Test { dir } => {
@@ -375,7 +405,9 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 for hook in hooks {
                     let payload = match hook.as_str() {
                         "path_filter" => r#"{"path":"/Archive/Documents/a.txt","kind":"file"}"#,
-                        "conflict_resolve" => r#"{"path":"/Archive/a","local_hash":"a","remote_hash":"b"}"#,
+                        "conflict_resolve" => {
+                            r#"{"path":"/Archive/a","local_hash":"a","remote_hash":"b"}"#
+                        }
                         _ => "{}",
                     };
                     match host.plugin_mut(&id).map(|p| p.call_hook(&hook, payload)) {
@@ -393,17 +425,30 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
 async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError> {
     let mut checks: Vec<(String, bool, String)> = Vec::new();
     let config = AppConfig::load_or_default(state)?;
-    checks.push(("config".into(), config.validate().is_ok(), "configuration validates".into()));
+    checks.push((
+        "config".into(),
+        config.validate().is_ok(),
+        "configuration validates".into(),
+    ));
     std::fs::create_dir_all(state).map_err(|e| NidvueError::io(state, e))?;
     let probe = state.join(".doctor-probe");
     let writable = std::fs::write(&probe, b"ok").is_ok();
     let _ = std::fs::remove_file(&probe);
-    checks.push(("state".into(), writable, format!("{} is writable", state.display())));
+    checks.push((
+        "state".into(),
+        writable,
+        format!("{} is writable", state.display()),
+    ));
     let client = Client::open(state).await?;
     checks.push((
         "login".into(),
         client.is_logged_in().await,
-        if client.is_logged_in().await { "token present" } else { "run nidvue-cli login" }.into(),
+        if client.is_logged_in().await {
+            "token present"
+        } else {
+            "run nidvue-cli login"
+        }
+        .into(),
     ));
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
@@ -411,7 +456,11 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         checks.push(("fuse".into(), fuse, "/dev/fuse present".into()));
     }
     #[cfg(target_os = "windows")]
-    checks.push(("winfsp".into(), false, "WinFSP host is not enabled in this build".into()));
+    checks.push((
+        "winfsp".into(),
+        false,
+        "WinFSP host is not enabled in this build".into(),
+    ));
     let usage = client.cache().usage()?;
     checks.push((
         "cache".into(),
@@ -465,7 +514,11 @@ fn run_bench(client: &Client) -> Result<Vec<String>, NidvueError> {
     out.push(format!(
         "warm read 1 MiB: p50 {:?} (budget ≤ 15 ms) {}",
         p50,
-        if p50 <= Duration::from_millis(15) { "PASS" } else { "MISS" }
+        if p50 <= Duration::from_millis(15) {
+            "PASS"
+        } else {
+            "MISS"
+        }
     ));
 
     // Cached metadata op against a populated index.
@@ -491,7 +544,11 @@ fn run_bench(client: &Client) -> Result<Vec<String>, NidvueError> {
     out.push(format!(
         "cached readdir page: p50 {:?} (budget ≤ 2 ms) {}",
         meta_p50,
-        if meta_p50 <= Duration::from_millis(2) { "PASS" } else { "MISS" }
+        if meta_p50 <= Duration::from_millis(2) {
+            "PASS"
+        } else {
+            "MISS"
+        }
     ));
 
     // Hashing throughput, which bounds uploads.

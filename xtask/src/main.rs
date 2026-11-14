@@ -144,7 +144,15 @@ fn fmt(check: bool) -> Result<(), String> {
 fn clippy() -> Result<(), String> {
     cmd(
         "cargo",
-        &["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"],
+        &[
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--all-features",
+            "--",
+            "-D",
+            "warnings",
+        ],
     )
 }
 
@@ -158,11 +166,17 @@ fn test(extra: &[String]) -> Result<(), String> {
 fn doc() -> Result<(), String> {
     // `-D warnings` catches broken intra-doc links, the common regression.
     std::env::set_var("RUSTDOCFLAGS", "-D warnings");
-    cmd("cargo", &["doc", "--workspace", "--no-deps", "--all-features"])
+    cmd(
+        "cargo",
+        &["doc", "--workspace", "--no-deps", "--all-features"],
+    )
 }
 
 fn deny() -> Result<(), String> {
-    cmd("cargo", &["deny", "check", "licenses", "bans", "sources", "advisories"])
+    cmd(
+        "cargo",
+        &["deny", "check", "licenses", "bans", "sources", "advisories"],
+    )
 }
 
 fn bench() -> Result<(), String> {
@@ -175,7 +189,12 @@ fn ui() -> Result<(), String> {
     let build = app.join("build");
     std::fs::create_dir_all(&build).map_err(|e| format!("{}: {e}", build.display()))?;
     let status = Command::new("cmake")
-        .args(["-S", &app.display().to_string(), "-B", &build.display().to_string()])
+        .args([
+            "-S",
+            &app.display().to_string(),
+            "-B",
+            &build.display().to_string(),
+        ])
         .args(["-DCMAKE_BUILD_TYPE=Release"])
         .current_dir(&root)
         .status()
@@ -198,8 +217,16 @@ fn ui() -> Result<(), String> {
 fn plugins() -> Result<(), String> {
     let root = workspace_root();
     let examples = [
-        ("plugins/example-hello", "nidvue_plugin_hello.wasm", "com_example_hello.wasm"),
-        ("plugins/example-filter", "nidvue_plugin_filter.wasm", "com_example_filter.wasm"),
+        (
+            "plugins/example-hello",
+            "nidvue_plugin_hello.wasm",
+            "com_example_hello.wasm",
+        ),
+        (
+            "plugins/example-filter",
+            "nidvue_plugin_filter.wasm",
+            "com_example_filter.wasm",
+        ),
     ];
     for (dir, built, target) in examples {
         let status = Command::new("cargo")
@@ -210,7 +237,10 @@ fn plugins() -> Result<(), String> {
         if !status.success() {
             return Err(format!("building {dir} failed"));
         }
-        let from = root.join(dir).join("target/wasm32-unknown-unknown/release").join(built);
+        let from = root
+            .join(dir)
+            .join("target/wasm32-unknown-unknown/release")
+            .join(built);
         let to = root.join(dir).join(target);
         std::fs::copy(&from, &to).map_err(|e| format!("copy {}: {e}", from.display()))?;
         println!("+ plugin {target}");
@@ -223,7 +253,10 @@ fn ui_smoke() -> Result<(), String> {
     let root = workspace_root();
     let binary = root.join("apps/nidvue-ui/build/nidvue-ui");
     if !binary.exists() {
-        return Err(format!("{} is missing; run `cargo xtask ui` first", binary.display()));
+        return Err(format!(
+            "{} is missing; run `cargo xtask ui` first",
+            binary.display()
+        ));
     }
     let state = std::env::temp_dir().join(format!("nidvue-ui-smoke-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
@@ -236,9 +269,14 @@ fn ui_smoke() -> Result<(), String> {
         .map_err(|e| format!("launch ui: {e}"))?;
     std::thread::sleep(std::time::Duration::from_secs(2));
     let _ = child.kill();
-    let output = child.wait_with_output().map_err(|e| format!("wait ui: {e}"))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("wait ui: {e}"))?;
     let stderr = String::from_utf8_lossy(&output.stderr);
-    if stderr.contains("qrc:/") || stderr.contains("Cannot assign") || stderr.contains("is not a type") {
+    if stderr.contains("qrc:/")
+        || stderr.contains("Cannot assign")
+        || stderr.contains("is not a type")
+    {
         return Err(format!("QML errors:\n{stderr}"));
     }
     let initialised = state.join("db").join("index.sqlite").exists();
@@ -253,7 +291,11 @@ fn ui_smoke() -> Result<(), String> {
 fn package() -> Result<(), String> {
     cmd("cargo", &["build", "--release", "--workspace"])?;
     let root = workspace_root();
-    for script in ["packaging/linux.sh", "packaging/macos.sh", "packaging/windows.ps1"] {
+    for script in [
+        "packaging/linux.sh",
+        "packaging/macos.sh",
+        "packaging/windows.ps1",
+    ] {
         if root.join(script).exists() && script.ends_with(".sh") && script.contains("linux") {
             cmd("bash", &[script])?;
         }
@@ -263,7 +305,18 @@ fn package() -> Result<(), String> {
 }
 
 fn schema() -> Result<(), String> {
-    cmd("cargo", &["run", "-p", "nidvue-sdk", "--features", "schema", "--bin", "nidvue-schema"])
+    cmd(
+        "cargo",
+        &[
+            "run",
+            "-p",
+            "nidvue-sdk",
+            "--features",
+            "schema",
+            "--bin",
+            "nidvue-schema",
+        ],
+    )
 }
 
 fn clean() -> Result<(), String> {
@@ -319,7 +372,10 @@ fn spdx() -> Result<(), String> {
         println!("spdx: every tracked source file carries the header");
         Ok(())
     } else {
-        Err(format!("spdx: missing header in\n  {}", missing.join("\n  ")))
+        Err(format!(
+            "spdx: missing header in\n  {}",
+            missing.join("\n  ")
+        ))
     }
 }
 
@@ -338,7 +394,9 @@ fn secrets() -> Result<(), String> {
     ];
     let mut hits = Vec::new();
     for path in files.lines() {
-        let Ok(text) = std::fs::read_to_string(path) else { continue };
+        let Ok(text) = std::fs::read_to_string(path) else {
+            continue;
+        };
         if path.starts_with("xtask/") {
             // The scanner's own pattern table.
             continue;
@@ -353,7 +411,10 @@ fn secrets() -> Result<(), String> {
         println!("secrets: no credential-shaped strings in tracked files");
         Ok(())
     } else {
-        Err(format!("secrets: possible credentials\n  {}", hits.join("\n  ")))
+        Err(format!(
+            "secrets: possible credentials\n  {}",
+            hits.join("\n  ")
+        ))
     }
 }
 
@@ -386,6 +447,9 @@ fn dco(range: Option<&str>) -> Result<(), String> {
         println!("dco: every commit carries a Signed-off-by trailer");
         Ok(())
     } else {
-        Err(format!("dco: missing Signed-off-by in\n  {}", bad.join("\n  ")))
+        Err(format!(
+            "dco: missing Signed-off-by in\n  {}",
+            bad.join("\n  ")
+        ))
     }
 }

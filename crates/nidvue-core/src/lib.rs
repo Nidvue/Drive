@@ -28,9 +28,7 @@ pub mod types;
 pub use error::{NidvueError, Result};
 pub use hash::Hash;
 pub use path::RemotePath;
-pub use types::{
-    BaselineEntry, ConflictPolicy, EntryKind, EntryMeta, Side, Version,
-};
+pub use types::{BaselineEntry, ConflictPolicy, EntryKind, EntryMeta, Side, Version};
 
 /// The product name, used in conflict file names and user-facing strings.
 pub const PRODUCT: &str = "Nidvue";

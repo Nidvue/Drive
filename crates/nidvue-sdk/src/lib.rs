@@ -81,7 +81,12 @@ pub struct CacheUsageView {
 
 impl From<CacheUsage> for CacheUsageView {
     fn from(u: CacheUsage) -> Self {
-        Self { bytes: u.bytes, blobs: u.blobs, pinned: u.pinned, dirty: u.dirty }
+        Self {
+            bytes: u.bytes,
+            blobs: u.blobs,
+            pinned: u.pinned,
+            dirty: u.dirty,
+        }
     }
 }
 
@@ -96,7 +101,10 @@ pub struct QuotaView {
 
 impl From<Quota> for QuotaView {
     fn from(q: Quota) -> Self {
-        Self { usage: q.usage, quota: q.quota }
+        Self {
+            usage: q.usage,
+            quota: q.quota,
+        }
     }
 }
 
@@ -122,19 +130,32 @@ impl Client {
     pub async fn open(state_dir: impl Into<PathBuf>) -> Result<Self> {
         let state_dir = state_dir.into();
         let config = AppConfig::load_or_default(&state_dir)?;
-        std::fs::create_dir_all(config.db_dir()).map_err(|e| NidvueError::io(config.db_dir(), e))?;
+        std::fs::create_dir_all(config.db_dir())
+            .map_err(|e| NidvueError::io(config.db_dir(), e))?;
         let cache = Arc::new(Cache::open(
             &config.cache,
             &config.blobs_dir(),
             &config.db_dir().join("index.sqlite"),
         )?);
         let index = cache.index().clone();
-        let http = JottaClient::http_client(&config.network.user_agent, std::time::Duration::from_millis(config.network.timeout_ms))?;
-        let store = Arc::new(nidvue_core::secret::EncryptedFileStore::new(config.credentials_file()));
+        let http = JottaClient::http_client(
+            &config.network.user_agent,
+            std::time::Duration::from_millis(config.network.timeout_ms),
+        )?;
+        let store = Arc::new(nidvue_core::secret::EncryptedFileStore::new(
+            config.credentials_file(),
+        ));
         let auth = Arc::new(AuthManager::new(http.clone(), store));
         let _ = auth.restore().await?;
-        let username = auth.username().await.unwrap_or_else(|| "unknown".to_string());
-        let jotta = Arc::new(JottaClient::new(http, auth.clone(), JottaConfig::from_app(&config, username)));
+        let username = auth
+            .username()
+            .await
+            .unwrap_or_else(|| "unknown".to_string());
+        let jotta = Arc::new(JottaClient::new(
+            http,
+            auth.clone(),
+            JottaConfig::from_app(&config, username),
+        ));
         let (events, _) = broadcast::channel(1024);
         Ok(Self {
             inner: Arc::new(Inner {
@@ -290,10 +311,13 @@ impl Client {
     /// Resolve one conflict.
     pub fn resolve_conflict(&self, id: &str, policy: ConflictPolicy) -> Result<()> {
         self.inner.index.resolve_conflict(id, policy)?;
-        let _ = self.inner.events.send(EventEnvelope::new(Event::ConflictResolved {
-            id: id.to_string(),
-            resolution: policy.as_str().to_string(),
-        }));
+        let _ = self
+            .inner
+            .events
+            .send(EventEnvelope::new(Event::ConflictResolved {
+                id: id.to_string(),
+                resolution: policy.as_str().to_string(),
+            }));
         Ok(())
     }
 
@@ -332,11 +356,21 @@ impl Client {
             std::fs::create_dir_all(parent).map_err(|e| NidvueError::io(parent, e))?;
         }
         let tmp = local.with_extension("nidvue-tmp");
-        let mut file = tokio::fs::File::create(&tmp).await.map_err(|e| NidvueError::io(&tmp, e))?;
-        let size = self.inner.jotta.download_to(remote, &mut file, None, None).await?;
-        file.sync_all().await.map_err(|e| NidvueError::io(&tmp, e))?;
+        let mut file = tokio::fs::File::create(&tmp)
+            .await
+            .map_err(|e| NidvueError::io(&tmp, e))?;
+        let size = self
+            .inner
+            .jotta
+            .download_to(remote, &mut file, None, None)
+            .await?;
+        file.sync_all()
+            .await
+            .map_err(|e| NidvueError::io(&tmp, e))?;
         drop(file);
-        tokio::fs::rename(&tmp, local).await.map_err(|e| NidvueError::io(local, e))?;
+        tokio::fs::rename(&tmp, local)
+            .await
+            .map_err(|e| NidvueError::io(local, e))?;
         Ok(size)
     }
 
@@ -378,7 +412,10 @@ mod tests {
         let client = Client::open(dir.path()).await.unwrap();
         client.config().clone().save(dir.path()).unwrap();
         let again = Client::open(dir.path()).await.unwrap();
-        assert_eq!(again.config().cache.max_size_bytes, client.config().cache.max_size_bytes);
+        assert_eq!(
+            again.config().cache.max_size_bytes,
+            client.config().cache.max_size_bytes
+        );
     }
 
     #[test]

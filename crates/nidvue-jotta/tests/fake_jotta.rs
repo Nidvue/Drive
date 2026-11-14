@@ -23,9 +23,8 @@ const TOKEN_JSON: &str = r#"{"access_token":"bearer-one","refresh_token":"refres
 const REFRESHED_JSON: &str = r#"{"access_token":"bearer-two","refresh_token":"refresh-two","expires_in":3600,"token_type":"Bearer"}"#;
 
 fn login_token(well_known: &str) -> String {
-    let json = format!(
-        r#"{{"well_known_link":"{well_known}","username":"alice","auth_token":"pw"}}"#
-    );
+    let json =
+        format!(r#"{{"well_known_link":"{well_known}","username":"alice","auth_token":"pw"}}"#);
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json)
 }
 
@@ -82,7 +81,13 @@ async fn harness() -> Harness {
         max_concurrency: 4,
     };
     let client = JottaClient::new(http, auth.clone(), cfg);
-    Harness { server, client, auth, store, dir }
+    Harness {
+        server,
+        client,
+        auth,
+        store,
+        dir,
+    }
 }
 
 #[tokio::test]
@@ -128,9 +133,16 @@ async fn refreshes_once_on_401_and_retries_the_request() {
         .mount(&h.server)
         .await;
 
-    let entry = h.client.stat(&RemotePath::parse("/x.txt").unwrap()).await.unwrap();
+    let entry = h
+        .client
+        .stat(&RemotePath::parse("/x.txt").unwrap())
+        .await
+        .unwrap();
     assert_eq!(entry.size, 5);
-    assert_eq!(entry.md5.as_deref(), Some("5d41402abc4b2a76b9719d911017c592"));
+    assert_eq!(
+        entry.md5.as_deref(),
+        Some("5d41402abc4b2a76b9719d911017c592")
+    );
 }
 
 #[tokio::test]
@@ -149,14 +161,19 @@ async fn honours_retry_after_on_429() {
         .await;
     Mock::given(method("GET"))
         .and(path("/jfs/alice/Jotta/Archive/busy"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            r#"<folder name="busy"><size>0</size></folder>"#,
-        ))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(r#"<folder name="busy"><size>0</size></folder>"#),
+        )
         .with_priority(2)
         .mount(&h.server)
         .await;
 
-    let entry = h.client.stat(&RemotePath::parse("/busy").unwrap()).await.unwrap();
+    let entry = h
+        .client
+        .stat(&RemotePath::parse("/busy").unwrap())
+        .await
+        .unwrap();
     assert_eq!(entry.name, "busy");
 }
 
@@ -174,7 +191,11 @@ async fn a_partial_listing_is_an_error_not_a_deletion_set() {
         .mount(&h.server)
         .await;
 
-    let err = h.client.list_stream(&RemotePath::parse("/Docs").unwrap()).await.unwrap_err();
+    let err = h
+        .client
+        .list_stream(&RemotePath::parse("/Docs").unwrap())
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("partial listing"), "{err}");
 }
 
@@ -194,7 +215,11 @@ async fn lists_with_liststream_mode() {
         .mount(&h.server)
         .await;
 
-    let listing = h.client.list_stream(&RemotePath::parse("/Docs").unwrap()).await.unwrap();
+    let listing = h
+        .client
+        .list_stream(&RemotePath::parse("/Docs").unwrap())
+        .await
+        .unwrap();
     assert_eq!(listing.files.len(), 1);
     assert_eq!(listing.folders.len(), 1);
     assert!(!listing.is_partial());
@@ -238,7 +263,11 @@ async fn upload_resumes_from_the_allocate_position_and_verifies() {
         .mount(&h.server)
         .await;
 
-    let entry = h.client.upload(&RemotePath::parse("/f.txt").unwrap(), &file, None).await.unwrap();
+    let entry = h
+        .client
+        .upload(&RemotePath::parse("/f.txt").unwrap(), &file, None)
+        .await
+        .unwrap();
     assert_eq!(entry.size, 11);
 }
 
@@ -273,7 +302,11 @@ async fn deduplicated_upload_sends_no_body() {
         .mount(&h.server)
         .await;
 
-    let entry = h.client.upload(&RemotePath::parse("/dup.bin").unwrap(), &file, None).await.unwrap();
+    let entry = h
+        .client
+        .upload(&RemotePath::parse("/dup.bin").unwrap(), &file, None)
+        .await
+        .unwrap();
     assert_eq!(entry.size, 10);
 }
 
@@ -300,7 +333,11 @@ async fn a_size_mismatch_after_upload_is_a_failure() {
         .mount(&h.server)
         .await;
 
-    let err = h.client.upload(&RemotePath::parse("/bad.bin").unwrap(), &file, None).await.unwrap_err();
+    let err = h
+        .client
+        .upload(&RemotePath::parse("/bad.bin").unwrap(), &file, None)
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("verification failed"), "{err}");
 }
 

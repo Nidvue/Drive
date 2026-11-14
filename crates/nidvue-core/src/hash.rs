@@ -18,7 +18,9 @@ use sha2::{Digest, Sha256};
 use crate::error::{NidvueError, Result};
 
 /// A lower-case hex SHA-256 digest, 64 characters.
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(transparent)]
 pub struct Hash(String);
 
@@ -83,16 +85,20 @@ pub fn hash_reader(mut reader: impl Read) -> Result<HashAndSize> {
     let mut buf = vec![0u8; 256 * 1024];
     let mut size = 0u64;
     loop {
-        let n = reader
-            .read(&mut buf)
-            .map_err(|e| NidvueError::Io { path: "<stream>".into(), source: e })?;
+        let n = reader.read(&mut buf).map_err(|e| NidvueError::Io {
+            path: "<stream>".into(),
+            source: e,
+        })?;
         if n == 0 {
             break;
         }
         hasher.update(&buf[..n]);
         size += n as u64;
     }
-    Ok(HashAndSize { hash: Hash(hex::encode(hasher.finalize())), size })
+    Ok(HashAndSize {
+        hash: Hash(hex::encode(hasher.finalize())),
+        size,
+    })
 }
 
 /// MD5 of a file, as lower-case hex, for the Jottacloud Allocate API.
@@ -106,9 +112,10 @@ pub fn md5_reader(mut reader: impl Read) -> Result<String> {
     let mut hasher = Md5::new();
     let mut buf = vec![0u8; 256 * 1024];
     loop {
-        let n = reader
-            .read(&mut buf)
-            .map_err(|e| NidvueError::Io { path: "<stream>".into(), source: e })?;
+        let n = reader.read(&mut buf).map_err(|e| NidvueError::Io {
+            path: "<stream>".into(),
+            source: e,
+        })?;
         if n == 0 {
             break;
         }
@@ -134,7 +141,10 @@ mod tests {
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
         assert_eq!(Hash::of(b"").shard(), "e3");
-        assert_eq!(md5_reader(&b"abc"[..]).unwrap(), "900150983cd24fb0d6963f7d28e17f72");
+        assert_eq!(
+            md5_reader(&b"abc"[..]).unwrap(),
+            "900150983cd24fb0d6963f7d28e17f72"
+        );
     }
 
     #[test]
@@ -153,6 +163,9 @@ mod tests {
         let b = hash_reader(&b"hello nidvue"[..]).unwrap();
         assert_eq!(a, b);
         assert_eq!(a.size, 12);
-        assert!(digests_match(&md5_file(&path).unwrap(), &md5_reader(&b"hello nidvue"[..]).unwrap()));
+        assert!(digests_match(
+            &md5_file(&path).unwrap(),
+            &md5_reader(&b"hello nidvue"[..]).unwrap()
+        ));
     }
 }

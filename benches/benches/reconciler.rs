@@ -22,11 +22,21 @@ fn main() {
         let v = Version::new(8, i as i64, Some(Hash::of(&bytes)));
         local.insert(path.clone(), (EntryKind::File, v.clone()));
         // Half the paths changed remotely.
-        let r = if i % 2 == 0 { v.clone() } else { Version::new(9, i as i64, Some(Hash::of(b"other"))) };
+        let r = if i % 2 == 0 {
+            v.clone()
+        } else {
+            Version::new(9, i as i64, Some(Hash::of(b"other")))
+        };
         remote.insert(path.clone(), (EntryKind::File, r.clone()));
         baselines.insert(
             path.clone(),
-            BaselineEntry { path, kind: EntryKind::File, local: v.clone(), remote: v, synced_at_ms: 0 },
+            BaselineEntry {
+                path,
+                kind: EntryKind::File,
+                local: v.clone(),
+                remote: v,
+                synced_at_ms: 0,
+            },
         );
     }
     let start = Instant::now();

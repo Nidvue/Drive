@@ -51,5 +51,8 @@ fn main() {
         if small <= budget && large <= budget { "PASS" } else { "MISS" }
     );
     let flat = large < small * 3;
-    println!("metadata  latency flat with index size: {}", if flat { "PASS" } else { "MISS" });
+    println!(
+        "metadata  latency flat with index size: {}",
+        if flat { "PASS" } else { "MISS" }
+    );
 }

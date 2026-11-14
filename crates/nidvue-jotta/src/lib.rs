@@ -29,9 +29,17 @@ pub fn http_error(status: u16, body: &str) -> nidvue_core::NidvueError {
         401 | 403 => NidvueError::Auth(format!("HTTP {status}: {}", first_line(body))),
         404 => NidvueError::NotFound(first_line(body)),
         409 => NidvueError::AlreadyExists(first_line(body)),
-        429 => NidvueError::RateLimited { retry_after_ms: None },
-        408 | 500..=599 => NidvueError::Server { status, message: first_line(body) },
-        _ => NidvueError::Server { status, message: first_line(body) },
+        429 => NidvueError::RateLimited {
+            retry_after_ms: None,
+        },
+        408 | 500..=599 => NidvueError::Server {
+            status,
+            message: first_line(body),
+        },
+        _ => NidvueError::Server {
+            status,
+            message: first_line(body),
+        },
     }
 }
 
@@ -54,9 +62,18 @@ mod tests {
     fn status_mapping() {
         assert!(matches!(http_error(401, "no"), NidvueError::Auth(_)));
         assert!(matches!(http_error(404, "gone"), NidvueError::NotFound(_)));
-        assert!(matches!(http_error(409, "exists"), NidvueError::AlreadyExists(_)));
-        assert!(matches!(http_error(429, ""), NidvueError::RateLimited { .. }));
-        assert!(matches!(http_error(503, "busy"), NidvueError::Server { status: 503, .. }));
+        assert!(matches!(
+            http_error(409, "exists"),
+            NidvueError::AlreadyExists(_)
+        ));
+        assert!(matches!(
+            http_error(429, ""),
+            NidvueError::RateLimited { .. }
+        ));
+        assert!(matches!(
+            http_error(503, "busy"),
+            NidvueError::Server { status: 503, .. }
+        ));
     }
 
     #[test]

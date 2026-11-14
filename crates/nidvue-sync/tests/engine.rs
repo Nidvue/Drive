@@ -109,7 +109,10 @@ impl Remote for FakeRemote {
         let files = self.files.lock().unwrap();
         for (key, (bytes, mtime)) in files.iter().filter(|(k, _)| k.starts_with(&base)) {
             out.files.push(RemoteFile {
-                path: key.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default(),
+                path: key
+                    .rsplit_once('/')
+                    .map(|(d, _)| d.to_string())
+                    .unwrap_or_default(),
                 name: key.rsplit('/').next().unwrap_or(key).to_string(),
                 size: bytes.len() as u64,
                 md5: nidvue_core::hash::md5_reader(bytes.as_slice()).ok(),
@@ -139,7 +142,10 @@ impl Remote for FakeRemote {
             .get(&key)
             .map(|(b, _)| b.clone())
             .ok_or_else(|| NidvueError::NotFound(path.to_string()))?;
-        writer.write_all(&bytes).await.map_err(|e| NidvueError::io(path.as_str(), e))?;
+        writer
+            .write_all(&bytes)
+            .await
+            .map_err(|e| NidvueError::io(path.as_str(), e))?;
         Ok(bytes.len() as u64)
     }
 
@@ -182,7 +188,9 @@ impl Remote for FakeRemote {
         let a = from.as_str().trim_start_matches('/').to_string();
         let b = to.as_str().trim_start_matches('/').to_string();
         let mut files = self.files.lock().unwrap();
-        let entry = files.remove(&a).ok_or_else(|| NidvueError::NotFound(from.to_string()))?;
+        let entry = files
+            .remove(&a)
+            .ok_or_else(|| NidvueError::NotFound(from.to_string()))?;
         files.insert(b, entry);
         Ok(())
     }
@@ -202,7 +210,10 @@ fn harness() -> Harness {
     let (tx, _rx) = tokio::sync::broadcast::channel(64);
     let trash = tempfile::tempdir().unwrap();
     let local = tempfile::tempdir().unwrap();
-    let cfg = SyncConfig { workers: 1, ..Default::default() };
+    let cfg = SyncConfig {
+        workers: 1,
+        ..Default::default()
+    };
     let engine = SyncEngine::new(
         remote.clone(),
         index.clone(),
@@ -210,7 +221,13 @@ fn harness() -> Harness {
         trash.path().to_path_buf(),
         tx,
     );
-    Harness { engine, remote, index, local, _trash: trash }
+    Harness {
+        engine,
+        remote,
+        index,
+        local,
+        _trash: trash,
+    }
 }
 
 fn pair(local: &Path) -> SyncPair {
@@ -239,7 +256,10 @@ async fn local_files_are_uploaded_and_baselined() {
     let report = h.engine.sync_pair(&pair(h.local.path())).await.unwrap();
     assert_eq!(report.applied, 3, "dir + two files: {report:?}");
     assert_eq!(h.remote.get("Docs/a.txt").as_deref(), Some(&b"hello"[..]));
-    assert_eq!(h.remote.get("Docs/sub/b.txt").as_deref(), Some(&b"world"[..]));
+    assert_eq!(
+        h.remote.get("Docs/sub/b.txt").as_deref(),
+        Some(&b"world"[..])
+    );
     assert_eq!(h.index.all_baselines().unwrap().len(), 3);
     // Nothing is left in the journal.
     assert!(h.index.journal_pending().unwrap().is_empty());
@@ -273,7 +293,10 @@ async fn a_conflict_keeps_both_versions_and_records_it() {
     h.remote.put("Docs/a.txt", b"remote edit");
     let report = h.engine.sync_pair(&pair(h.local.path())).await.unwrap();
     assert_eq!(report.conflicts, 1, "{report:?}");
-    assert!(report.failed.is_empty(), "conflict action failed: {report:?}");
+    assert!(
+        report.failed.is_empty(),
+        "conflict action failed: {report:?}"
+    );
 
     let local_names: Vec<String> = std::fs::read_dir(h.local.path())
         .unwrap()
@@ -291,9 +314,15 @@ async fn a_conflict_keeps_both_versions_and_records_it() {
         .map(|n| std::fs::read(h.local.path().join(n)).unwrap())
         .collect();
     assert!(all_local.contains(&b"local edit".to_vec()), "{all_local:?}");
-    assert!(all_local.contains(&b"remote edit".to_vec()), "{all_local:?}");
+    assert!(
+        all_local.contains(&b"remote edit".to_vec()),
+        "{all_local:?}"
+    );
     let remote_names = h.remote.names();
-    assert!(remote_names.iter().any(|n| n.contains("(conflict Nidvue ")), "{remote_names:?}");
+    assert!(
+        remote_names.iter().any(|n| n.contains("(conflict Nidvue ")),
+        "{remote_names:?}"
+    );
     assert_eq!(h.index.conflicts(true).unwrap().len(), 1);
 }
 
@@ -309,7 +338,10 @@ async fn a_failed_upload_leaves_a_journal_row_and_the_file() {
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].op, "upload");
     // The local file is untouched: a failed upload never destroys data.
-    assert_eq!(std::fs::read(h.local.path().join("a.txt")).unwrap(), b"important");
+    assert_eq!(
+        std::fs::read(h.local.path().join("a.txt")).unwrap(),
+        b"important"
+    );
 }
 
 #[tokio::test]
@@ -361,7 +393,10 @@ async fn remote_deletion_moves_the_local_file_to_trash() {
     assert!(!h.local.path().join("r.txt").exists());
     // The trash keeps a copy for the retention window.
     let trash_entries = walk(h._trash.path());
-    assert!(trash_entries.iter().any(|p| p.ends_with("r.txt")), "{trash_entries:?}");
+    assert!(
+        trash_entries.iter().any(|p| p.ends_with("r.txt")),
+        "{trash_entries:?}"
+    );
 }
 
 #[tokio::test]
@@ -377,7 +412,9 @@ fn walk(root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {

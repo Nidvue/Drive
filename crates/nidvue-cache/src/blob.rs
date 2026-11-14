@@ -152,7 +152,11 @@ impl BlobStore {
         Ok((bytes, count))
     }
 
-    fn write_atomic(&self, path: &Path, write: impl FnOnce(&mut fs::File) -> Result<()>) -> Result<()> {
+    fn write_atomic(
+        &self,
+        path: &Path,
+        write: impl FnOnce(&mut fs::File) -> Result<()>,
+    ) -> Result<()> {
         let parent = path
             .parent()
             .ok_or_else(|| NidvueError::Cache("blob path has no parent".into()))?;
@@ -197,7 +201,12 @@ mod tests {
         assert_eq!(store.read(&hash).unwrap(), b"hello nidvue");
         // Two-level sharding.
         let path = store.path_of(&hash);
-        let rel: Vec<_> = path.strip_prefix(dir.path()).unwrap().iter().map(|s| s.to_os_string()).collect();
+        let rel: Vec<_> = path
+            .strip_prefix(dir.path())
+            .unwrap()
+            .iter()
+            .map(|s| s.to_os_string())
+            .collect();
         assert_eq!(rel.len(), 3);
         assert_eq!(rel[0].to_str().unwrap(), &hash.as_str()[0..2]);
         assert_eq!(rel[1].to_str().unwrap(), &hash.as_str()[2..4]);

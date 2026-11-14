@@ -33,7 +33,11 @@ pub struct Evictor<'a> {
 impl<'a> Evictor<'a> {
     /// Build an evictor over an index and a blob store.
     pub fn new(index: &'a Index, blobs: &'a BlobStore, policy: EvictionPolicy) -> Self {
-        Self { index, blobs, policy }
+        Self {
+            index,
+            blobs,
+            policy,
+        }
     }
 
     /// Evict until the cache holds at most `target_bytes`, in batches of at
