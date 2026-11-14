@@ -466,9 +466,7 @@ impl Vfs for EngineVfs {
                     self.index().set_scan_cursor(abs.as_str(), now_ms(), None)?;
                     children = self.index().list_dir(abs.as_str())?;
                 }
-                Err(e) if matches!(e, NidvueError::NotFound(_)) => {
-                    return Err(NidvueError::NotFound(abs.to_string()))
-                }
+                Err(NidvueError::NotFound(_)) => return Err(NidvueError::NotFound(abs.to_string())),
                 Err(e) => {
                     warn!(path = %abs, error = %e, "listing failed; serving cached directory");
                 }
@@ -494,6 +492,8 @@ impl Vfs for EngineVfs {
             Some(h) if self.cache.blobs().contains(&h) => h,
             _ => self.fetch(path, &row).await?,
         };
+        #[allow(clippy::type_complexity)]
+        let _ = &hash;
         // Pin while reading so eviction cannot remove the blob underneath us.
         self.cache.pin(&hash)?;
         let path_display = path.to_string();
@@ -789,10 +789,13 @@ pub async fn drain_spool(vfs: &EngineVfs, limit: usize) -> Result<Vec<RemotePath
     Ok(drained)
 }
 
+/// One in-memory file: kind, bytes, mtime.
+type MemEntry = (EntryKind, Vec<u8>, i64);
+
 /// An in-memory filesystem for contract tests.
 #[derive(Debug, Default)]
 pub struct MemoryVfs {
-    files: Mutex<BTreeMap<String, (EntryKind, Vec<u8>, i64)>>,
+    files: Mutex<BTreeMap<String, MemEntry>>,
     read_only: bool,
 }
 

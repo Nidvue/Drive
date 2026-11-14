@@ -138,14 +138,14 @@ impl Aimd {
     pub fn on_success(&self) {
         let _ = self
             .current
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some((c + 1).min(self.max)));
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some((c + 1).min(self.max)));
     }
 
     /// A request was rate limited or failed: halve, down to the minimum.
     pub fn on_congestion(&self) {
         let _ = self
             .current
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some((c / 2).max(self.min)));
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some((c / 2).max(self.min)));
     }
 
     /// The floor.

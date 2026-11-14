@@ -402,7 +402,7 @@ fn parse_document(xml: &str) -> Result<Vec<Node>> {
     Ok(roots)
 }
 
-fn push_node(stack: &mut Vec<Node>, roots: &mut Vec<Node>, node: Node) {
+fn push_node(stack: &mut [Node], roots: &mut Vec<Node>, node: Node) {
     match stack.last_mut() {
         Some(parent) => parent.children.push(node),
         None => roots.push(node),

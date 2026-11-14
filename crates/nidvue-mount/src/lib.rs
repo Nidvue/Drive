@@ -22,7 +22,7 @@ use nidvue_core::error::{NidvueError, Result};
 use nidvue_core::path::RemotePath;
 use nidvue_core::types::EntryKind;
 use nidvue_vfs::{FsStats, Vfs};
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// How the filesystem should be mounted.
 #[derive(Debug, Clone)]
@@ -193,7 +193,7 @@ mod fuse {
             }
         }
 
-        fn attr_of(&self, ino: u64, path: &RemotePath, meta: &nidvue_core::types::EntryMeta) -> FileAttr {
+        fn attr_of(&self, ino: u64, _path: &RemotePath, meta: &nidvue_core::types::EntryMeta) -> FileAttr {
             let kind = match meta.kind {
                 EntryKind::File => FileType::RegularFile,
                 EntryKind::Dir => FileType::Directory,
@@ -492,7 +492,7 @@ mod fuse {
             }
         }
 
-        fn open(&mut self, _req: &fuser::Request<'_>, ino: u64, flags: i32, reply: ReplyOpen) {
+        fn open(&mut self, _req: &fuser::Request<'_>, _ino: u64, flags: i32, reply: ReplyOpen) {
             if self.options.read_only && (flags & libc::O_ACCMODE) != libc::O_RDONLY {
                 reply.error(libc::EROFS);
                 return;
@@ -530,12 +530,11 @@ mod fuse {
             }
         }
 
-        fn forget(&mut self, _req: &fuser::Request<'_>, ino: u64, _nlookup: u64) {
+        fn forget(&mut self, _req: &fuser::Request<'_>, _ino: u64, _nlookup: u64) {
             // Inodes are cheap and the engine is the source of truth; dropping
             // them here would make the next lookup allocate a new number, which
             // confuses open handles. The table is bounded by the paths the
             // kernel has touched.
-            let _ = ino;
         }
     }
 

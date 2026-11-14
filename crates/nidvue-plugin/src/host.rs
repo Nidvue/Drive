@@ -25,11 +25,11 @@ use std::time::{Duration, Instant};
 use nidvue_core::error::{NidvueError, Result};
 use tracing::{debug, info, warn};
 use wasmtime::{
-    Caller, Config, Engine, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
+    Caller, Config, Engine, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
     TypedFunc,
 };
 
-use crate::manifest::{Capabilities, PluginManifest, API_VERSION};
+use crate::manifest::{Capabilities, PluginManifest};
 
 /// Per-call state visible to host functions.
 struct HostState {
@@ -37,7 +37,6 @@ struct HostState {
     capabilities: Capabilities,
     limits: StoreLimits,
     logs: Vec<String>,
-    epoch_tick_ms: u64,
 }
 
 /// One loaded plugin.
@@ -145,7 +144,6 @@ pub struct PluginHost {
     engine: Engine,
     plugins: Vec<LoadedPlugin>,
     stop: Arc<AtomicBool>,
-    epoch_ms: u64,
 }
 
 impl PluginHost {
@@ -172,7 +170,7 @@ impl PluginHost {
                 }
             })
             .map_err(|e| NidvueError::Plugin { plugin: "host".into(), message: e.to_string() })?;
-        Ok(Self { engine, plugins: Vec::new(), stop, epoch_ms })
+        Ok(Self { engine, plugins: Vec::new(), stop })
     }
 
     /// Loaded plugins, in load order.
@@ -223,7 +221,6 @@ impl PluginHost {
             capabilities: manifest.capabilities.clone(),
             limits: store_limits,
             logs: Vec::new(),
-            epoch_tick_ms: self.epoch_ms,
         };
         let mut store = Store::new(&self.engine, state);
         store.limiter(|s| &mut s.limits);
@@ -376,7 +373,7 @@ impl Default for PluginHost {
 }
 
 fn read_string(caller: &mut Caller<'_, HostState>, ptr: i32, len: i32) -> Option<String> {
-    if ptr < 0 || len < 0 || len > 64 * 1024 {
+    if ptr < 0 || !(0..=64 * 1024).contains(&len) {
         return None;
     }
     let memory = caller.get_export("memory")?.into_memory()?;
@@ -463,7 +460,7 @@ hooks = [{hooks}]
         let mut host = PluginHost::new().unwrap();
         let id = host.load(dir.path()).unwrap();
         assert_eq!(id, "com.example.hello");
-        let mut plugin = host.plugin_mut(&id).unwrap();
+        let plugin = host.plugin_mut(&id).unwrap();
         let out = plugin.call_hook("path_filter", r#"{"path":"/Archive/x"}"#).unwrap();
         assert_eq!(out, r#"{"include":true}"#);
     }

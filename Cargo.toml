@@ -20,7 +20,7 @@ default-members = ["crates/nidvue-cli", "crates/nidvue-sdk", "crates/nidvue-ffi"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.95"
 license = "AGPL-3.0-only"
 authors = ["Nidvue"]
 repository = "https://github.com/Nidvue/nidvue-drive"

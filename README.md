@@ -46,7 +46,7 @@ not adjectives.
 ## Quickstart
 
 ```sh
-# 1. Build (Rust 1.85+, and Qt 6 for the UI)
+# 1. Build (Rust 1.95+, and Qt 6 for the UI)
 cargo build --release
 
 # 2. Log in with a Personal Login Token

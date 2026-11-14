@@ -174,11 +174,8 @@ impl Remote for FakeRemote {
         let key = path.as_str().trim_start_matches('/').to_string();
         let removed = self.files.lock().unwrap().remove(&key).is_some();
         self.dirs.lock().unwrap().remove(&key);
-        if removed {
-            Ok(())
-        } else {
-            Ok(())
-        }
+        let _ = removed;
+        Ok(())
     }
 
     async fn remote_rename(&self, from: &RemotePath, to: &RemotePath) -> Result<()> {
