@@ -12,10 +12,8 @@ ApplicationWindow {
     title: qsTr("Nidvue Drive")
     color: palette.window
 
-    // Follows the system theme; Settings can override it.
-    palette.window: Application.styleHints.colorScheme === Qt.Dark ? "#1b1d21" : "#f6f7f9"
-    palette.windowText: Application.styleHints.colorScheme === Qt.Dark ? "#e8e8e8" : "#1c1d21"
-    palette.base: Application.styleHints.colorScheme === Qt.Dark ? "#24272c" : "#ffffff"
+    // Colours follow the platform palette, so the system light/dark theme is
+    // honoured without depending on a Qt version-specific API.
     palette.highlight: "#3d7eff"
     palette.highlightedText: "#ffffff"
 
