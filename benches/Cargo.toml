@@ -13,7 +13,6 @@ publish = false
 nidvue-cache = { workspace = true }
 nidvue-core = { workspace = true }
 nidvue-sync = { workspace = true }
-tempfile = { workspace = true }
 
 [[bench]]
 name = "cache_read"

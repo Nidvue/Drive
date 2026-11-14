@@ -186,6 +186,8 @@ fn bench() -> Result<(), String> {
 
 fn ui() -> Result<(), String> {
     let root = workspace_root();
+    // CMake links the static library; build it first so a clean checkout works.
+    cmd("cargo", &["build", "--release", "-p", "nidvue-ffi"])?;
     let app = root.join("apps/nidvue-ui");
     let build = app.join("build");
     std::fs::create_dir_all(&build).map_err(|e| format!("{}: {e}", build.display()))?;

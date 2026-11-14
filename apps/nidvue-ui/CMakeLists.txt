@@ -8,8 +8,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FUSE3 REQUIRED fuse3)
+if(UNIX AND NOT APPLE)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(FUSE3 REQUIRED fuse3)
+endif()
 qt_standard_project_setup()
 
 # The Rust engine, linked as a static library. `cargo xtask ui` builds it first.
@@ -52,10 +54,10 @@ target_link_libraries(nidvue-ui PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     ${NIDVUE_FFI_LIB}
-    ${FUSE3_LIBRARIES}
-    pthread
-    dl
-    m
 )
+
+if(UNIX)
+    target_link_libraries(nidvue-ui PRIVATE pthread dl m ${FUSE3_LIBRARIES})
+endif()
 
 install(TARGETS nidvue-ui RUNTIME DESTINATION bin)
