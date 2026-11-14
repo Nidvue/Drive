@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use crate::error::{NidvueError, Result};
 
 /// A lower-case hex SHA-256 digest, 64 characters.
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(transparent)]
 pub struct Hash(String);
 

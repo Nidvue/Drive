@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{NidvueError, Result};
 
 /// An absolute, normalised path inside a Jottacloud mountpoint.
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(transparent)]
 pub struct RemotePath(String);
 

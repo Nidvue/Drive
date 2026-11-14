@@ -9,7 +9,7 @@ use crate::hash::Hash;
 use crate::path::RemotePath;
 
 /// What a path is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EntryKind {
     /// A regular file.
@@ -21,7 +21,7 @@ pub enum EntryKind {
 }
 
 /// Which side of a sync pair a value came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Side {
     /// The local filesystem.
@@ -44,7 +44,7 @@ impl Side {
 ///
 /// Conflict detection compares `hash` and `size`, never `mtime` alone: two
 /// editors that preserve mtime still produce different content.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Version {
     /// Size in bytes (0 for directories).
     pub size: u64,
@@ -76,7 +76,7 @@ impl Version {
 }
 
 /// A directory entry with its version and, for the remote side, a revision id.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct EntryMeta {
     /// Path inside the mountpoint.
     pub path: RemotePath,
@@ -111,7 +111,7 @@ impl EntryMeta {
 }
 
 /// The last state both sides agreed on. The third leg of three-way merge.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct BaselineEntry {
     /// Path inside the mountpoint.
     pub path: RemotePath,
@@ -126,7 +126,7 @@ pub struct BaselineEntry {
 }
 
 /// What to do when both sides changed the same path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictPolicy {
     /// Keep both: newest at the original path, loser as a conflict copy.

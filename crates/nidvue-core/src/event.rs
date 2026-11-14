@@ -14,7 +14,7 @@ use crate::conflict::Conflict;
 use crate::id::CorrelationId;
 
 /// Which way bytes are moving.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
     /// Local to Jottacloud.
@@ -24,7 +24,7 @@ pub enum Direction {
 }
 
 /// Overall engine health, surfaced in the tray and the dashboard.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthState {
     /// Everything is working.
@@ -39,7 +39,7 @@ pub enum HealthState {
 }
 
 /// Something that happened in the engine.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     /// A sync pass began.
@@ -181,7 +181,7 @@ impl Event {
 }
 
 /// An event with its correlation id and timestamp.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct EventEnvelope {
     /// Correlates the event with the operation that produced it.
     pub id: CorrelationId,
@@ -199,7 +199,7 @@ impl EventEnvelope {
 }
 
 /// A point-in-time snapshot for the dashboard, the tray and `status --json`.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct StatsSnapshot {
     /// Upload throughput, bytes/second, exponentially smoothed.
     pub upload_bps: u64,

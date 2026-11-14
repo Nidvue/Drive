@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 static COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// An operation id, e.g. `op-17a2f3c4d5e-0001`.
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(transparent)]
 pub struct CorrelationId(String);
 

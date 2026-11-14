@@ -16,7 +16,7 @@ use crate::types::ConflictPolicy;
 use crate::{DEFAULT_DEVICE, DEFAULT_MOUNTPOINT};
 
 /// Which eviction policy the cache uses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EvictionPolicy {
     /// Segmented LRU with a frequency scan (default).
@@ -28,7 +28,7 @@ pub enum EvictionPolicy {
 }
 
 /// One bidirectional sync pair.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct SyncPair {
     /// User-visible name, unique in the configuration.
     pub name: String,
@@ -52,7 +52,7 @@ pub struct SyncPair {
 }
 
 /// Cache configuration. Hot-reloadable.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct CacheConfig {
     /// Hard cap on blob bytes on disk.
@@ -86,7 +86,7 @@ impl Default for CacheConfig {
 }
 
 /// Sync engine configuration. Partly hot-reloadable.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct SyncConfig {
     /// Configured pairs.
@@ -138,7 +138,7 @@ impl Default for SyncConfig {
 }
 
 /// Mount configuration. Hot-reloadable except `mountpoint`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct MountConfig {
     /// Where the filesystem appears.
@@ -169,7 +169,7 @@ impl Default for MountConfig {
 }
 
 /// Network and Jottacloud endpoint configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// JFS base URL.
@@ -212,7 +212,7 @@ impl Default for NetworkConfig {
 }
 
 /// Logging and telemetry configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct LogConfig {
     /// `error`, `warn`, `info`, `debug` or `trace`.
@@ -243,7 +243,7 @@ impl Default for LogConfig {
 }
 
 /// UI preferences.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct UiConfig {
     /// `system`, `dark` or `light`.
@@ -261,7 +261,7 @@ impl Default for UiConfig {
 }
 
 /// The hot-reloadable subset, pushed to the UI on change.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct HotConfig {
     /// Cache settings.
     pub cache: CacheConfig,
@@ -272,7 +272,7 @@ pub struct HotConfig {
 }
 
 /// The whole configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, schemars::JsonSchema)]
 #[serde(default)]
 pub struct AppConfig {
     /// Root state directory; every other default path is below it.

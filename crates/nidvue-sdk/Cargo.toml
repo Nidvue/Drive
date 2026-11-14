@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-sdk"
-description = "Nidvue Drive sdk"
+description = "Nidvue Drive stable Rust SDK: Client, sync, mount, cache, plugins, events"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,29 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
+documentation = "https://docs.rs/nidvue-sdk"
 
 [dependencies]
+nidvue-cache = { workspace = true }
 nidvue-core = { workspace = true }
+nidvue-jotta = { workspace = true }
+nidvue-mount = { workspace = true }
+nidvue-plugin = { workspace = true }
+nidvue-sync = { workspace = true }
+nidvue-vfs = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+nidvue-plugin = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[features]
+default = []
+schema = []

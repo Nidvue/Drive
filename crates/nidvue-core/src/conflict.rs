@@ -25,7 +25,7 @@ pub fn conflict_copy_name(name: &str, ms: i64) -> String {
 }
 
 /// What the user decided about a conflict.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Resolution {
     /// Keep the local file, discard the remote version.
@@ -37,7 +37,7 @@ pub enum Resolution {
 }
 
 /// One detected conflict, as shown in the Conflict Center.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Conflict {
     /// Stable id, derived from the path and detection time.
     pub id: String,
