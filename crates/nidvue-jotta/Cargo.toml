@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-jotta"
-description = "Nidvue Drive jotta"
+description = "Jottacloud API client: authentication, JFS XML, Allocate uploads, rate limiting"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,20 @@ homepage.workspace = true
 
 [dependencies]
 nidvue-core = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+futures-util = "0.3"
+quick-xml = { workspace = true, features = ["serialize"] }
+rand = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true, features = ["io", "io-util"] }
+tracing = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+wiremock = { workspace = true }

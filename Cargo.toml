@@ -53,9 +53,10 @@ proptest = "1"
 quick-xml = "0.42"
 rand = "0.9"
 reqwest = { version = "0.13", default-features = false, features = [
-    "rustls-tls",
+    "rustls",
     "stream",
     "json",
+    "form",
     "http2",
     "charset",
 ] }
