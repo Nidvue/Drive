@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 981599f1162c22666ed88388dcfff4cf9b359327e95e80875dcfdd28cee9c9a9 # shrinks to local0 = Absent, remote0 = Present([], 0), base0 = Present([], 0), local1 = Absent, remote1 = Absent

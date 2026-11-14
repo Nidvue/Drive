@@ -106,7 +106,18 @@ pub struct CacheUsage {
 
 /// The metadata index.
 pub struct Index {
-    conn: Connection,
+    /// rusqlite's `Connection` is `Send` but not `Sync`; the mutex makes the
+    /// index shareable. Contention is negligible: every statement is short and
+    /// the heavy work happens outside the lock.
+    conn: std::sync::Mutex<Connection>,
+}
+
+impl Index {
+    /// Lock the connection. A poisoned lock is recovered: the database itself
+    /// is the source of truth and SQLite will report a real problem.
+    fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().unwrap_or_else(|e| e.into_inner())
+    }
 }
 
 impl Index {
@@ -118,7 +129,7 @@ impl Index {
         let conn = Connection::open(path)
             .map_err(|e| NidvueError::Index(format!("{}: {e}", path.display())))?;
         Self::configure(&conn)?;
-        let index = Self { conn };
+        let index = Self { conn: std::sync::Mutex::new(conn) };
         index.migrate()?;
         Ok(index)
     }
@@ -127,7 +138,7 @@ impl Index {
     pub fn in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory().map_err(|e| NidvueError::Index(e.to_string()))?;
         Self::configure(&conn)?;
-        let index = Self { conn };
+        let index = Self { conn: std::sync::Mutex::new(conn) };
         index.migrate()?;
         Ok(index)
     }
@@ -145,7 +156,7 @@ impl Index {
     }
 
     fn migrate(&self) -> Result<()> {
-        self.conn
+        self.conn()
             .execute_batch(
                 r#"
                 CREATE TABLE IF NOT EXISTS entries (
@@ -218,15 +229,15 @@ impl Index {
     }
 
     /// The underlying connection, for a crate that owns extra tables.
-    pub fn connection(&self) -> &Connection {
-        &self.conn
+    pub fn connection(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn()
     }
 
     // ---- entries -------------------------------------------------------
 
     /// Insert or replace an entry.
     pub fn upsert_entry(&self, entry: &EntryRow) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT INTO entries(path, kind, size, mtime_ms, hash, remote_rev, dirty)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -248,7 +259,7 @@ impl Index {
 
     /// One entry by path.
     pub fn entry(&self, path: &str) -> Result<Option<EntryRow>> {
-        self.conn
+        self.conn()
             .query_row(
                 "SELECT path, kind, size, mtime_ms, hash, remote_rev, dirty FROM entries WHERE path=?1",
                 params![path],
@@ -260,7 +271,7 @@ impl Index {
 
     /// Remove an entry.
     pub fn delete_entry(&self, path: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute("DELETE FROM entries WHERE path=?1", params![path])
             .map_err(|e| NidvueError::Index(format!("delete {path}: {e}")))?;
         Ok(())
@@ -269,8 +280,8 @@ impl Index {
     /// Direct children of a directory (`path` = `/` for the root).
     pub fn list_dir(&self, path: &str) -> Result<Vec<EntryRow>> {
         let prefix = if path == "/" { "/".to_string() } else { format!("{path}/") };
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare(
                 "SELECT path, kind, size, mtime_ms, hash, remote_rev, dirty FROM entries
                  WHERE path LIKE ?1 || '%' AND path <> ?1
@@ -312,8 +323,8 @@ impl Index {
 
     /// Every entry, ordered by path. Streamed by the caller in batches.
     pub fn all_entries(&self) -> Result<Vec<EntryRow>> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare("SELECT path, kind, size, mtime_ms, hash, remote_rev, dirty FROM entries ORDER BY path")
             .map_err(|e| NidvueError::Index(e.to_string()))?;
         let rows = stmt
@@ -325,7 +336,7 @@ impl Index {
 
     /// Number of indexed entries.
     pub fn count_entries(&self) -> Result<u64> {
-        self.conn
+        self.conn()
             .query_row("SELECT COUNT(*) FROM entries", [], |r| r.get::<_, i64>(0))
             .map(|n| n as u64)
             .map_err(|e| NidvueError::Index(e.to_string()))
@@ -342,7 +353,7 @@ impl Index {
         remote: &Version,
         synced_at_ms: i64,
     ) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT INTO baselines(path, kind, local_size, local_mtime_ms, local_hash,
                     remote_size, remote_mtime_ms, remote_hash, synced_at_ms)
@@ -368,7 +379,7 @@ impl Index {
 
     /// The baseline for one path.
     pub fn baseline(&self, path: &str) -> Result<Option<BaselineEntry>> {
-        self.conn
+        self.conn()
             .query_row(
                 "SELECT path, kind, local_size, local_mtime_ms, local_hash,
                         remote_size, remote_mtime_ms, remote_hash, synced_at_ms
@@ -382,8 +393,8 @@ impl Index {
 
     /// Every baseline.
     pub fn all_baselines(&self) -> Result<Vec<BaselineEntry>> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare(
                 "SELECT path, kind, local_size, local_mtime_ms, local_hash,
                         remote_size, remote_mtime_ms, remote_hash, synced_at_ms
@@ -399,7 +410,7 @@ impl Index {
 
     /// Forget a baseline (the path was deleted on both sides).
     pub fn clear_baseline(&self, path: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute("DELETE FROM baselines WHERE path=?1", params![path])
             .map_err(|e| NidvueError::Index(format!("clear baseline {path}: {e}")))?;
         Ok(())
@@ -409,7 +420,7 @@ impl Index {
 
     /// Record a blob, or refresh its size if it is already known.
     pub fn record_blob(&self, hash: &str, size: u64, now_ms: i64) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT INTO blobs(hash, size, created_ms, last_access_ms, access_count)
                  VALUES (?1, ?2, ?3, ?3, 1)
@@ -423,7 +434,7 @@ impl Index {
     /// Record an access: promote to the protected segment on the second access
     /// inside the window, which is the "K" in LRU-K.
     pub fn touch_blob(&self, hash: &str, now_ms: i64) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "UPDATE blobs SET prev_access_ms = last_access_ms, last_access_ms = ?2,
                     access_count = access_count + 1,
@@ -437,7 +448,7 @@ impl Index {
 
     /// Pin a blob. A pinned blob is never evicted.
     pub fn pin(&self, hash: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "UPDATE blobs SET pinned = pinned + 1 WHERE hash = ?1",
                 params![hash],
@@ -448,7 +459,7 @@ impl Index {
 
     /// Unpin a blob.
     pub fn unpin(&self, hash: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "UPDATE blobs SET pinned = MAX(pinned - 1, 0) WHERE hash = ?1",
                 params![hash],
@@ -459,7 +470,7 @@ impl Index {
 
     /// Mark a blob as dirty (not yet drained) or clean.
     pub fn set_dirty(&self, hash: &str, dirty: bool) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "UPDATE blobs SET dirty = ?2 WHERE hash = ?1",
                 params![hash, dirty as i64],
@@ -470,7 +481,7 @@ impl Index {
 
     /// Forgets a blob row.
     pub fn remove_blob(&self, hash: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute("DELETE FROM blobs WHERE hash=?1", params![hash])
             .map_err(|e| NidvueError::Index(format!("remove blob {hash}: {e}")))?;
         Ok(())
@@ -478,7 +489,7 @@ impl Index {
 
     /// Cache counters.
     pub fn cache_usage(&self) -> Result<CacheUsage> {
-        self.conn
+        self.conn()
             .query_row(
                 "SELECT COALESCE(SUM(size),0), COUNT(*),
                         COALESCE(SUM(CASE WHEN pinned > 0 THEN 1 ELSE 0 END),0),
@@ -500,8 +511,8 @@ impl Index {
     /// Eviction victims, probation segment first, then protected, oldest first.
     /// Pinned and dirty blobs are never candidates.
     pub fn eviction_candidates(&self, limit: usize) -> Result<Vec<(String, u64)>> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare(
                 "SELECT hash, size FROM blobs
                  WHERE pinned = 0 AND dirty = 0
@@ -532,7 +543,7 @@ impl Index {
         expected_size: Option<u64>,
         detail: Option<&str>,
     ) -> Result<i64> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT INTO journal(corr, ts_ms, path, op, state, expected_hash, expected_size, detail)
                  VALUES (?1, ?2, ?3, ?4, 'intent', ?5, ?6, ?7)",
@@ -547,12 +558,12 @@ impl Index {
                 ],
             )
             .map_err(|e| NidvueError::Journal(format!("append {path}: {e}")))?;
-        Ok(self.conn.last_insert_rowid())
+        Ok(self.conn().last_insert_rowid())
     }
 
     /// Move a journal row to `applied` or `commit`.
     pub fn journal_mark(&self, id: i64, state: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute("UPDATE journal SET state=?2 WHERE id=?1", params![id, state])
             .map_err(|e| NidvueError::Journal(format!("mark {id}: {e}")))?;
         Ok(())
@@ -560,8 +571,8 @@ impl Index {
 
     /// Rows that are not committed: the recovery set after a crash.
     pub fn journal_pending(&self) -> Result<Vec<JournalRow>> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare(
                 "SELECT id, corr, ts_ms, path, op, state, expected_hash, expected_size, detail
                  FROM journal WHERE state <> 'commit' ORDER BY id",
@@ -576,8 +587,8 @@ impl Index {
 
     /// The most recent journal rows, for `status` and `doctor`.
     pub fn journal_recent(&self, limit: usize) -> Result<Vec<JournalRow>> {
-        let mut stmt = self
-            .conn
+        let conn = self.conn();
+        let mut stmt = conn
             .prepare(
                 "SELECT id, corr, ts_ms, path, op, state, expected_hash, expected_size, detail
                  FROM journal ORDER BY id DESC LIMIT ?1",
@@ -592,8 +603,8 @@ impl Index {
 
     /// Drop committed journal rows older than `before_ms` (checkpoint).
     pub fn journal_checkpoint(&self, before_ms: i64) -> Result<u64> {
-        let n = self
-            .conn
+        let conn = self.conn();
+        let n = conn
             .execute(
                 "DELETE FROM journal WHERE state='commit' AND ts_ms < ?1",
                 params![before_ms],
@@ -606,7 +617,7 @@ impl Index {
 
     /// Record a detected conflict.
     pub fn add_conflict(&self, conflict: &ConflictRow) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT OR REPLACE INTO conflicts(id, path, conflict_path, kept, detected_ms,
                     local_size, remote_size, resolution)
@@ -635,7 +646,8 @@ impl Index {
             "SELECT id, path, conflict_path, kept, detected_ms, local_size, remote_size, resolution
              FROM conflicts ORDER BY detected_ms DESC"
         };
-        let mut stmt = self.conn.prepare(sql).map_err(|e| NidvueError::Index(e.to_string()))?;
+        let conn = self.conn();
+        let mut stmt = conn.prepare(sql).map_err(|e| NidvueError::Index(e.to_string()))?;
         let rows = stmt
             .query_map([], row_to_conflict)
             .map_err(|e| NidvueError::Index(e.to_string()))?;
@@ -645,7 +657,7 @@ impl Index {
 
     /// Mark a conflict resolved.
     pub fn resolve_conflict(&self, id: &str, resolution: ConflictPolicy) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "UPDATE conflicts SET resolution=?2 WHERE id=?1",
                 params![id, resolution.as_str()],
@@ -658,7 +670,7 @@ impl Index {
 
     /// Record that a remote root was scanned.
     pub fn set_scan_cursor(&self, root: &str, last_scan_ms: i64, last_path: Option<&str>) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT INTO scan_cursor(root, last_scan_ms, last_path) VALUES (?1, ?2, ?3)
                  ON CONFLICT(root) DO UPDATE SET last_scan_ms=?2, last_path=?3",
@@ -670,7 +682,7 @@ impl Index {
 
     /// The last scan time for a root.
     pub fn scan_cursor(&self, root: &str) -> Result<Option<i64>> {
-        self.conn
+        self.conn()
             .query_row("SELECT last_scan_ms FROM scan_cursor WHERE root=?1", params![root], |r| {
                 r.get::<_, i64>(0)
             })
@@ -680,7 +692,7 @@ impl Index {
 
     /// A meta value.
     pub fn meta(&self, key: &str) -> Result<Option<String>> {
-        self.conn
+        self.conn()
             .query_row("SELECT value FROM meta WHERE key=?1", params![key], |r| r.get::<_, String>(0))
             .optional()
             .map_err(|e| NidvueError::Index(format!("meta {key}: {e}")))
@@ -688,7 +700,7 @@ impl Index {
 
     /// Set a meta value.
     pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
-        self.conn
+        self.conn()
             .execute(
                 "INSERT INTO meta(key, value) VALUES (?1, ?2)
                  ON CONFLICT(key) DO UPDATE SET value=?2",

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-sync"
-description = "Nidvue Drive sync"
+description = "Nidvue Drive journal, scanner, three-way reconciler and scheduler"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,4 +12,21 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+nidvue-cache = { workspace = true }
 nidvue-core = { workspace = true }
+nidvue-jotta = { workspace = true }
+nidvue-vfs = { workspace = true }
+async-trait = { workspace = true }
+globset = { workspace = true }
+notify = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
