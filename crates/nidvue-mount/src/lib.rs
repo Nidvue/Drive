@@ -15,16 +15,28 @@
 //! `fuser` 0.18 is used deliberately: 0.15 carries RUSTSEC-2021-0154 (an
 //! uninitialised read inside libfuse), and `cargo deny` fails on it.
 
-use std::collections::BTreeMap;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+use std::time::Duration;
+
+#[cfg(target_os = "linux")]
+use std::collections::BTreeMap;
+#[cfg(target_os = "linux")]
+use std::ffi::OsStr;
+#[cfg(target_os = "linux")]
+use std::sync::Mutex;
+#[cfg(target_os = "linux")]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use nidvue_core::error::{NidvueError, Result};
+use nidvue_vfs::Vfs;
+
+#[cfg(target_os = "linux")]
 use nidvue_core::path::RemotePath;
+#[cfg(target_os = "linux")]
 use nidvue_core::types::EntryKind;
-use nidvue_vfs::{FsStats, Vfs};
+#[cfg(target_os = "linux")]
+use nidvue_vfs::FsStats;
 
 #[cfg(target_os = "linux")]
 use fuser::{
@@ -88,6 +100,7 @@ pub fn errno(error: &NidvueError) -> Errno {
 }
 
 /// An inode table mapping kernel inodes to remote paths.
+#[cfg(target_os = "linux")]
 #[derive(Debug)]
 struct Inodes {
     by_ino: BTreeMap<u64, RemotePath>,
@@ -95,6 +108,7 @@ struct Inodes {
     next: u64,
 }
 
+#[cfg(target_os = "linux")]
 impl Inodes {
     fn new() -> Self {
         let mut table = Self {
@@ -154,10 +168,12 @@ impl Inodes {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn now() -> SystemTime {
     SystemTime::now()
 }
 
+#[cfg(target_os = "linux")]
 fn ms_to_time(ms: i64) -> SystemTime {
     if ms <= 0 {
         now()
@@ -783,7 +799,7 @@ pub fn mount(
 /// A mount that never started.
 pub struct MountHandle;
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 
