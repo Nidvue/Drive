@@ -302,7 +302,7 @@ impl JottaClient {
         progress: Option<ProgressFn>,
     ) -> Result<u64>
     where
-        W: tokio::io::AsyncWrite + Unpin,
+        W: tokio::io::AsyncWrite + Unpin + Send + ?Sized,
     {
         let url = self.cfg.jfs_url(path);
         let response = self.send(Method::GET, &url, Body::None).await?;
