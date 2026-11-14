@@ -25,7 +25,6 @@ use nidvue_cache::{Cache, CacheUsage, ConflictRow, Index};
 use nidvue_core::config::{AppConfig, SyncPair};
 use nidvue_core::error::{NidvueError, Result};
 use nidvue_core::event::{Event, EventEnvelope, HealthState, StatsSnapshot};
-use nidvue_core::types::ConflictPolicy;
 use nidvue_jotta::auth::AuthManager;
 use nidvue_jotta::client::{JottaClient, JottaConfig, Quota};
 use nidvue_mount::{MountHandle, MountOptions};
@@ -40,7 +39,7 @@ pub use nidvue_core::config::{CacheConfig, LogConfig, MountConfig, NetworkConfig
 pub use nidvue_core::conflict::{Conflict, Resolution};
 pub use nidvue_core::error::NidvueError as Error;
 pub use nidvue_core::path::RemotePath;
-pub use nidvue_core::types::{EntryKind, EntryMeta, Version};
+pub use nidvue_core::types::{ConflictPolicy, EntryKind, EntryMeta, Version};
 pub use nidvue_jotta::xml::{ListStream, RemoteEntry};
 pub use nidvue_sync::Action;
 
