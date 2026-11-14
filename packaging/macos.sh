@@ -36,7 +36,7 @@ PLIST
 
 cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$APP/Contents/Resources/"
 cat > "$APP/Contents/Resources/SOURCE-OFFER.txt" <<OFFER
-Corresponding source: https://github.com/Nidvue/nidvue-drive/tree/v${VERSION}
+Corresponding source: https://github.com/Nidvue/Drive/tree/v${VERSION}
 OFFER
 
 if command -v codesign >/dev/null && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then

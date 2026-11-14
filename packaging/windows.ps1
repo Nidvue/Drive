@@ -17,7 +17,7 @@ if (Test-Path "$Root\apps\nidvue-ui\build\nidvue-ui.exe") {
 Copy-Item "$Root\target\release\nidvue-cli.exe" $Dist -Force
 Copy-Item "$Root\LICENSE", "$Root\NOTICE" $Dist -Force
 @"
-Corresponding source: https://github.com/Nidvue/nidvue-drive/tree/v$Version
+Corresponding source: https://github.com/Nidvue/Drive/tree/v$Version
 WinFSP is a prerequisite: https://winfsp.dev (GPL-3.0 with FLOSS exception).
 AGPL-3.0 sections 4-6 are satisfied by the tag above and the source archive.
 "@ | Set-Content "$Dist\SOURCE-OFFER.txt"
