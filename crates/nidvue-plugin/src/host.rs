@@ -69,10 +69,12 @@ impl LoadedPlugin {
             })? as u32;
 
         let limits = self.manifest.limits.clamp();
-        self.store.set_fuel(limits.fuel).map_err(|e| NidvueError::Plugin {
-            plugin: self.manifest.id.clone(),
-            message: format!("fuel: {e}"),
-        })?;
+        self.store
+            .set_fuel(limits.fuel)
+            .map_err(|e| NidvueError::Plugin {
+                plugin: self.manifest.id.clone(),
+                message: format!("fuel: {e}"),
+            })?;
         // Wall-clock limit: the host ticks the engine epoch every
         // `epoch_tick_ms`; the deadline is the number of ticks allowed.
         let ticks = limits.wall_ms.div_ceil(10).max(1);
@@ -153,8 +155,10 @@ impl PluginHost {
         config.consume_fuel(true);
         config.epoch_interruption(true);
         config.wasm_backtrace_details(wasmtime::WasmBacktraceDetails::Disable);
-        let engine = Engine::new(&config)
-            .map_err(|e| NidvueError::Plugin { plugin: "host".into(), message: e.to_string() })?;
+        let engine = Engine::new(&config).map_err(|e| NidvueError::Plugin {
+            plugin: "host".into(),
+            message: e.to_string(),
+        })?;
         let stop = Arc::new(AtomicBool::new(false));
         // A single watchdog thread ticks the engine; per-call deadlines are
         // counted in ticks of this period.
@@ -169,8 +173,15 @@ impl PluginHost {
                     watchdog_engine.increment_epoch();
                 }
             })
-            .map_err(|e| NidvueError::Plugin { plugin: "host".into(), message: e.to_string() })?;
-        Ok(Self { engine, plugins: Vec::new(), stop })
+            .map_err(|e| NidvueError::Plugin {
+                plugin: "host".into(),
+                message: e.to_string(),
+            })?;
+        Ok(Self {
+            engine,
+            plugins: Vec::new(),
+            stop,
+        })
     }
 
     /// Loaded plugins, in load order.
@@ -208,8 +219,10 @@ impl PluginHost {
                 message: format!("missing {}", wasm.display()),
             });
         }
-        let module = Module::from_file(&self.engine, &wasm)
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: e.to_string() })?;
+        let module = Module::from_file(&self.engine, &wasm).map_err(|e| NidvueError::Plugin {
+            plugin: manifest.id.clone(),
+            message: e.to_string(),
+        })?;
         let limits = manifest.limits.clamp();
         let store_limits = StoreLimitsBuilder::new()
             .memory_size((limits.memory_mb * 1024 * 1024) as usize)
@@ -224,40 +237,55 @@ impl PluginHost {
         };
         let mut store = Store::new(&self.engine, state);
         store.limiter(|s| &mut s.limits);
-        store.set_fuel(limits.fuel).map_err(|e| NidvueError::Plugin {
-            plugin: manifest.id.clone(),
-            message: format!("fuel: {e}"),
-        })?;
+        store
+            .set_fuel(limits.fuel)
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: format!("fuel: {e}"),
+            })?;
         // Loading and init are not user code: give them a generous deadline so
         // the watchdog cannot interrupt them.
         store.set_epoch_deadline(1_000_000);
 
         let mut linker: Linker<HostState> = Linker::new(&self.engine);
         linker
-            .func_wrap("nidvue", "log", |mut caller: Caller<'_, HostState>, level: i32, ptr: i32, len: i32| {
-                if let Some(memory) = caller.get_export("memory").and_then(|e| e.into_memory()) {
-                    let mut buf = vec![0u8; len.max(0) as usize];
-                    if memory.read(&caller, ptr.max(0) as usize, &mut buf).is_ok() {
-                        let text = String::from_utf8_lossy(&buf).to_string();
-                        let data = caller.data_mut();
-                        data.logs.push(text.clone());
-                        if data.logs.len() > 1000 {
-                            data.logs.remove(0);
-                        }
-                        match level {
-                            0 => debug!(plugin = %data.plugin, "{text}"),
-                            1 => info!(plugin = %data.plugin, "{text}"),
-                            _ => warn!(plugin = %data.plugin, "{text}"),
+            .func_wrap(
+                "nidvue",
+                "log",
+                |mut caller: Caller<'_, HostState>, level: i32, ptr: i32, len: i32| {
+                    if let Some(memory) = caller.get_export("memory").and_then(|e| e.into_memory())
+                    {
+                        let mut buf = vec![0u8; len.max(0) as usize];
+                        if memory.read(&caller, ptr.max(0) as usize, &mut buf).is_ok() {
+                            let text = String::from_utf8_lossy(&buf).to_string();
+                            let data = caller.data_mut();
+                            data.logs.push(text.clone());
+                            if data.logs.len() > 1000 {
+                                data.logs.remove(0);
+                            }
+                            match level {
+                                0 => debug!(plugin = %data.plugin, "{text}"),
+                                1 => info!(plugin = %data.plugin, "{text}"),
+                                _ => warn!(plugin = %data.plugin, "{text}"),
+                            }
                         }
                     }
-                }
-            })
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: e.to_string() })?;
+                },
+            )
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: e.to_string(),
+            })?;
         linker
-            .func_wrap("nidvue", "now_ms", |_caller: Caller<'_, HostState>| -> i64 {
-                nidvue_core::time::now_ms()
-            })
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: e.to_string() })?;
+            .func_wrap(
+                "nidvue",
+                "now_ms",
+                |_caller: Caller<'_, HostState>| -> i64 { nidvue_core::time::now_ms() },
+            )
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: e.to_string(),
+            })?;
         linker
             .func_wrap(
                 "nidvue",
@@ -268,7 +296,10 @@ impl PluginHost {
                         .unwrap_or(0)
                 },
             )
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: e.to_string() })?;
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: e.to_string(),
+            })?;
         linker
             .func_wrap(
                 "nidvue",
@@ -279,17 +310,28 @@ impl PluginHost {
                         .unwrap_or(0)
                 },
             )
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: e.to_string() })?;
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: e.to_string(),
+            })?;
 
-        let instance = linker
-            .instantiate(&mut store, &module)
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: format!("instantiate: {e}") })?;
+        let instance =
+            linker
+                .instantiate(&mut store, &module)
+                .map_err(|e| NidvueError::Plugin {
+                    plugin: manifest.id.clone(),
+                    message: format!("instantiate: {e}"),
+                })?;
         let init = instance
             .get_typed_func::<(), i32>(&mut store, "nidvue_plugin_init")
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: format!("init: {e}") })?;
-        let code = init
-            .call(&mut store, ())
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: format!("init trap: {e}") })?;
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: format!("init: {e}"),
+            })?;
+        let code = init.call(&mut store, ()).map_err(|e| NidvueError::Plugin {
+            plugin: manifest.id.clone(),
+            message: format!("init trap: {e}"),
+        })?;
         if code != 0 {
             return Err(NidvueError::Plugin {
                 plugin: manifest.id,
@@ -298,19 +340,33 @@ impl PluginHost {
         }
         let alloc = instance
             .get_typed_func::<u32, u32>(&mut store, "nidvue_plugin_alloc")
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: format!("alloc: {e}") })?;
+            .map_err(|e| NidvueError::Plugin {
+                plugin: manifest.id.clone(),
+                message: format!("alloc: {e}"),
+            })?;
         let call = instance
             .get_typed_func::<(u32, u32, u32), u64>(&mut store, "nidvue_plugin_call")
-            .map_err(|e| NidvueError::Plugin { plugin: manifest.id.clone(), message: format!("call: {e}") })?;
-        let memory = instance
-            .get_memory(&mut store, "memory")
-            .ok_or_else(|| NidvueError::Plugin {
+            .map_err(|e| NidvueError::Plugin {
                 plugin: manifest.id.clone(),
-                message: "plugin does not export its memory".into(),
+                message: format!("call: {e}"),
             })?;
+        let memory =
+            instance
+                .get_memory(&mut store, "memory")
+                .ok_or_else(|| NidvueError::Plugin {
+                    plugin: manifest.id.clone(),
+                    message: "plugin does not export its memory".into(),
+                })?;
 
         let id = manifest.id.clone();
-        self.plugins.push(LoadedPlugin { manifest, dir: dir.to_path_buf(), store, memory, alloc, call });
+        self.plugins.push(LoadedPlugin {
+            manifest,
+            dir: dir.to_path_buf(),
+            store,
+            memory,
+            alloc,
+            call,
+        });
         info!(plugin = %id, "plugin loaded");
         Ok(id)
     }
@@ -318,7 +374,9 @@ impl PluginHost {
     /// Load every plugin directory below `root` that has a `plugin.toml`.
     pub fn load_all(&mut self, root: &Path) -> Vec<(PathBuf, Result<String>)> {
         let mut out = Vec::new();
-        let Ok(entries) = std::fs::read_dir(root) else { return out };
+        let Ok(entries) = std::fs::read_dir(root) else {
+            return out;
+        };
         for entry in entries.flatten() {
             let dir = entry.path();
             if dir.is_dir() && dir.join("plugin.toml").exists() {
@@ -430,7 +488,11 @@ mod tests {
 "#;
 
     fn install(dir: &Path, id: &str, wasm: &str, hooks: &[&str], limits: &str) {
-        let hooks = hooks.iter().map(|h| format!("\"{h}\"")).collect::<Vec<_>>().join(", ");
+        let hooks = hooks
+            .iter()
+            .map(|h| format!("\"{h}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
         std::fs::write(
             dir.join("plugin.toml"),
             format!(
@@ -461,7 +523,9 @@ hooks = [{hooks}]
         let id = host.load(dir.path()).unwrap();
         assert_eq!(id, "com.example.hello");
         let plugin = host.plugin_mut(&id).unwrap();
-        let out = plugin.call_hook("path_filter", r#"{"path":"/Archive/x"}"#).unwrap();
+        let out = plugin
+            .call_hook("path_filter", r#"{"path":"/Archive/x"}"#)
+            .unwrap();
         assert_eq!(out, r#"{"include":true}"#);
     }
 
@@ -471,7 +535,11 @@ hooks = [{hooks}]
         install(dir.path(), "com.example.hello", WAT, &["path_filter"], "");
         let mut host = PluginHost::new().unwrap();
         host.load(dir.path()).unwrap();
-        let err = host.plugin_mut("com.example.hello").unwrap().call_hook("transform", "{}").unwrap_err();
+        let err = host
+            .plugin_mut("com.example.hello")
+            .unwrap()
+            .call_hook("transform", "{}")
+            .unwrap_err();
         assert!(err.to_string().contains("not declared"), "{err}");
     }
 
@@ -481,10 +549,17 @@ hooks = [{hooks}]
         install(dir.path(), "com.example.trap", TRAP, &["path_filter"], "");
         let mut host = PluginHost::new().unwrap();
         host.load(dir.path()).unwrap();
-        let err = host.plugin_mut("com.example.trap").unwrap().call_hook("path_filter", "{}").unwrap_err();
+        let err = host
+            .plugin_mut("com.example.trap")
+            .unwrap()
+            .call_hook("path_filter", "{}")
+            .unwrap_err();
         assert!(err.to_string().contains("trap"), "{err}");
         // The host still works for other plugins.
-        assert!(host.plugins().iter().any(|p| p.manifest.id == "com.example.trap"));
+        assert!(host
+            .plugins()
+            .iter()
+            .any(|p| p.manifest.id == "com.example.trap"));
     }
 
     #[test]
@@ -500,8 +575,16 @@ hooks = [{hooks}]
         let mut host = PluginHost::new().unwrap();
         host.load(dir.path()).unwrap();
         let started = Instant::now();
-        let err = host.plugin_mut("com.example.spin").unwrap().call_hook("path_filter", "{}").unwrap_err();
-        assert!(started.elapsed() < Duration::from_secs(5), "took {:?}", started.elapsed());
+        let err = host
+            .plugin_mut("com.example.spin")
+            .unwrap()
+            .call_hook("path_filter", "{}")
+            .unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "took {:?}",
+            started.elapsed()
+        );
         assert!(
             err.to_string().contains("fuel") || err.to_string().contains("wall-clock"),
             "{err}"

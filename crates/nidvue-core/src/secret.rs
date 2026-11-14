@@ -96,10 +96,16 @@ impl EncryptedFileStore {
         }
         let raw = std::fs::read(&self.path).map_err(|e| NidvueError::io(&self.path, e))?;
         if raw.len() < MAGIC.len() + NONCE_LEN + 16 {
-            return Err(NidvueError::Secret(format!("{}: truncated", self.path.display())));
+            return Err(NidvueError::Secret(format!(
+                "{}: truncated",
+                self.path.display()
+            )));
         }
         if &raw[..MAGIC.len()] != MAGIC {
-            return Err(NidvueError::Secret(format!("{}: not a Nidvue secret file", self.path.display())));
+            return Err(NidvueError::Secret(format!(
+                "{}: not a Nidvue secret file",
+                self.path.display()
+            )));
         }
         let key = self.load_key()?;
         let cipher = ChaCha20Poly1305::new(&Key::from(key));
@@ -107,16 +113,19 @@ impl EncryptedFileStore {
             .map_err(|_| NidvueError::Secret("nonce length".into()))?;
         let plain = cipher
             .decrypt(&nonce, &raw[MAGIC.len() + NONCE_LEN..])
-            .map_err(|_| NidvueError::Secret(format!("{}: decryption failed", self.path.display())))?;
-        serde_json::from_slice(&plain)
-            .map_err(|e| NidvueError::Secret(format!("{}: corrupt payload: {e}", self.path.display())))
+            .map_err(|_| {
+                NidvueError::Secret(format!("{}: decryption failed", self.path.display()))
+            })?;
+        serde_json::from_slice(&plain).map_err(|e| {
+            NidvueError::Secret(format!("{}: corrupt payload: {e}", self.path.display()))
+        })
     }
 
     /// Encrypt and atomically replace the map.
     fn write_map(&self, map: &BTreeMap<String, String>) -> Result<()> {
         let key = self.load_key()?;
-        let plain = serde_json::to_vec(map)
-            .map_err(|e| NidvueError::Secret(format!("serialise: {e}")))?;
+        let plain =
+            serde_json::to_vec(map).map_err(|e| NidvueError::Secret(format!("serialise: {e}")))?;
         let mut nonce_bytes = [0u8; NONCE_LEN];
         getrandom::fill(&mut nonce_bytes)
             .map_err(|e| NidvueError::Secret(format!("entropy: {e}")))?;
@@ -149,9 +158,13 @@ impl EncryptedFileStore {
             return Ok(arr);
         }
         if self.key_path.exists() {
-            let bytes = std::fs::read(&self.key_path).map_err(|e| NidvueError::io(&self.key_path, e))?;
+            let bytes =
+                std::fs::read(&self.key_path).map_err(|e| NidvueError::io(&self.key_path, e))?;
             let arr: [u8; KEY_LEN] = bytes.as_slice().try_into().map_err(|_| {
-                NidvueError::Secret(format!("{}: key must be {KEY_LEN} bytes", self.key_path.display()))
+                NidvueError::Secret(format!(
+                    "{}: key must be {KEY_LEN} bytes",
+                    self.key_path.display()
+                ))
             })?;
             return Ok(arr);
         }
@@ -215,7 +228,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = EncryptedFileStore::new(dir.path().join("credentials.enc"));
         assert!(store.load("jotta").unwrap().is_none());
-        store.store("jotta", &SecretString::new("super-secret-token")).unwrap();
+        store
+            .store("jotta", &SecretString::new("super-secret-token"))
+            .unwrap();
         let got = store.load("jotta").unwrap().unwrap();
         assert_eq!(got.expose(), "super-secret-token");
 
@@ -225,7 +240,10 @@ mod tests {
 
         // A second store with the same key file reads it back.
         let again = EncryptedFileStore::new(dir.path().join("credentials.enc"));
-        assert_eq!(again.load("jotta").unwrap().unwrap().expose(), "super-secret-token");
+        assert_eq!(
+            again.load("jotta").unwrap().unwrap().expose(),
+            "super-secret-token"
+        );
 
         store.delete("jotta").unwrap();
         assert!(store.load("jotta").unwrap().is_none());
@@ -239,7 +257,10 @@ mod tests {
         let store = EncryptedFileStore::new(dir.path().join("credentials.enc"));
         store.store("k", &SecretString::new("v")).unwrap();
         for p in ["credentials.enc", "credentials.key"] {
-            let mode = std::fs::metadata(dir.path().join(p)).unwrap().permissions().mode();
+            let mode = std::fs::metadata(dir.path().join(p))
+                .unwrap()
+                .permissions()
+                .mode();
             assert_eq!(mode & 0o777, 0o600, "{p} mode {mode:o}");
         }
     }

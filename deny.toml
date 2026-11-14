@@ -41,6 +41,10 @@ allow = [
 confidence-threshold = 0.9
 exceptions = []
 
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
 [[bans.deny]]
 name = "openssl"
 reason = "use rustls; OpenSSL licensing and static-link risk"
@@ -48,11 +52,6 @@ reason = "use rustls; OpenSSL licensing and static-link risk"
 [[bans.deny]]
 name = "openssl-sys"
 reason = "use rustls; OpenSSL licensing and static-link risk"
-
-[bans]
-multiple-versions = "warn"
-wildcards = "deny"
-deny = []
 
 [sources]
 unknown-registry = "deny"

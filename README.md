@@ -91,6 +91,7 @@ cargo xtask ui      # Qt/QML app
 | [`docs/deviations.md`](docs/deviations.md) | what is not done, and why, with numbers |
 | [`docs/plugin-guide.md`](docs/plugin-guide.md) | writing a plugin, and the licence rule |
 | [`docs/performance.md`](docs/performance.md) | the budgets and the measured results |
+| [`docs/configuration.md`](docs/configuration.md) | every configuration key, its default and its meaning |
 | [`docs/packaging.md`](docs/packaging.md) | AppImage/deb, dmg, MSI and the mount helper |
 | [`docs/vfs-semantics.md`](docs/vfs-semantics.md) | exactly what the mount guarantees |
 

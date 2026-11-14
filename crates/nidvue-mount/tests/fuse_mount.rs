@@ -25,9 +25,12 @@ fn fuse_mount_serves_a_real_filesystem() {
     let _guard = runtime.enter();
     let vfs = Arc::new(MemoryVfs::new());
     runtime.block_on(async {
-        vfs.create(&RemotePath::parse("/existing.txt").unwrap(), EntryKind::File)
-            .await
-            .unwrap();
+        vfs.create(
+            &RemotePath::parse("/existing.txt").unwrap(),
+            EntryKind::File,
+        )
+        .await
+        .unwrap();
         vfs.write(&RemotePath::parse("/existing.txt").unwrap(), 0, b"seed")
             .await
             .unwrap();
@@ -44,11 +47,17 @@ fn fuse_mount_serves_a_real_filesystem() {
     };
 
     // Read a file that existed before the mount.
-    assert_eq!(std::fs::read(mountpoint.join("existing.txt")).unwrap(), b"seed");
+    assert_eq!(
+        std::fs::read(mountpoint.join("existing.txt")).unwrap(),
+        b"seed"
+    );
 
     // Create, write and read back.
     std::fs::write(mountpoint.join("hello.txt"), b"hello fuse").unwrap();
-    assert_eq!(std::fs::read(mountpoint.join("hello.txt")).unwrap(), b"hello fuse");
+    assert_eq!(
+        std::fs::read(mountpoint.join("hello.txt")).unwrap(),
+        b"hello fuse"
+    );
 
     // The listing shows both files.
     let mut names: Vec<String> = std::fs::read_dir(&mountpoint)

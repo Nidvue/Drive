@@ -1,18 +1,22 @@
 # Deviations from the brief
 
 Every requirement that is not fully met is listed here with the reason and the
-upgrade path. This file is updated as part of the release, not afterwards.
+upgrade path. An empty row is not allowed: "works" without evidence is not a
+status.
 
-Status at `v0.1.0`: see the table.
+Status at `v0.1.0`.
 
 | # | Requirement | Status | Reason / upgrade path |
 |---|---|---|---|
-| 1 | macOS mount backend (macFUSE) | compiled, not exercised in CI | GitHub's macOS runners cannot load a system extension. The adapter compiles and is unit-tested against the VFS trait; a real-mount test is skipped gracefully. |
-| 2 | Windows mount backend (WinFSP) | compiled, not exercised in CI | WinFSP requires a service install on the runner; the adapter compiles and the VFS contract tests run cross-platform. |
-| 3 | OS keyring for credentials | not wired | Tokens are encrypted at rest with ChaCha20-Poly1305 in `credentials.enc` (`0600`). Threat model and upgrade path are documented in `crates/nidvue-core/src/secret.rs`. A keyring backend slots in behind `SecretStore`. |
-| 4 | OpenTelemetry export | opt-in, no collector in CI | The exporter is wired behind `log.otel_endpoint`; CI cannot assert an external collector. The JSON/Prometheus paths are tested. |
-| 5 | 100k-file initial sync measurement | synthetic, not on the live service | Measured against the fake Jotta server with a 50 Mbit shaper; the real service's behaviour is not a property this project can guarantee. |
-| 6 | Qt app end-to-end against the live service | manual, documented | CI builds and launches the UI headlessly (`QT_QPA_PLATFORM=offscreen`) and asserts the bridge delivers typed state; a live account is not available to CI. |
-
-Each row is either closed in a later release or stays here with a number. An
-empty row is not allowed: "works" without evidence is not a status.
+| 1 | macOS mount backend (macFUSE) | adapter implemented, not exercised in CI | The same `fuser` adapter runs on macOS; GitHub's macOS runners cannot load a system extension, so the real-mount test is skipped there. `docs/vfs-semantics.md` is the contract it is tested against in-memory. |
+| 2 | Windows mount backend (WinFSP) | not implemented | `nidvue-mount` returns a typed `Unsupported` on Windows instead of pretending. The WinFSP host bindings are the remaining work; the VFS contract and errno mapping are platform-independent and already tested. |
+| 3 | OS keyring for credentials | not wired | Tokens are encrypted at rest with ChaCha20-Poly1305 in `credentials.enc` (`0600` key file beside it). Threat model: protects against accidental disclosure (backups, log scraping, crash reports), not against an attacker who can read the state directory. A keyring backend slots in behind `SecretStore`. |
+| 4 | OpenTelemetry export | config field only | `log.otel_endpoint` exists and is documented, but no OTLP exporter is wired. CI cannot assert an external collector; JSON/Prometheus-shaped status is the tested path. |
+| 5 | Prometheus endpoint | config field only | `log.prometheus_bind` is documented; the endpoint is not served yet. `status --json` is the machine-readable path today. |
+| 6 | 100k-file initial sync measurement | synthetic only | Measured against the fake Jotta server in `tests/`; the real service's behaviour is not a property this project can guarantee. The engine is bounded by the index, not by RAM (state lives in SQLite). |
+| 7 | Cold read / sustained transfer / UI frame budgets | not measured | These need a real 50 Mbit link and a windowed session. `doctor --bench` measures the cache and metadata budgets, which are green; the rest are listed in `docs/performance.md` as pending rather than claimed. |
+| 8 | Every config value has a CLI flag and a UI control | partial | All values are documented with defaults in `docs/configuration.md` and validated; `--state`, `--json`, `--token-stdin`, `--read-only` and `sync add` cover the common path. The long tail is TOML-only. |
+| 9 | Qt end-to-end against a live account | manual | CI builds the UI, launches it headlessly (`QT_QPA_PLATFORM=offscreen`) and asserts it initialises the engine with no QML errors. A live account is not available to CI. |
+| 10 | Virtualised 100k-row views | partial | Log and conflict lists use `ListView` with `reuseItems`; a 100k-row transfer list is not implemented because the transfer list itself is not exposed as a model yet (the dashboard shows aggregates). |
+| 11 | OIDC login by username/password | not implemented | Only the Personal Login Token flow is supported, which is the flow Jottacloud documents for command-line clients. No password is ever collected or stored. |
+| 12 | Native plugin dylibs | refused | `PluginHost::load` refuses a native plugin with a typed error. Loading one is a licence decision (it must be AGPL-3.0) and needs a trusted-dylib host; neither is half-done. |

@@ -32,3 +32,6 @@ nidvue-state/
 # teamwork skill workspace (local, hidden)
 .pi/
 docs/Team/
+
+# build output
+dist/

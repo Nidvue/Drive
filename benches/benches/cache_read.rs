@@ -14,7 +14,11 @@ fn p50(mut samples: Vec<Duration>) -> Duration {
 }
 
 fn main() {
-    let cfg = CacheConfig { max_size_bytes: 256 * 1024 * 1024, min_free_disk_bytes: 0, ..Default::default() };
+    let cfg = CacheConfig {
+        max_size_bytes: 256 * 1024 * 1024,
+        min_free_disk_bytes: 0,
+        ..Default::default()
+    };
     let (cache, _dir) = Cache::temporary(&cfg).expect("cache");
     let payload = vec![0x5au8; 1024 * 1024];
     let hash = cache.put(&payload).expect("put");
@@ -27,9 +31,16 @@ fn main() {
     }
     let p50 = p50(samples);
     let budget = Duration::from_millis(15);
-    println!("cache_read  1 MiB warm: p50 {p50:?} (budget ≤ {budget:?}) {}", verdict(p50 <= budget));
+    println!(
+        "cache_read  1 MiB warm: p50 {p50:?} (budget ≤ {budget:?}) {}",
+        verdict(p50 <= budget)
+    );
 }
 
 fn verdict(ok: bool) -> &'static str {
-    if ok { "PASS" } else { "MISS" }
+    if ok {
+        "PASS"
+    } else {
+        "MISS"
+    }
 }

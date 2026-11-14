@@ -56,7 +56,9 @@ fn build(globs: &[String]) -> Result<Option<GlobSet>> {
     for g in globs {
         builder.add(Glob::new(g).map_err(|e| NidvueError::Config(format!("bad glob {g:?}: {e}")))?);
     }
-    Ok(Some(builder.build().map_err(|e| NidvueError::Config(format!("globset: {e}")))?))
+    Ok(Some(builder.build().map_err(|e| {
+        NidvueError::Config(format!("globset: {e}"))
+    })?))
 }
 
 /// Scan a local directory into remote-shaped entries.
@@ -107,10 +109,7 @@ pub fn scan_local(
                 }
                 out.insert(
                     remote,
-                    (
-                        EntryKind::Dir,
-                        Version::new(0, mtime_ms(&meta), None),
-                    ),
+                    (EntryKind::Dir, Version::new(0, mtime_ms(&meta), None)),
                 );
                 stack.push(path);
             } else if meta.is_file() {

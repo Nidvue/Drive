@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{NidvueError, Result};
 
 /// An absolute, normalised path inside a Jottacloud mountpoint.
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(transparent)]
 pub struct RemotePath(String);
 
@@ -77,13 +79,19 @@ impl RemotePath {
             return None;
         }
         let (head, _) = self.0.rsplit_once('/')?;
-        Some(Self(if head.is_empty() { "/".into() } else { head.to_string() }))
+        Some(Self(if head.is_empty() {
+            "/".into()
+        } else {
+            head.to_string()
+        }))
     }
 
     /// Join a single child segment.
     pub fn join(&self, name: &str) -> Result<RemotePath> {
         if name.is_empty() || name.contains('/') || name == "." || name == ".." {
-            return Err(NidvueError::InvalidPath(format!("not a single segment: {name:?}")));
+            return Err(NidvueError::InvalidPath(format!(
+                "not a single segment: {name:?}"
+            )));
         }
         Self::parse(&format!("{}/{}", self.0.trim_end_matches('/'), name))
     }
@@ -128,10 +136,26 @@ pub fn encode_segment(seg: &str) -> String {
     let mut out = String::with_capacity(seg.len());
     for b in seg.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b':' | b'@'
-            | b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=' => {
-                out.push(b as char)
-            }
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'~'
+            | b':'
+            | b'@'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'=' => out.push(b as char),
             other => out.push_str(&format!("%{other:02X}")),
         }
     }
@@ -149,9 +173,9 @@ pub fn remote_to_local(root: &std::path::Path, remote: &RemotePath) -> std::path
 
 /// Build a remote path from a local path relative to a sync root.
 pub fn local_to_remote(root: &std::path::Path, local: &std::path::Path) -> Result<RemotePath> {
-    let rel = local
-        .strip_prefix(root)
-        .map_err(|_| NidvueError::InvalidPath(format!("{} is outside {}", local.display(), root.display())))?;
+    let rel = local.strip_prefix(root).map_err(|_| {
+        NidvueError::InvalidPath(format!("{} is outside {}", local.display(), root.display()))
+    })?;
     let mut s = String::new();
     for comp in rel.components() {
         let seg = comp
@@ -189,7 +213,11 @@ mod tests {
         assert_eq!(p.file_name(), Some("y.txt"));
         assert_eq!(p.parent().unwrap().as_str(), "/Archive/x");
         assert_eq!(p.parent().unwrap().parent().unwrap().as_str(), "/Archive");
-        assert!(RemotePath::parse("/Archive").unwrap().parent().unwrap().is_root());
+        assert!(RemotePath::parse("/Archive")
+            .unwrap()
+            .parent()
+            .unwrap()
+            .is_root());
         assert!(RemotePath::root().parent().is_none());
         assert_eq!(p.depth(), 3);
     }
@@ -197,9 +225,15 @@ mod tests {
     #[test]
     fn prefix_is_segment_aware() {
         let base = RemotePath::parse("/Archive/photos").unwrap();
-        assert!(RemotePath::parse("/Archive/photos/a").unwrap().starts_with(&base));
-        assert!(RemotePath::parse("/Archive/photos").unwrap().starts_with(&base));
-        assert!(!RemotePath::parse("/Archive/photos2").unwrap().starts_with(&base));
+        assert!(RemotePath::parse("/Archive/photos/a")
+            .unwrap()
+            .starts_with(&base));
+        assert!(RemotePath::parse("/Archive/photos")
+            .unwrap()
+            .starts_with(&base));
+        assert!(!RemotePath::parse("/Archive/photos2")
+            .unwrap()
+            .starts_with(&base));
     }
 
     #[test]
@@ -229,7 +263,9 @@ mod tests {
 
     #[test]
     fn conflict_names_are_recognised() {
-        assert!(is_conflict_copy("a (conflict Nidvue 2026-11-14 101500).txt"));
+        assert!(is_conflict_copy(
+            "a (conflict Nidvue 2026-11-14 101500).txt"
+        ));
         assert!(!is_conflict_copy("a.txt"));
     }
 }

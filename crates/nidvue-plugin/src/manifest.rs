@@ -79,7 +79,11 @@ pub struct Limits {
 
 impl Default for Limits {
     fn default() -> Self {
-        Self { fuel: 100_000_000, memory_mb: 64, wall_ms: 2_000 }
+        Self {
+            fuel: 100_000_000,
+            memory_mb: 64,
+            wall_ms: 2_000,
+        }
     }
 }
 
@@ -122,20 +126,23 @@ impl PluginManifest {
     /// Read and validate `plugin.toml` from a plugin directory.
     pub fn load(dir: &Path) -> Result<Self> {
         let path = dir.join("plugin.toml");
-        let text = std::fs::read_to_string(&path)
-            .map_err(|e| NidvueError::io(&path, e))?;
-        let manifest: Self = toml::from_str(&text)
-            .map_err(|e| NidvueError::Plugin {
-                plugin: dir.display().to_string(),
-                message: format!("plugin.toml: {e}"),
-            })?;
+        let text = std::fs::read_to_string(&path).map_err(|e| NidvueError::io(&path, e))?;
+        let manifest: Self = toml::from_str(&text).map_err(|e| NidvueError::Plugin {
+            plugin: dir.display().to_string(),
+            message: format!("plugin.toml: {e}"),
+        })?;
         manifest.validate()?;
         Ok(manifest)
     }
 
     /// Validate the manifest against the host's rules.
     pub fn validate(&self) -> Result<()> {
-        let fail = |msg: String| Err(NidvueError::Plugin { plugin: self.id.clone(), message: msg });
+        let fail = |msg: String| {
+            Err(NidvueError::Plugin {
+                plugin: self.id.clone(),
+                message: msg,
+            })
+        };
         if self.id.is_empty()
             || !self
                 .id
@@ -247,12 +254,21 @@ mod tests {
 
     #[test]
     fn limits_are_clamped() {
-        let greedy = Limits { fuel: u64::MAX, memory_mb: 100_000, wall_ms: 999_999 };
+        let greedy = Limits {
+            fuel: u64::MAX,
+            memory_mb: 100_000,
+            wall_ms: 999_999,
+        };
         let clamped = greedy.clamp();
         assert_eq!(clamped.memory_mb, 512);
         assert_eq!(clamped.wall_ms, 30_000);
         assert!(clamped.fuel <= 10_000_000_000);
-        let tiny = Limits { fuel: 0, memory_mb: 0, wall_ms: 0 }.clamp();
+        let tiny = Limits {
+            fuel: 0,
+            memory_mb: 0,
+            wall_ms: 0,
+        }
+        .clamp();
         assert!(tiny.fuel >= 1_000 && tiny.memory_mb >= 1 && tiny.wall_ms >= 10);
     }
 

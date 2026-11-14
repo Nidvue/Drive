@@ -45,7 +45,7 @@ base64 = "0.22"
 bytes = "1"
 chacha20poly1305 = "0.11"
 clap = { version = "4", features = ["derive", "env"] }
-fuser = "0.15"
+fuser = "0.18"
 globset = "0.4"
 hex = "0.4"
 libc = "0.2"

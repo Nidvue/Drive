@@ -94,7 +94,10 @@ pub unsafe extern "C" fn nidvue_client_new(
             set_err(err, "state_dir is null or not UTF-8");
             return ptr::null_mut();
         };
-        let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
+        let runtime = match tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        {
             Ok(rt) => rt,
             Err(e) => {
                 set_err(err, format!("runtime: {e}"));
@@ -158,7 +161,9 @@ pub unsafe extern "C" fn nidvue_client_login(
         set_err(err, "token is null or not UTF-8");
         return NIDVUE_INVALID;
     };
-    match catch_unwind(AssertUnwindSafe(|| client.runtime.block_on(client.client.login(token)))) {
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.runtime.block_on(client.client.login(token))
+    })) {
         Ok(Ok(_username)) => NIDVUE_OK,
         Ok(Err(e)) => {
             set_err(err, e.to_string());
@@ -176,12 +181,17 @@ pub unsafe extern "C" fn nidvue_client_login(
 /// # Safety
 /// `client` must be valid for the call.
 #[no_mangle]
-pub unsafe extern "C" fn nidvue_client_logout(client: *mut NidvueClient, err: *mut *mut c_char) -> i32 {
+pub unsafe extern "C" fn nidvue_client_logout(
+    client: *mut NidvueClient,
+    err: *mut *mut c_char,
+) -> i32 {
     let Some(client) = client.as_ref() else {
         set_err(err, "client is null");
         return NIDVUE_INVALID;
     };
-    match catch_unwind(AssertUnwindSafe(|| client.runtime.block_on(client.client.logout()))) {
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.runtime.block_on(client.client.logout())
+    })) {
         Ok(Ok(())) => NIDVUE_OK,
         Ok(Err(e)) => {
             set_err(err, e.to_string());
@@ -217,12 +227,17 @@ pub unsafe extern "C" fn nidvue_client_status_json(
     client: *mut NidvueClient,
     out: *mut *mut c_char,
 ) -> i32 {
-    let Some(client) = client.as_ref() else { return NIDVUE_INVALID };
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
     match catch_unwind(AssertUnwindSafe(|| {
-        client.runtime.block_on(client.client.status()).and_then(|status| {
-            serde_json::to_string(&status)
-                .map_err(|e| nidvue_core::NidvueError::Internal(format!("status json: {e}")))
-        })
+        client
+            .runtime
+            .block_on(client.client.status())
+            .and_then(|status| {
+                serde_json::to_string(&status)
+                    .map_err(|e| nidvue_core::NidvueError::Internal(format!("status json: {e}")))
+            })
     })) {
         Ok(Ok(json)) => json_out(out, json),
         Ok(Err(_)) | Err(_) => NIDVUE_ERR,
@@ -248,10 +263,15 @@ pub unsafe extern "C" fn nidvue_client_mount(
         set_err(err, "mountpoint is null or not UTF-8");
         return NIDVUE_INVALID;
     };
-    let options = nidvue_mount::MountOptions { read_only: read_only != 0, ..Default::default() };
+    let options = nidvue_mount::MountOptions {
+        read_only: read_only != 0,
+        ..Default::default()
+    };
     match catch_unwind(AssertUnwindSafe(|| {
         let _guard = client.runtime.enter();
-        client.client.mount(std::path::Path::new(mountpoint), options)
+        client
+            .client
+            .mount(std::path::Path::new(mountpoint), options)
     })) {
         Ok(Ok(handle)) => match client.mount.lock() {
             Ok(mut slot) => {
@@ -277,7 +297,9 @@ pub unsafe extern "C" fn nidvue_client_mount(
 /// `client` must be valid for the call.
 #[no_mangle]
 pub unsafe extern "C" fn nidvue_client_unmount(client: *mut NidvueClient) -> i32 {
-    let Some(client) = client.as_ref() else { return NIDVUE_INVALID };
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
     match catch_unwind(AssertUnwindSafe(|| {
         if let Ok(mut slot) = client.mount.lock() {
             slot.take();
@@ -304,23 +326,26 @@ pub unsafe extern "C" fn nidvue_client_sync_now(
         return NIDVUE_INVALID;
     };
     match catch_unwind(AssertUnwindSafe(|| {
-        client.runtime.block_on(client.client.sync_now()).and_then(|reports| {
-            serde_json::to_string(
-                &reports
-                    .iter()
-                    .map(|r| {
-                        serde_json::json!({
-                            "scanned": r.scanned,
-                            "planned": r.planned,
-                            "applied": r.applied,
-                            "conflicts": r.conflicts,
-                            "failed": r.failed.len(),
+        client
+            .runtime
+            .block_on(client.client.sync_now())
+            .and_then(|reports| {
+                serde_json::to_string(
+                    &reports
+                        .iter()
+                        .map(|r| {
+                            serde_json::json!({
+                                "scanned": r.scanned,
+                                "planned": r.planned,
+                                "applied": r.applied,
+                                "conflicts": r.conflicts,
+                                "failed": r.failed.len(),
+                            })
                         })
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .map_err(|e| nidvue_core::NidvueError::Internal(format!("sync json: {e}")))
-        })
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|e| nidvue_core::NidvueError::Internal(format!("sync json: {e}")))
+            })
     })) {
         Ok(Ok(json)) => json_out(out, json),
         Ok(Err(e)) => {
@@ -343,7 +368,9 @@ pub unsafe extern "C" fn nidvue_client_conflicts_json(
     client: *mut NidvueClient,
     out: *mut *mut c_char,
 ) -> i32 {
-    let Some(client) = client.as_ref() else { return NIDVUE_INVALID };
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
     match catch_unwind(AssertUnwindSafe(|| {
         client.client.conflicts().and_then(|rows| {
             serde_json::to_string(&rows)
@@ -381,7 +408,9 @@ pub unsafe extern "C" fn nidvue_client_resolve_conflict(
             return NIDVUE_INVALID;
         }
     };
-    match catch_unwind(AssertUnwindSafe(|| client.client.resolve_conflict(id, policy))) {
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.resolve_conflict(id, policy)
+    })) {
         Ok(Ok(())) => NIDVUE_OK,
         Ok(Err(e)) => {
             set_err(err, e.to_string());
@@ -406,19 +435,33 @@ pub unsafe extern "C" fn nidvue_client_subscribe(
     callback: Option<EventCallback>,
     userdata: *mut c_void,
 ) -> i32 {
-    let Some(client) = client.as_ref() else { return NIDVUE_INVALID };
-    let Some(callback) = callback else { return NIDVUE_INVALID };
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
+    let Some(callback) = callback else {
+        return NIDVUE_INVALID;
+    };
     match catch_unwind(AssertUnwindSafe(|| {
         if let Ok(mut slot) = client.subscription.lock() {
-            *slot = Some(Subscription { callback, userdata: userdata as usize });
+            *slot = Some(Subscription {
+                callback,
+                userdata: userdata as usize,
+            });
         }
         let mut rx = client.client.subscribe();
         let slot = client.subscription.clone();
         client.runtime.spawn(async move {
             while let Ok(envelope) = rx.recv().await {
-                let Ok(json) = serde_json::to_string(&envelope) else { continue };
-                let Ok(text) = CString::new(json) else { continue };
-                let target = slot.lock().ok().and_then(|s| s.as_ref().map(|s| (s.callback, s.userdata)));
+                let Ok(json) = serde_json::to_string(&envelope) else {
+                    continue;
+                };
+                let Ok(text) = CString::new(json) else {
+                    continue;
+                };
+                let target = slot
+                    .lock()
+                    .ok()
+                    .and_then(|s| s.as_ref().map(|s| (s.callback, s.userdata)));
                 if let Some((callback, userdata)) = target {
                     callback(text.as_ptr(), userdata as *mut c_void);
                 }
@@ -436,7 +479,7 @@ pub unsafe extern "C" fn nidvue_client_subscribe(
 /// `out` must be a valid out-pointer.
 #[no_mangle]
 pub unsafe extern "C" fn nidvue_schema_json(out: *mut *mut c_char) -> i32 {
-    match catch_unwind(AssertUnwindSafe(|| Client::json_schema())) {
+    match catch_unwind(AssertUnwindSafe(Client::json_schema)) {
         Ok(json) => json_out(out, json),
         Err(_) => NIDVUE_PANIC,
     }
@@ -470,7 +513,10 @@ mod tests {
             let status = take(out);
             assert!(status.contains("\"logged_in\":false"), "{status}");
             let mut conflicts: *mut c_char = ptr::null_mut();
-            assert_eq!(nidvue_client_conflicts_json(client, &mut conflicts), NIDVUE_OK);
+            assert_eq!(
+                nidvue_client_conflicts_json(client, &mut conflicts),
+                NIDVUE_OK
+            );
             assert_eq!(take(conflicts), "[]");
             nidvue_client_free(client);
         }
@@ -482,7 +528,10 @@ mod tests {
         // SAFETY: null is explicitly handled.
         unsafe {
             assert!(nidvue_client_new(ptr::null(), &mut err).is_null());
-            assert_eq!(nidvue_client_login(ptr::null_mut(), ptr::null(), &mut err), NIDVUE_INVALID);
+            assert_eq!(
+                nidvue_client_login(ptr::null_mut(), ptr::null(), &mut err),
+                NIDVUE_INVALID
+            );
             assert_eq!(nidvue_client_unmount(ptr::null_mut()), NIDVUE_INVALID);
             nidvue_client_free(ptr::null_mut());
             nidvue_string_free(ptr::null_mut());

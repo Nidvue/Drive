@@ -72,7 +72,14 @@ impl SyncEngine {
         events: broadcast::Sender<EventEnvelope>,
     ) -> Self {
         let scheduler = Arc::new(Scheduler::new(cfg.clone()));
-        Self { remote, index, cfg, scheduler, events, trash_dir }
+        Self {
+            remote,
+            index,
+            cfg,
+            scheduler,
+            events,
+            trash_dir,
+        }
     }
 
     /// Replace the hot-reloadable configuration.
@@ -95,16 +102,19 @@ impl SyncEngine {
         if pair.paused || self.cfg.paused {
             return Ok(SyncReport::default());
         }
-        self.emit(Event::SyncStarted { pair: pair.name.clone() });
+        self.emit(Event::SyncStarted {
+            pair: pair.name.clone(),
+        });
         let remote_root = RemotePath::parse(&pair.remote)?;
         let filter = PathFilter::new(&pair.include, &pair.exclude)?;
 
         let local_root = pair.local.clone();
         let base = remote_root.clone();
         let max_size = self.cfg.max_file_size_bytes;
-        let local = tokio::task::spawn_blocking(move || scan_local(&local_root, &base, &filter, max_size))
-            .await
-            .map_err(|e| NidvueError::Internal(format!("scan task: {e}")))??;
+        let local =
+            tokio::task::spawn_blocking(move || scan_local(&local_root, &base, &filter, max_size))
+                .await
+                .map_err(|e| NidvueError::Internal(format!("scan task: {e}")))??;
 
         let remote = scan_remote(self.remote.as_ref(), &remote_root).await?;
         let baselines: BTreeMap<RemotePath, BaselineEntry> = self
@@ -125,7 +135,10 @@ impl SyncEngine {
 
         for action in actions {
             let is_conflict = matches!(action, Action::Conflict { .. });
-            match self.execute(&pair.local, &remote_root, &action, policy).await {
+            match self
+                .execute(&pair.local, &remote_root, &action, policy)
+                .await
+            {
                 Ok(()) => {
                     report.applied += 1;
                     if is_conflict {
@@ -138,7 +151,9 @@ impl SyncEngine {
                     if is_conflict {
                         report.conflicts += 1;
                     }
-                    report.failed.push((action.path().to_string(), e.to_string()));
+                    report
+                        .failed
+                        .push((action.path().to_string(), e.to_string()));
                     self.emit(Event::TransferFailed {
                         path: action.path().to_string(),
                         direction: Direction::Upload,
@@ -177,22 +192,40 @@ impl SyncEngine {
                 Ok(())
             }
             Action::CreateRemote { local, .. } if local_path.is_dir() => {
-                let id = self.index.journal_append(corr.as_str(), path.as_str(), "mkdir", None, None, None)?;
+                let id = self.index.journal_append(
+                    corr.as_str(),
+                    path.as_str(),
+                    "mkdir",
+                    None,
+                    None,
+                    None,
+                )?;
                 self.remote.remote_mkdir(&path).await?;
-                self.index.set_baseline(path.as_str(), EntryKind::Dir, local, local, now_ms())?;
+                self.index
+                    .set_baseline(path.as_str(), EntryKind::Dir, local, local, now_ms())?;
                 self.index.journal_mark(id, "commit")?;
                 Ok(())
             }
-            Action::CreateLocal { remote, .. } if self
-                .remote
-                .remote_stat(&path)
-                .await
-                .map(|e| e.kind == EntryKind::Dir)
-                .unwrap_or(false) =>
+            Action::CreateLocal { remote, .. }
+                if self
+                    .remote
+                    .remote_stat(&path)
+                    .await
+                    .map(|e| e.kind == EntryKind::Dir)
+                    .unwrap_or(false) =>
             {
-                let id = self.index.journal_append(corr.as_str(), path.as_str(), "mkdir_local", None, None, None)?;
-                std::fs::create_dir_all(&local_path).map_err(|e| NidvueError::io(&local_path, e))?;
-                self.index.set_baseline(path.as_str(), EntryKind::Dir, remote, remote, now_ms())?;
+                let id = self.index.journal_append(
+                    corr.as_str(),
+                    path.as_str(),
+                    "mkdir_local",
+                    None,
+                    None,
+                    None,
+                )?;
+                std::fs::create_dir_all(&local_path)
+                    .map_err(|e| NidvueError::io(&local_path, e))?;
+                self.index
+                    .set_baseline(path.as_str(), EntryKind::Dir, remote, remote, now_ms())?;
                 self.index.journal_mark(id, "commit")?;
                 Ok(())
             }
@@ -255,7 +288,9 @@ impl SyncEngine {
                     path: path.to_string(),
                     direction: Direction::Download,
                 });
-                let hash = self.download_atomic(&path, &local_path, remote.size).await?;
+                let hash = self
+                    .download_atomic(&path, &local_path, remote.size)
+                    .await?;
                 self.index.journal_mark(id, "applied")?;
                 self.index.set_baseline(
                     path.as_str(),
@@ -273,7 +308,14 @@ impl SyncEngine {
                 Ok(())
             }
             Action::DeleteLocal { .. } => {
-                let id = self.index.journal_append(corr.as_str(), path.as_str(), "delete_local", None, None, None)?;
+                let id = self.index.journal_append(
+                    corr.as_str(),
+                    path.as_str(),
+                    "delete_local",
+                    None,
+                    None,
+                    None,
+                )?;
                 self.trash(&path, &local_path)?;
                 self.index.clear_baseline(path.as_str())?;
                 self.index.delete_entry(path.as_str())?;
@@ -281,7 +323,14 @@ impl SyncEngine {
                 Ok(())
             }
             Action::DeleteRemote { .. } => {
-                let id = self.index.journal_append(corr.as_str(), path.as_str(), "delete_remote", None, None, None)?;
+                let id = self.index.journal_append(
+                    corr.as_str(),
+                    path.as_str(),
+                    "delete_remote",
+                    None,
+                    None,
+                    None,
+                )?;
                 self.remote.remote_delete(&path, false).await?;
                 self.index.clear_baseline(path.as_str())?;
                 self.index.journal_mark(id, "commit")?;
@@ -297,7 +346,10 @@ impl SyncEngine {
                     "download",
                     remote.hash.as_ref().map(|h| h.as_str()),
                     Some(remote.size),
-                    Some(&serde_json::json!({ "conflict": true, "original": path.as_str() }).to_string()),
+                    Some(
+                        &serde_json::json!({ "conflict": true, "original": path.as_str() })
+                            .to_string(),
+                    ),
                 )?;
                 // Both versions survive, on both sides, under two names: the
                 // original path keeps the winner, the conflict copy keeps the
@@ -306,7 +358,9 @@ impl SyncEngine {
                     nidvue_core::types::Side::Local => {
                         // The remote version of the ORIGINAL path becomes the
                         // conflict copy; the copy does not exist remotely yet.
-                        let hash = self.download_atomic(&path, &copy_local, remote.size).await?;
+                        let hash = self
+                            .download_atomic(&path, &copy_local, remote.size)
+                            .await?;
                         self.remote.remote_upload(&copy, &copy_local).await?;
                         // Local version wins the original path.
                         self.remote.remote_upload(&path, &local_path).await?;
@@ -322,7 +376,8 @@ impl SyncEngine {
                         std::fs::copy(&local_path, &copy_local)
                             .map_err(|e| NidvueError::io(&local_path, e))?;
                         self.remote.remote_upload(&copy, &copy_local).await?;
-                        self.download_atomic(&path, &local_path, remote.size).await?
+                        self.download_atomic(&path, &local_path, remote.size)
+                            .await?
                     }
                 };
                 self.index.journal_mark(copy_id, "applied")?;
@@ -377,17 +432,32 @@ impl SyncEngine {
         }
     }
 
-    async fn download_atomic(&self, path: &RemotePath, local: &Path, expected: u64) -> Result<Option<Hash>> {
+    async fn download_atomic(
+        &self,
+        path: &RemotePath,
+        local: &Path,
+        expected: u64,
+    ) -> Result<Option<Hash>> {
         if let Some(parent) = local.parent() {
             std::fs::create_dir_all(parent).map_err(|e| NidvueError::io(parent, e))?;
         }
         let tmp = local.with_file_name(format!(
             ".{}.nidvue-tmp",
-            local.file_name().and_then(|n| n.to_str()).unwrap_or("download")
+            local
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("download")
         ));
-        let mut file = tokio::fs::File::create(&tmp).await.map_err(|e| NidvueError::io(&tmp, e))?;
-        let result = self.remote.remote_download(path, &mut file, Some(expected)).await;
-        file.sync_all().await.map_err(|e| NidvueError::io(&tmp, e))?;
+        let mut file = tokio::fs::File::create(&tmp)
+            .await
+            .map_err(|e| NidvueError::io(&tmp, e))?;
+        let result = self
+            .remote
+            .remote_download(path, &mut file, Some(expected))
+            .await;
+        file.sync_all()
+            .await
+            .map_err(|e| NidvueError::io(&tmp, e))?;
         drop(file);
         let size = result?;
         if size != expected {
@@ -403,7 +473,9 @@ impl SyncEngine {
         })
         .await
         .map_err(|e| NidvueError::Internal(format!("hash task: {e}")))??;
-        tokio::fs::rename(&tmp, local).await.map_err(|e| NidvueError::io(local, e))?;
+        tokio::fs::rename(&tmp, local)
+            .await
+            .map_err(|e| NidvueError::io(local, e))?;
         if let Some(dir) = local.parent() {
             if let Ok(f) = std::fs::File::open(dir) {
                 let _ = f.sync_all();
@@ -446,17 +518,30 @@ impl SyncEngine {
     /// left for the next sync pass to re-plan. Nothing is assumed.
     pub async fn recover(&self) -> Result<RecoveryReport> {
         let pending = self.index.journal_pending()?;
-        let mut report = RecoveryReport { examined: pending.len() as u64, ..Default::default() };
+        let mut report = RecoveryReport {
+            examined: pending.len() as u64,
+            ..Default::default()
+        };
         for row in pending {
             let observed = match row.op.as_str() {
-                "upload" => match self.remote.remote_stat(&RemotePath::parse(&row.path)?).await {
+                "upload" => match self
+                    .remote
+                    .remote_stat(&RemotePath::parse(&row.path)?)
+                    .await
+                {
                     Ok(entry) => row.expected_size.map(|s| entry.size == s).unwrap_or(true),
                     Err(_) => false,
                 },
-                "delete_remote" | "delete_local" => {
-                    self.remote.remote_stat(&RemotePath::parse(&row.path)?).await.is_err()
-                }
-                "mkdir" => self.remote.remote_stat(&RemotePath::parse(&row.path)?).await.is_ok(),
+                "delete_remote" | "delete_local" => self
+                    .remote
+                    .remote_stat(&RemotePath::parse(&row.path)?)
+                    .await
+                    .is_err(),
+                "mkdir" => self
+                    .remote
+                    .remote_stat(&RemotePath::parse(&row.path)?)
+                    .await
+                    .is_ok(),
                 "rename" => {
                     let to = row
                         .detail
@@ -464,7 +549,11 @@ impl SyncEngine {
                         .and_then(|d| serde_json::from_str::<serde_json::Value>(d).ok())
                         .and_then(|v| v.get("to").and_then(|t| t.as_str().map(str::to_string)));
                     match to {
-                        Some(to) => self.remote.remote_stat(&RemotePath::parse(&to)?).await.is_ok(),
+                        Some(to) => self
+                            .remote
+                            .remote_stat(&RemotePath::parse(&to)?)
+                            .await
+                            .is_ok(),
                         None => false,
                     }
                 }
@@ -518,7 +607,10 @@ pub async fn scan_remote(
 
 /// Map a remote path below `remote_root` to its local path below `local_root`.
 fn local_for(local_root: &Path, remote_root: &RemotePath, path: &RemotePath) -> PathBuf {
-    let suffix = path.as_str().strip_prefix(remote_root.as_str()).unwrap_or(path.as_str());
+    let suffix = path
+        .as_str()
+        .strip_prefix(remote_root.as_str())
+        .unwrap_or(path.as_str());
     let suffix = if suffix.is_empty() { "/" } else { suffix };
     match RemotePath::parse(suffix) {
         Ok(rel) => remote_to_local(local_root, &rel),
@@ -551,13 +643,15 @@ pub fn spawn_watcher(
 ) -> Result<notify::RecommendedWatcher> {
     use notify::{RecursiveMode, Watcher};
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-    let mut watcher = notify::recommended_watcher(move |res: std::result::Result<notify::Event, notify::Error>| {
-        if let Ok(event) = res {
-            if !event.paths.is_empty() {
-                let _ = tx.send(());
+    let mut watcher = notify::recommended_watcher(
+        move |res: std::result::Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                if !event.paths.is_empty() {
+                    let _ = tx.send(());
+                }
             }
-        }
-    })
+        },
+    )
     .map_err(|e| NidvueError::Mount(format!("watcher: {e}")))?;
     watcher
         .watch(&root, RecursiveMode::Recursive)

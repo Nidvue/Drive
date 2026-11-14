@@ -37,13 +37,21 @@ impl Cache {
     pub fn open(cfg: &CacheConfig, blobs_dir: &Path, index_path: &Path) -> Result<Self> {
         let blobs = BlobStore::open(blobs_dir)?;
         let index = Arc::new(Index::open(index_path)?);
-        Ok(Self { blobs, index, cfg: cfg.clone() })
+        Ok(Self {
+            blobs,
+            index,
+            cfg: cfg.clone(),
+        })
     }
 
     /// An in-memory cache rooted in a temporary directory (tests, previews).
     pub fn temporary(cfg: &CacheConfig) -> Result<(Self, tempfile::TempDir)> {
         let dir = tempfile::tempdir().map_err(|e| NidvueError::Cache(e.to_string()))?;
-        let cache = Self::open(cfg, &dir.path().join("blobs"), &dir.path().join("index.sqlite"))?;
+        let cache = Self::open(
+            cfg,
+            &dir.path().join("blobs"),
+            &dir.path().join("index.sqlite"),
+        )?;
         Ok((cache, dir))
     }
 
@@ -72,17 +80,21 @@ impl Cache {
         Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy)
             .ensure_room(bytes.len() as u64, &self.cfg)?;
         let hash = self.blobs.put(bytes)?;
-        self.index.record_blob(hash.as_str(), bytes.len() as u64, now_ms())?;
+        self.index
+            .record_blob(hash.as_str(), bytes.len() as u64, now_ms())?;
         Ok(hash)
     }
 
     /// Copy a local file into the cache, hashing while copying.
     pub fn put_file(&self, source: &Path) -> Result<(Hash, u64)> {
-        let size = std::fs::metadata(source).map_err(|e| NidvueError::io(source, e))?.len();
+        let size = std::fs::metadata(source)
+            .map_err(|e| NidvueError::io(source, e))?
+            .len();
         Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy)
             .ensure_room(size, &self.cfg)?;
         let got = self.blobs.put_file(source)?;
-        self.index.record_blob(got.hash.as_str(), got.size, now_ms())?;
+        self.index
+            .record_blob(got.hash.as_str(), got.size, now_ms())?;
         Ok((got.hash, got.size))
     }
 
@@ -176,7 +188,9 @@ impl Cache {
     pub fn effective_capacity(&self) -> u64 {
         let free = self.free_disk_bytes();
         let usable = free.saturating_sub(self.cfg.min_free_disk_bytes);
-        self.cfg.max_size_bytes.min(usable.max(self.cfg.min_free_disk_bytes))
+        self.cfg
+            .max_size_bytes
+            .min(usable.max(self.cfg.min_free_disk_bytes))
     }
 }
 

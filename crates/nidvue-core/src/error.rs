@@ -141,9 +141,20 @@ mod tests {
 
     #[test]
     fn retryable_classification() {
-        assert!(NidvueError::RateLimited { retry_after_ms: None }.is_retryable());
-        assert!(NidvueError::Server { status: 503, message: String::new() }.is_retryable());
-        assert!(!NidvueError::Server { status: 404, message: String::new() }.is_retryable());
+        assert!(NidvueError::RateLimited {
+            retry_after_ms: None
+        }
+        .is_retryable());
+        assert!(NidvueError::Server {
+            status: 503,
+            message: String::new()
+        }
+        .is_retryable());
+        assert!(!NidvueError::Server {
+            status: 404,
+            message: String::new()
+        }
+        .is_retryable());
         assert!(!NidvueError::Cancelled.is_retryable());
         assert_eq!(NidvueError::Cancelled.exit_code(), 130);
     }
