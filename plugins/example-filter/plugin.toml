@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+id = "com.example.filter"
+name = "Document filter"
+version = "0.1.0"
+api_version = 1
+license = "AGPL-3.0-only"
+description = "Only syncs /Archive/Documents, and prefers the local version on conflicts."
+
+[capabilities]
+paths = ["/Archive/Documents"]
+hosts = []
+hooks = ["path_filter", "conflict_resolve"]
+ui_panels = []
+
+[limits]
+fuel = 50000000
+memory_mb = 16
+wall_ms = 1000

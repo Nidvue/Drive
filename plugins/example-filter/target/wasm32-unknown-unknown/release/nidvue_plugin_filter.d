@@ -1,0 +1,1 @@
+/home/pingz/Storage/Projects/Nidvue/Drive/plugins/example-filter/target/wasm32-unknown-unknown/release/nidvue_plugin_filter.wasm: /home/pingz/Storage/Projects/Nidvue/Drive/plugins/example-filter/src/lib.rs
