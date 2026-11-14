@@ -554,7 +554,12 @@ mod tests {
 
     #[test]
     fn a_bad_state_directory_reports_an_error() {
-        let path = CString::new("/proc/definitely/not/writable").unwrap();
+        // A path below a regular file cannot be created on any platform.
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("not-a-dir");
+        std::fs::write(&file, b"x").unwrap();
+        let bad = file.join("state");
+        let path = CString::new(bad.to_str().unwrap()).unwrap();
         let mut err: *mut c_char = ptr::null_mut();
         // SAFETY: valid pointers for the call.
         unsafe {
