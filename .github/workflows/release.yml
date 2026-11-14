@@ -75,7 +75,7 @@ jobs:
             "AGPL-3.0 sections 4-6 are satisfied by the source archive attached" \
             "to this release and by the tag above." > SOURCE-OFFER.txt
           ls -l
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nidvue-drive-${{ matrix.artifact }}
           path: dist/*
