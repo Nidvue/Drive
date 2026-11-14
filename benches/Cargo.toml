@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+[package]
+name = "nidvue-benches"
+description = "Nidvue Drive performance budgets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nidvue-cache = { workspace = true }
+nidvue-core = { workspace = true }
+nidvue-sync = { workspace = true }
+tempfile = { workspace = true }
+
+[[bench]]
+name = "cache_read"
+harness = false
+
+[[bench]]
+name = "metadata"
+harness = false
+
+[[bench]]
+name = "reconciler"
+harness = false

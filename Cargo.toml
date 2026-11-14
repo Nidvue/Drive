@@ -13,6 +13,8 @@ members = [
     "crates/nidvue-sdk",
     "crates/nidvue-ffi",
     "crates/nidvue-cli",
+    "benches",
+    "tests/invariants",
     "xtask",
 ]
 default-members = ["crates/nidvue-cli", "crates/nidvue-sdk", "crates/nidvue-ffi"]
