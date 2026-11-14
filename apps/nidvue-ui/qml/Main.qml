@@ -17,6 +17,17 @@ ApplicationWindow {
     palette.highlight: "#3d7eff"
     palette.highlightedText: "#ffffff"
 
+    // Closing hides the window when a tray is available (the app keeps
+    // syncing); without a tray there is no way back, so it quits.
+    onClosing: function (close) {
+        if (Tray.available) {
+            close.accepted = false
+            window.hide()
+        } else {
+            Qt.quit()
+        }
+    }
+
     header: ToolBar {
         RowLayout {
             anchors.fill: parent
