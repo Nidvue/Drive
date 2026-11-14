@@ -34,6 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # The pull request head, not GitHub's synthetic merge commit: the DCO
+          # check and the tests must see the commits under review.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -101,6 +104,8 @@ jobs:
             libqt6svg6-dev
       - name: build the workspace and the ui
         run: cargo xtask ci
+        env:
+          GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
   mount:
     name: fuse mount smoke
