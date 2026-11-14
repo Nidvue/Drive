@@ -1649,6 +1649,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
+name = "nidvue-benches"
+version = "0.1.0"
+dependencies = [
+ "nidvue-cache",
+ "nidvue-core",
+ "nidvue-sync",
+ "tempfile",
+]
+
+[[package]]
 name = "nidvue-cache"
 version = "0.1.0"
 dependencies = [
@@ -1709,6 +1719,20 @@ dependencies = [
  "nidvue-mount",
  "nidvue-sdk",
  "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "nidvue-invariants"
+version = "0.1.0"
+dependencies = [
+ "nidvue-cache",
+ "nidvue-core",
+ "nidvue-ffi",
+ "nidvue-mount",
+ "nidvue-sync",
+ "nidvue-vfs",
  "tempfile",
  "tokio",
 ]

@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+[package]
+name = "nidvue-invariants"
+description = "The seven Nidvue Drive correctness invariants, asserted"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+nidvue-cache = { workspace = true }
+nidvue-ffi = { workspace = true }
+nidvue-core = { workspace = true }
+nidvue-mount = { workspace = true }
+nidvue-sync = { workspace = true }
+nidvue-vfs = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = { workspace = true }
