@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            artifact: linux-x86_64
+          - os: macos-14
+            artifact: macos-aarch64
+          - os: windows-2022
+            artifact: windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: system packages (linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build libfuse3-dev fuse3 libgl1-mesa-dev libxkbcommon-dev
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.1"
+          cache: true
+      - name: build
+        run: cargo build --release --workspace
+      - name: build ui
+        run: cargo xtask ui
+      - name: package (linux)
+        if: runner.os == 'Linux'
+        run: bash packaging/linux.sh
+      - name: package (macos)
+        if: runner.os == 'macOS'
+        run: bash packaging/macos.sh
+      - name: package (windows)
+        if: runner.os == 'Windows'
+        run: pwsh packaging/windows.ps1
+      - name: checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS || shasum -a 256 * > SHA256SUMS
+          cp ../LICENSE .
+          printf '%s\n' \
+            "Corresponding source for this release:" \
+            "https://github.com/Nidvue/nidvue-drive/tree/${{ github.ref_name }}" \
+            "" \
+            "AGPL-3.0 sections 4-6 are satisfied by the source archive attached" \
+            "to this release and by the tag above." > SOURCE-OFFER.txt
+          ls -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nidvue-drive-${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: source archive
+        run: |
+          git archive --format=tar.gz --prefix=nidvue-drive-${GITHUB_REF_NAME}/ \
+            -o dist/nidvue-drive-${GITHUB_REF_NAME}-source.tar.gz HEAD
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "Nidvue Drive ${GITHUB_REF_NAME}" \
+            --prerelease \
+            --generate-notes

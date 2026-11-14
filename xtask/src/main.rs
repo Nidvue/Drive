@@ -1,0 +1,331 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Nidvue
+
+//! Nidvue Drive build automation.
+//!
+//! `cargo xtask ci` is the one command that must stay green: formatting,
+//! clippy with warnings denied, the workspace test suite, docs, the licence
+//! allowlist, SPDX headers, the secret scan and the DCO check.
+
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitCode, Stdio};
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let task = args.first().map(String::as_str).unwrap_or("help");
+    match run_task(task, &args[1..]) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("xtask: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
+    match task {
+        "ci" => ci(rest.iter().any(|a| a == "--skip-ui")),
+        "fmt" => fmt(false),
+        "fmt-check" => fmt(true),
+        "clippy" => clippy(),
+        "test" => test(rest),
+        "doc" => doc(),
+        "deny" => deny(),
+        "spdx" => spdx(),
+        "secrets" => secrets(),
+        "dco" => dco(rest.first().map(String::as_str)),
+        "ui" => ui(),
+        "bench" => bench(),
+        "package" => package(),
+        "schema" => schema(),
+        "clean" => clean(),
+        "help" | "--help" | "-h" => {
+            help();
+            Ok(())
+        }
+        other => Err(format!("unknown task {other:?}; try `cargo xtask help`")),
+    }
+}
+
+fn help() {
+    println!(
+        "cargo xtask <task>\n\
+         \n\
+         ci        fmt-check, clippy -D warnings, test, doc, deny, spdx, secrets, dco, ui\n\
+         fmt       format the workspace\n\
+         clippy    clippy with warnings denied, all targets\n\
+         test      the workspace test suite (extra args are passed to cargo test)\n\
+         doc       rustdoc with warnings denied\n\
+         deny      cargo-deny: licences, advisories, bans, sources\n\
+         spdx      verify the SPDX header on every tracked source file\n\
+         secrets   scan tracked files for credential-shaped strings\n\
+         dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
+         ui        configure and build the Qt/QML application\n\
+         bench     run the performance suite\n\
+         package   build release binaries and package recipes\n\
+         schema    regenerate the JSON schema and C header\n\
+         clean     remove build output"
+    );
+}
+
+fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("xtask lives one level below the workspace root")
+        .to_path_buf()
+}
+
+fn cmd(program: &str, args: &[&str]) -> Result<(), String> {
+    println!("+ {program} {}", args.join(" "));
+    let status = Command::new(program)
+        .args(args)
+        .current_dir(workspace_root())
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|e| format!("spawn {program}: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} {} failed ({status})", args.join(" ")))
+    }
+}
+
+fn capture(program: &str, args: &[&str]) -> Result<String, String> {
+    let out = Command::new(program)
+        .args(args)
+        .current_dir(workspace_root())
+        .output()
+        .map_err(|e| format!("spawn {program}: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{program} {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+fn ci(skip_ui: bool) -> Result<(), String> {
+    fmt(true)?;
+    clippy()?;
+    test(&[])?;
+    doc()?;
+    deny()?;
+    spdx()?;
+    secrets()?;
+    dco(None)?;
+    if skip_ui {
+        println!("+ ui build skipped by --skip-ui");
+    } else {
+        ui()?;
+    }
+    println!("\nxtask ci: green");
+    Ok(())
+}
+
+fn fmt(check: bool) -> Result<(), String> {
+    let mut args = vec!["fmt", "--all"];
+    if check {
+        args.push("--check");
+    }
+    cmd("cargo", &args)
+}
+
+fn clippy() -> Result<(), String> {
+    cmd(
+        "cargo",
+        &["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"],
+    )
+}
+
+fn test(extra: &[String]) -> Result<(), String> {
+    let mut args = vec!["test", "--workspace", "--all-features"];
+    let extra: Vec<&str> = extra.iter().map(String::as_str).collect();
+    args.extend(extra);
+    cmd("cargo", &args)
+}
+
+fn doc() -> Result<(), String> {
+    // `-D warnings` catches broken intra-doc links, the common regression.
+    std::env::set_var("RUSTDOCFLAGS", "-D warnings");
+    cmd("cargo", &["doc", "--workspace", "--no-deps", "--all-features"])
+}
+
+fn deny() -> Result<(), String> {
+    cmd("cargo", &["deny", "check", "licenses", "bans", "sources", "advisories"])
+}
+
+fn bench() -> Result<(), String> {
+    cmd("cargo", &["bench", "--workspace", "--all-features"])
+}
+
+fn ui() -> Result<(), String> {
+    let root = workspace_root();
+    let app = root.join("apps/nidvue-ui");
+    let build = app.join("build");
+    std::fs::create_dir_all(&build).map_err(|e| format!("{}: {e}", build.display()))?;
+    let status = Command::new("cmake")
+        .args(["-S", &app.display().to_string(), "-B", &build.display().to_string()])
+        .args(["-DCMAKE_BUILD_TYPE=Release"])
+        .current_dir(&root)
+        .status()
+        .map_err(|e| format!("cmake configure: {e}"))?;
+    if !status.success() {
+        return Err("cmake configure failed".into());
+    }
+    let status = Command::new("cmake")
+        .args(["--build", &build.display().to_string(), "--parallel"])
+        .current_dir(&root)
+        .status()
+        .map_err(|e| format!("cmake build: {e}"))?;
+    if !status.success() {
+        return Err("cmake build failed".into());
+    }
+    Ok(())
+}
+
+fn package() -> Result<(), String> {
+    cmd("cargo", &["build", "--release", "--workspace"])?;
+    let root = workspace_root();
+    for script in ["packaging/linux.sh", "packaging/macos.sh", "packaging/windows.ps1"] {
+        if root.join(script).exists() && cfg!(target_os = "linux") {
+            if script.ends_with(".sh") && script.contains("linux") {
+                cmd("bash", &[script])?;
+            }
+        }
+    }
+    println!("packaging: see packaging/ and docs/packaging.md");
+    Ok(())
+}
+
+fn schema() -> Result<(), String> {
+    cmd("cargo", &["run", "-p", "nidvue-sdk", "--features", "schema", "--bin", "nidvue-schema"])
+}
+
+fn clean() -> Result<(), String> {
+    cmd("cargo", &["clean"])?;
+    let ui_build = workspace_root().join("apps/nidvue-ui/build");
+    if ui_build.exists() {
+        std::fs::remove_dir_all(&ui_build).map_err(|e| format!("{}: {e}", ui_build.display()))?;
+    }
+    Ok(())
+}
+
+/// Files that must carry an SPDX header.
+fn needs_spdx(path: &str) -> bool {
+    const EXTS: &[&str] = &[
+        "rs", "qml", "js", "cpp", "cc", "c", "h", "hpp", "sh", "ps1", "yml", "yaml", "toml",
+        "cmake", "py",
+    ];
+    const EXEMPT: &[&str] = &[
+        "LICENSE",
+        "Cargo.lock",
+        "TRADEMARK.md",
+        "docs/licensing.md",
+        "docs/jotta-api.md",
+        "docs/deviations.md",
+    ];
+    if EXEMPT.contains(&path) {
+        return false;
+    }
+    if path.ends_with("CMakeLists.txt") {
+        return true;
+    }
+    Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| EXTS.contains(&e))
+        .unwrap_or(false)
+}
+
+fn spdx() -> Result<(), String> {
+    let files = capture("git", &["ls-files"])?;
+    let mut missing = Vec::new();
+    for path in files.lines().filter(|p| needs_spdx(p)) {
+        let text = std::fs::read_to_string(path).unwrap_or_default();
+        let head: String = text.lines().take(4).collect::<Vec<_>>().join("\n");
+        if !head.contains("SPDX-License-Identifier: AGPL-3.0-only") {
+            missing.push(path.to_string());
+        }
+        if !text.contains("Copyright (C)") {
+            missing.push(format!("{path} (no copyright line)"));
+        }
+    }
+    if missing.is_empty() {
+        println!("spdx: every tracked source file carries the header");
+        Ok(())
+    } else {
+        Err(format!("spdx: missing header in\n  {}", missing.join("\n  ")))
+    }
+}
+
+/// Credential-shaped strings that must never be committed.
+fn secrets() -> Result<(), String> {
+    let files = capture("git", &["ls-files"])?;
+    let patterns: &[(&str, &str)] = &[
+        ("Jotta personal login token", "eyJ3ZWxsX2tub3duX2xpbmsi"),
+        ("OpenAI-style key", "sk-"),
+        ("GitHub token", "ghp_"),
+        ("GitHub fine-grained token", "github_pat_"),
+        ("AWS access key", "AKIA"),
+        ("private key", "BEGIN RSA PRIVATE KEY"),
+        ("private key", "BEGIN OPENSSH PRIVATE KEY"),
+        ("Jottacloud bearer", "Bearer eyJ"),
+    ];
+    let mut hits = Vec::new();
+    for path in files.lines() {
+        let Ok(text) = std::fs::read_to_string(path) else { continue };
+        if path.starts_with("xtask/") {
+            // The scanner's own pattern table.
+            continue;
+        }
+        for (what, needle) in patterns {
+            if text.contains(needle) {
+                hits.push(format!("{path}: {what}"));
+            }
+        }
+    }
+    if hits.is_empty() {
+        println!("secrets: no credential-shaped strings in tracked files");
+        Ok(())
+    } else {
+        Err(format!("secrets: possible credentials\n  {}", hits.join("\n  ")))
+    }
+}
+
+fn dco(range: Option<&str>) -> Result<(), String> {
+    let range = range.unwrap_or("origin/main..HEAD");
+    let out = Command::new("git")
+        .args(["rev-list", "--no-merges", range])
+        .current_dir(workspace_root())
+        .output();
+    let Ok(out) = out else {
+        println!("dco: not a git checkout, skipped");
+        return Ok(());
+    };
+    if !out.status.success() {
+        // No origin/main yet (first push): check every commit on the branch.
+        return dco(Some("HEAD"));
+    }
+    let shas: BTreeSet<String> = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
+    let mut bad = Vec::new();
+    for sha in shas {
+        let body = capture("git", &["log", "-1", "--format=%B", &sha])?;
+        if !body.contains("Signed-off-by:") {
+            bad.push(sha);
+        }
+    }
+    if bad.is_empty() {
+        println!("dco: every commit carries a Signed-off-by trailer");
+        Ok(())
+    } else {
+        Err(format!("dco: missing Signed-off-by in\n  {}", bad.join("\n  ")))
+    }
+}

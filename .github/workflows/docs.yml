@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths: ["**/*.md", "docs/**", ".github/workflows/docs.yml"]
+  pull_request:
+    paths: ["**/*.md", "docs/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: link check
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress --offline --include-fragments
+            README.md ARCHITECTURE.md NOTICE TRADEMARK.md CONTRIBUTING.md
+            SECURITY.md CHANGELOG.md docs plugins
+          fail: true

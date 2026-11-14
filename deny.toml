@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+#
+# Dependency policy for Nidvue Drive (AGPL-3.0-only).
+#
+# AGPL-3.0 §13 makes source availability the point of this project, so the
+# allowlist is one-way-compatible licences only. GPL-2.0-only, SSPL, BUSL,
+# Elastic, Commons-Clause and anything with a non-commercial or
+# no-derivatives term are denied.
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+
+[licenses]
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "Unlicense",
+    "AGPL-3.0-only",
+    "AGPL-3.0-or-later",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "CDLA-Permissive-2.0",
+    "NCSA",
+    "OpenSSL",
+]
+confidence-threshold = 0.9
+exceptions = []
+
+[[bans.deny]]
+name = "openssl"
+reason = "use rustls; OpenSSL licensing and static-link risk"
+
+[[bans.deny]]
+name = "openssl-sys"
+reason = "use rustls; OpenSSL licensing and static-link risk"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[advisories]
+ignore = []

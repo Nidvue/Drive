@@ -1,0 +1,54 @@
+Nidvue Drive
+Copyright (C) 2026 Nidvue
+
+This product is licensed under the GNU Affero General Public License, version 3
+only (AGPL-3.0-only). See LICENSE for the full text.
+
+Nidvue Drive is an UNOFFICIAL client for Jottacloud. It is not affiliated with,
+endorsed by, or supported by Jottacloud AS. "Jottacloud" is a trademark of
+Jottacloud AS and is used here only to describe interoperability.
+
+Third-party components and how they are used
+--------------------------------------------
+
+Qt 6 (QtCore, QtGui, QtQml, QtQuick, QtQuick Controls 2, QtQuick Layouts,
+QtNetwork, QtSvg)
+    License: LGPL-3.0 (used modules); some modules are GPL-3.0-only and are
+    NOT used by this project.
+    Linking: dynamically linked shared libraries. Users may replace the Qt
+    libraries with their own builds (relinking); the build system does not
+    static-link Qt and does not strip the ability to substitute the libraries.
+    No GPL-only Qt module (Qt Charts, Qt Virtual Keyboard, Qt Data
+    Visualization, Qt Graphs) is used: the live graphs are drawn in QML Canvas.
+
+libfuse3
+    License: LGPL-2.1-or-later.
+    Linking: dynamically linked (Linux). Notice reproduced here as required;
+    the library is not modified.
+
+WinFSP (Windows mount backend)
+    License: GPL-3.0 with a FLOSS exception.
+    Use: this project is free software released under AGPL-3.0-only, which the
+    WinFSP FLOSS exception permits. WinFSP is installed separately by the user
+    or by the MSI as a prerequisite and is not statically linked.
+
+macFUSE (macOS mount backend)
+    License: BSD-3-Clause (SDK); the kext/system extension is installed
+    separately by the user.
+    Attribution: Copyright (c) 2006-2024 Benjamin Fleischer and contributors.
+
+Rust dependencies
+    Every crate in the dependency graph passes the allowlist in deny.toml
+    (MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0, Unicode, CC0, Unlicense,
+    AGPL-3.0, GPL-3.0). The full mapping is in docs/licensing.md.
+
+Jottacloud API
+    The API is used as a client, over HTTPS, with the user's own credentials.
+    This project contains no Jottacloud code and no Jottacloud trademark beyond
+    the descriptive name.
+
+Corresponding source
+    Source for every released binary is this repository at the released tag,
+    plus the release assets' source archive. AGPL-3.0 sections 4-6 are
+    satisfied by shipping the complete corresponding source alongside each
+    release.

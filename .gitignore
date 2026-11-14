@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+/target/
+**/*.rs.bk
+*.profraw
+cargo-flamegraph*
+/apps/nidvue-ui/build/
+/apps/nidvue-ui/build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/*.qm
+**/moc_*.cpp
+**/qrc_*.cpp
+**/.qmake.stash
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+# never commit credentials, tokens or keyring exports
+auth.json
+secrets.json
+*.keyring
+.env
+*.pem
+# runtime state
+nidvue-state/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# teamwork skill workspace (local, hidden)
+.pi/
+docs/Team/
