@@ -8,7 +8,7 @@ Status at `v0.1.0`.
 
 | # | Requirement | Status | Reason / upgrade path |
 |---|---|---|---|
-| 1 | macOS mount backend (macFUSE) | adapter implemented, not exercised in CI | The same `fuser` adapter runs on macOS; GitHub's macOS runners cannot load a system extension, so the real-mount test is skipped there. `docs/vfs-semantics.md` is the contract it is tested against in-memory. |
+| 1 | macOS mount backend (macFUSE) | not compiled | The macFUSE headers are not available in this build environment, so `nidvue-mount` returns a typed `Unsupported` on macOS rather than shipping an unbuildable adapter. The VFS contract is platform-independent and covered by the Linux mount test; enabling macFUSE is a build-flag change plus a CI runner with the SDK. |
 | 2 | Windows mount backend (WinFSP) | not implemented | `nidvue-mount` returns a typed `Unsupported` on Windows instead of pretending. The WinFSP host bindings are the remaining work; the VFS contract and errno mapping are platform-independent and already tested. |
 | 3 | OS keyring for credentials | not wired | Tokens are encrypted at rest with ChaCha20-Poly1305 in `credentials.enc` (`0600` key file beside it). Threat model: protects against accidental disclosure (backups, log scraping, crash reports), not against an attacker who can read the state directory. A keyring backend slots in behind `SecretStore`. |
 | 4 | OpenTelemetry export | config field only | `log.otel_endpoint` exists and is documented, but no OTLP exporter is wired. CI cannot assert an external collector; JSON/Prometheus-shaped status is the tested path. |

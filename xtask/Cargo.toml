@@ -10,4 +10,3 @@ license.workspace = true
 publish = false
 
 [dependencies]
-anyhow = "1"
