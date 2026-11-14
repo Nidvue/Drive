@@ -68,7 +68,12 @@ Description: Unofficial Jottacloud desktop client
 Installed-Size: ${SIZE}
 CONTROL
 
-dpkg-deb --root-owner-group --build "$STAGE" "$DIST/nidvue-drive_${VERSION}_${ARCH}.deb"
+if command -v dpkg-deb >/dev/null 2>&1; then
+    dpkg-deb --root-owner-group --build "$STAGE" "$DIST/nidvue-drive_${VERSION}_${ARCH}.deb"
+else
+    # Building a .deb needs dpkg-deb; the tarball below is the portable artifact.
+    echo "dpkg-deb not found: skipping the .deb, building the tarball only"
+fi
 
 # A relocatable tarball for people who do not want a package manager.
 TARNAME="nidvue-drive-${VERSION}-linux-${ARCH}"
@@ -79,5 +84,5 @@ cp "$STAGE/usr/share/doc/nidvue-drive/SOURCE-OFFER.txt" "$DIST/$TARNAME/"
 tar -C "$DIST" -czf "$DIST/${TARNAME}.tar.gz" "$TARNAME"
 rm -rf "$STAGE" "$DIST/$TARNAME"
 
-(cd "$DIST" && sha256sum ./*.deb ./*.tar.gz > SHA256SUMS)
+(cd "$DIST" && sha256sum ./*.tar.gz ./*.deb 2>/dev/null > SHA256SUMS || sha256sum ./*.tar.gz > SHA256SUMS)
 echo "linux artifacts in $DIST"
