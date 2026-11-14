@@ -14,7 +14,8 @@ use std::process::{Command, ExitCode, Stdio};
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let task = args.first().map(String::as_str).unwrap_or("help");
-    match run_task(task, &args[1..]) {
+    let rest: &[String] = args.get(1..).unwrap_or(&[]);
+    match run_task(task, rest) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("xtask: {e}");
