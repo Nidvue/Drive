@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+[workspace]
+resolver = "2"
+members = [
+    "crates/nidvue-core",
+    "crates/nidvue-jotta",
+    "crates/nidvue-cache",
+    "crates/nidvue-vfs",
+    "crates/nidvue-sync",
+    "crates/nidvue-mount",
+    "crates/nidvue-plugin",
+    "crates/nidvue-sdk",
+    "crates/nidvue-ffi",
+    "crates/nidvue-cli",
+    "xtask",
+]
+default-members = ["crates/nidvue-cli", "crates/nidvue-sdk", "crates/nidvue-ffi"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "AGPL-3.0-only"
+authors = ["Nidvue"]
+repository = "https://github.com/Nidvue/nidvue-drive"
+homepage = "https://github.com/Nidvue/nidvue-drive"
+documentation = "https://docs.rs/nidvue-sdk"
+
+[workspace.dependencies]
+nidvue-core = { path = "crates/nidvue-core", version = "0.1.0" }
+nidvue-jotta = { path = "crates/nidvue-jotta", version = "0.1.0" }
+nidvue-cache = { path = "crates/nidvue-cache", version = "0.1.0" }
+nidvue-vfs = { path = "crates/nidvue-vfs", version = "0.1.0" }
+nidvue-sync = { path = "crates/nidvue-sync", version = "0.1.0" }
+nidvue-mount = { path = "crates/nidvue-mount", version = "0.1.0" }
+nidvue-plugin = { path = "crates/nidvue-plugin", version = "0.1.0" }
+nidvue-sdk = { path = "crates/nidvue-sdk", version = "0.1.0" }
+nidvue-ffi = { path = "crates/nidvue-ffi", version = "0.1.0" }
+
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1"
+chacha20poly1305 = "0.11"
+clap = { version = "4", features = ["derive", "env"] }
+fuser = "0.18"
+globset = "0.4"
+hex = "0.4"
+libc = "0.2"
+md-5 = "0.10"
+notify = "8"
+proptest = "1"
+quick-xml = "0.42"
+rand = "0.9"
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-tls",
+    "stream",
+    "json",
+    "http2",
+    "charset",
+] }
+rusqlite = { version = "0.42", features = ["bundled"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "io-util", "net", "signal", "process"] }
+tokio-util = "0.7"
+toml = "0.9"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+url = "2"
+wasmtime = "50"
+wiremock = "0.6"
+zeroize = { version = "1", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.bench]
+inherits = "release"

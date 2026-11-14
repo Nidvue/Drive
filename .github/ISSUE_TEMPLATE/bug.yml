@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+name: Bug report
+description: Something is wrong — a crash, a stall, a wrong sync decision, data loss.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste a token, a Personal Login Token, `credentials.enc` or a
+        full log file.** Redact account names and paths. Security issues go to
+        `SECURITY.md`, not here.
+  - type: input
+    id: version
+    attributes:
+      label: Nidvue Drive version
+      description: Output of `nidvue-cli --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Platform
+      options: [Linux, macOS, Windows, other]
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [Sync, Mount, Both, CLI only, UI only]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, what happened instead, and whether data was affected.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: `nidvue-cli status --json` and the relevant lines from the log viewer. Remove tokens and account names.
+      render: text
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed every token, credential and personal path from this report.
+          required: true
