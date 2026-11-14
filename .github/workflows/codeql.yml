@@ -20,8 +20,10 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      # The QML is not JavaScript for CodeQL's purposes and there is no other
+      # JS/TS in the tree, so only the C++ bridge is analysed.
       matrix:
-        language: [cpp, javascript-typescript]
+        language: [cpp]
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
