@@ -27,8 +27,6 @@ rust-version = "1.95"
 license = "AGPL-3.0-only"
 authors = ["Nidvue"]
 repository = "https://github.com/Nidvue/Drive"
-homepage = "https://github.com/Nidvue/Drive"
-documentation = "https://docs.rs/nidvue-sdk"
 
 [workspace.dependencies]
 nidvue-core = { path = "crates/nidvue-core", version = "0.2.0" }
@@ -44,7 +42,6 @@ nidvue-ffi = { path = "crates/nidvue-ffi", version = "0.2.0" }
 
 async-trait = "0.1"
 base64 = "0.22"
-bytes = "1"
 chacha20poly1305 = "0.11"
 clap = { version = "4", features = ["derive", "env"] }
 fuser = "0.18"
@@ -81,9 +78,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"
 tokio-util = "0.7"
 toml = "0.9"
 tracing = "0.1"
-tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
-url = "2"
 wasmtime = "50"
 wiremock = "0.6"
 zeroize = { version = "1", features = ["derive"] }

@@ -27,6 +27,8 @@ qt_add_executable(nidvue-ui
     main.cpp
     bridge.cpp
     bridge.h
+    preferences.cpp
+    preferences.h
     tray.cpp
     tray.h
 )
@@ -34,6 +36,17 @@ qt_add_executable(nidvue-ui
 qt_add_resources(nidvue-ui "qml"
     PREFIX "/"
     FILES
+        qml/qmldir
+        qml/Theme.qml
+        qml/Card.qml
+        qml/StatCard.qml
+        qml/PillButton.qml
+        qml/NavItem.qml
+        qml/Toggle.qml
+        qml/ToggleRow.qml
+        qml/SliderRow.qml
+        qml/Field.qml
+        qml/SegmentedChoice.qml
         qml/Main.qml
         qml/Dashboard.qml
         qml/Conflicts.qml

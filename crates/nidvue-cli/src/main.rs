@@ -45,8 +45,8 @@ enum Command {
         /// Read the token from stdin instead of prompting
         #[arg(long)]
         token_stdin: bool,
-        /// Token value (visible in shell history; prefer --token-stdin)
-        #[arg(long, hide = true)]
+        /// Token value (visible in shell history; prefer --token-stdin or JOTTA_LOGIN_TOKEN env)
+        #[arg(long, hide = true, env = "JOTTA_LOGIN_TOKEN")]
         token: Option<String>,
     },
     /// Forget the stored token
@@ -189,21 +189,21 @@ async fn main() {
 async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
     match &cli.command {
         Command::Login { token_stdin, token } => {
-            let value = match token {
-                Some(t) => t.clone(),
-                None if *token_stdin => {
-                    let mut buf = String::new();
-                    std::io::stdin()
-                        .read_to_string(&mut buf)
-                        .map_err(|e| NidvueError::io("<stdin>", e))?;
-                    buf.trim().to_string()
-                }
-                None => {
-                    return Err(NidvueError::Config(
-                        "pass --token-stdin (recommended) or --token".into(),
-                    ))
-                }
-            };
+            let value =
+                match token {
+                    Some(t) if !t.is_empty() => t.clone(),
+                    None if *token_stdin => {
+                        let mut buf = String::new();
+                        std::io::stdin()
+                            .read_to_string(&mut buf)
+                            .map_err(|e| NidvueError::io("<stdin>", e))?;
+                        buf.trim().to_string()
+                    }
+                    _ => return Err(NidvueError::Config(
+                        "pass --token-stdin (recommended), --token, or set JOTTA_LOGIN_TOKEN env"
+                            .into(),
+                    )),
+                };
             let client = Client::open(state).await?;
             let username = client.login(&value).await?;
             println!("logged in as {username}");
@@ -321,17 +321,14 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 if !client.is_logged_in().await {
                     return Err(NidvueError::Auth("log in first: nidvue-cli login".into()));
                 }
-                let reports = client.sync_now().await?;
-                for (i, report) in reports.iter().enumerate() {
-                    let pair = &client.sync_pairs()[i];
-                    if let Some(only) = name {
-                        if &pair.name != only {
-                            continue;
-                        }
-                    }
+                let reports = match name {
+                    Some(only) => vec![client.sync_pair_now(only).await?],
+                    None => client.sync_now().await?,
+                };
+                for report in &reports {
                     println!(
                         "{}: scanned {} planned {} applied {} conflicts {} failed {}",
-                        pair.name,
+                        report.pair,
                         report.scanned,
                         report.planned,
                         report.applied,

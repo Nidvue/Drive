@@ -111,9 +111,14 @@ impl TransferRegistry {
             Err(poisoned) => poisoned.into_inner(),
         };
         match event {
-            Event::TransferQueued { path, direction } => {
+            Event::TransferQueued {
+                path,
+                direction,
+                size,
+            } => {
                 upsert(&mut rows, *direction, path, |row| {
                     row.state = TransferState::Queued;
+                    row.total = *size;
                     row.error = None;
                     row.retryable = false;
                 });
@@ -255,6 +260,7 @@ mod tests {
     fn queued(path: &str) -> Event {
         Event::TransferQueued {
             path: path.into(),
+            size: 1024,
             direction: Direction::Upload,
         }
     }
@@ -313,6 +319,7 @@ mod tests {
         reg.record(&queued("/a"));
         reg.record(&Event::TransferQueued {
             path: "/a".into(),
+            size: 1024,
             direction: Direction::Download,
         });
         assert_eq!(reg.len(), 2);

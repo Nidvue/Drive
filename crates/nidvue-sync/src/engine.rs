@@ -18,7 +18,7 @@ use nidvue_core::id::CorrelationId;
 use nidvue_core::path::{remote_to_local, RemotePath};
 use nidvue_core::time::now_ms;
 use nidvue_core::types::{BaselineEntry, ConflictPolicy, EntryKind, Version};
-use nidvue_vfs::Remote;
+use nidvue_vfs::{ProgressFn, Remote};
 use tokio::sync::broadcast;
 use tracing::{debug, info, warn};
 
@@ -29,6 +29,8 @@ use crate::scheduler::Scheduler;
 /// The outcome of one sync pass.
 #[derive(Debug, Clone, Default)]
 pub struct SyncReport {
+    /// The sync pair this pass covered.
+    pub pair: String,
     /// Entries observed locally.
     pub scanned: u64,
     /// Actions planned.
@@ -97,6 +99,30 @@ impl SyncEngine {
         let _ = self.events.send(EventEnvelope::new(event));
     }
 
+    /// A `(done, total)` callback that emits `transfer_progress` at most every
+    /// 256 KiB, plus once at completion, so a fast transfer cannot flood the
+    /// event stream.
+    fn progress_reporter(&self, path: &RemotePath, direction: Direction) -> ProgressFn {
+        let events = self.events.clone();
+        let path = path.to_string();
+        let last = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        Arc::new(move |done: u64, total: u64| {
+            const STEP: u64 = 256 * 1024;
+            let previous = last.load(std::sync::atomic::Ordering::Relaxed);
+            let finished = total > 0 && done >= total;
+            if !finished && done.saturating_sub(previous) < STEP {
+                return;
+            }
+            last.store(done, std::sync::atomic::Ordering::Relaxed);
+            let _ = events.send(EventEnvelope::new(Event::TransferProgress {
+                path: path.clone(),
+                direction,
+                done,
+                total,
+            }));
+        })
+    }
+
     /// One full three-way pass over a pair.
     pub async fn sync_pair(&self, pair: &SyncPair) -> Result<SyncReport> {
         if pair.paused || self.cfg.paused {
@@ -127,6 +153,7 @@ impl SyncEngine {
 
         let actions = plan(&local, &remote, &baselines);
         let mut report = SyncReport {
+            pair: pair.name.clone(),
             scanned: local.len() as u64,
             planned: actions.len() as u64,
             ..Default::default()
@@ -241,13 +268,21 @@ impl SyncEngine {
                 self.emit(Event::TransferQueued {
                     path: path.to_string(),
                     direction: Direction::Upload,
+                    size: local.size,
                 });
                 if let Some(parent) = path.parent() {
                     if !parent.is_root() {
                         self.remote.remote_mkdir(&parent).await?;
                     }
                 }
-                let entry = self.remote.remote_upload(&path, &local_path).await?;
+                let entry = self
+                    .remote
+                    .remote_upload(
+                        &path,
+                        &local_path,
+                        Some(self.progress_reporter(&path, Direction::Upload)),
+                    )
+                    .await?;
                 if entry.size != local.size {
                     self.index.journal_mark(id, "intent")?;
                     return Err(NidvueError::Verification(format!(
@@ -287,6 +322,7 @@ impl SyncEngine {
                 self.emit(Event::TransferQueued {
                     path: path.to_string(),
                     direction: Direction::Download,
+                    size: remote.size,
                 });
                 let hash = self
                     .download_atomic(&path, &local_path, remote.size)
@@ -361,9 +397,15 @@ impl SyncEngine {
                         let hash = self
                             .download_atomic(&path, &copy_local, remote.size)
                             .await?;
-                        self.remote.remote_upload(&copy, &copy_local).await?;
+                        self.remote.remote_upload(&copy, &copy_local, None).await?;
                         // Local version wins the original path.
-                        self.remote.remote_upload(&path, &local_path).await?;
+                        self.remote
+                            .remote_upload(
+                                &path,
+                                &local_path,
+                                Some(self.progress_reporter(&path, Direction::Upload)),
+                            )
+                            .await?;
                         hash
                     }
                     nidvue_core::types::Side::Remote => {
@@ -375,7 +417,7 @@ impl SyncEngine {
                         }
                         std::fs::copy(&local_path, &copy_local)
                             .map_err(|e| NidvueError::io(&local_path, e))?;
-                        self.remote.remote_upload(&copy, &copy_local).await?;
+                        self.remote.remote_upload(&copy, &copy_local, None).await?;
                         self.download_atomic(&path, &local_path, remote.size)
                             .await?
                     }
@@ -453,7 +495,12 @@ impl SyncEngine {
             .map_err(|e| NidvueError::io(&tmp, e))?;
         let result = self
             .remote
-            .remote_download(path, &mut file, Some(expected))
+            .remote_download(
+                path,
+                &mut file,
+                Some(expected),
+                Some(self.progress_reporter(path, Direction::Download)),
+            )
             .await;
         file.sync_all()
             .await

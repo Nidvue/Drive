@@ -19,7 +19,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use nidvue_cache::{Cache, CacheUsage, ConflictRow, Index};
@@ -132,7 +132,7 @@ impl From<Quota> for QuotaView {
 }
 
 struct Inner {
-    config: AppConfig,
+    config: RwLock<AppConfig>,
     auth: Arc<AuthManager>,
     jotta: Arc<JottaClient>,
     cache: Arc<Cache>,
@@ -231,7 +231,7 @@ impl Client {
             inner: Arc::new(Inner {
                 paused,
                 bandwidth_bps,
-                config,
+                config: RwLock::new(config),
                 auth,
                 jotta,
                 cache,
@@ -390,8 +390,53 @@ impl Client {
     }
 
     /// The effective configuration.
-    pub fn config(&self) -> &AppConfig {
-        &self.inner.config
+    pub fn config(&self) -> AppConfig {
+        self.read_config().clone()
+    }
+
+    /// Read one value by dotted key, e.g. `sync.pairs.docs.exclude`.
+    pub fn config_get(&self, key: &str) -> Result<serde_json::Value> {
+        nidvue_core::config::dot::get(&self.read_config(), key)
+    }
+
+    /// Write one value by dotted key, persist it and apply the hot subset.
+    ///
+    /// The value is parsed as JSON when it parses, so a list is
+    /// `["**/node_modules"]` and a bool is `true`. Everything the running
+    /// engine reads live (pause, bandwidth cap, sync pairs) is applied at
+    /// once; the cache cap takes effect on the next start.
+    pub fn config_set(&self, key: &str, value: &str) -> Result<serde_json::Value> {
+        let next = {
+            let mut guard = self
+                .inner
+                .config
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let next = nidvue_core::config::dot::set(&guard, key, value)?;
+            let dir = next.state_dir.clone();
+            next.save(&dir)?;
+            *guard = next.clone();
+            next
+        };
+        self.apply_live(&next);
+        nidvue_core::config::dot::get(&next, key)
+    }
+
+    fn read_config(&self) -> std::sync::RwLockReadGuard<'_, AppConfig> {
+        self.inner
+            .config
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Push the values the engine reads from atomics or the pair list.
+    fn apply_live(&self, config: &AppConfig) {
+        self.inner
+            .paused
+            .store(config.sync.paused, Ordering::Relaxed);
+        self.inner
+            .bandwidth_bps
+            .store(config.sync.bandwidth_limit_bps, Ordering::Relaxed);
     }
 
     /// Exchange a Personal Login Token and persist the result.
@@ -446,10 +491,7 @@ impl Client {
 
     /// Pause or resume every sync pair. Persisted in `config.toml`.
     pub fn set_paused(&self, paused: bool) -> Result<()> {
-        self.inner.paused.store(paused, Ordering::Relaxed);
-        let mut config = self.inner.config.clone();
-        config.sync.paused = paused;
-        config.save(&config.state_dir.clone())?;
+        self.config_set("sync.paused", if paused { "true" } else { "false" })?;
         let _ = self.inner.events.send(EventEnvelope::new(Event::Health {
             state: if paused {
                 HealthState::Degraded
@@ -472,12 +514,7 @@ impl Client {
 
     /// Set the aggregate bandwidth cap. Persisted in `config.toml`.
     pub fn set_bandwidth_limit_bps(&self, bytes_per_second: u64) -> Result<()> {
-        self.inner
-            .bandwidth_bps
-            .store(bytes_per_second, Ordering::Relaxed);
-        let mut config = self.inner.config.clone();
-        config.sync.bandwidth_limit_bps = bytes_per_second;
-        config.save(&config.state_dir.clone())?;
+        self.config_set("sync.bandwidth_limit_bps", &bytes_per_second.to_string())?;
         Ok(())
     }
 
@@ -497,7 +534,7 @@ impl Client {
             queue_depth: self.inner.transfers.queued(),
             active_transfers: self.inner.transfers.running(),
             cache_bytes: usage.bytes,
-            cache_capacity: self.inner.config.cache.max_size_bytes,
+            cache_capacity: self.read_config().cache.max_size_bytes,
             index_entries: entries,
             conflicts_open: conflicts,
             health,
@@ -522,7 +559,7 @@ impl Client {
             paused: self.paused(),
             bandwidth_limit_bps: self.bandwidth_limit_bps(),
             cache: CacheUsageView {
-                capacity: self.inner.config.cache.max_size_bytes,
+                capacity: self.read_config().cache.max_size_bytes,
                 ..usage.into()
             },
             health: stats.health,
@@ -542,7 +579,7 @@ impl Client {
         let vfs = EngineVfs::new(
             self.inner.jotta.clone(),
             self.inner.cache.clone(),
-            self.inner.config.spool_dir(),
+            self.read_config().spool_dir(),
         )?
         .read_only(options.read_only);
         nidvue_mount::mount(Arc::new(vfs), mountpoint, options)
@@ -550,14 +587,14 @@ impl Client {
 
     /// A sync engine over this client's cache, index and remote.
     pub fn sync_engine(&self) -> SyncEngine {
-        let mut sync = self.inner.config.sync.clone();
+        let mut sync = self.read_config().sync.clone();
         sync.paused = self.paused();
         sync.bandwidth_limit_bps = self.bandwidth_limit_bps();
         SyncEngine::new(
             self.inner.jotta.clone(),
             self.inner.index.clone(),
             sync,
-            self.inner.config.trash_dir(),
+            self.read_config().trash_dir(),
             self.inner.events.clone(),
         )
     }
@@ -566,15 +603,108 @@ impl Client {
     pub async fn sync_now(&self) -> Result<Vec<SyncReport>> {
         let engine = self.sync_engine();
         let mut reports = Vec::new();
-        for pair in &self.inner.config.sync.pairs {
-            reports.push(engine.sync_pair(pair).await?);
+        for pair in self.sync_pairs() {
+            reports.push(engine.sync_pair(&pair).await?);
         }
         Ok(reports)
     }
 
+    /// Run one sync pass for a single pair.
+    pub async fn sync_pair_now(&self, name: &str) -> Result<SyncReport> {
+        let pair = self
+            .sync_pairs()
+            .into_iter()
+            .find(|p| p.name == name)
+            .ok_or_else(|| NidvueError::Config(format!("no sync pair named {name}")))?;
+        self.sync_engine().sync_pair(&pair).await
+    }
+
     /// The configured sync pairs.
-    pub fn sync_pairs(&self) -> &[SyncPair] {
-        &self.inner.config.sync.pairs
+    pub fn sync_pairs(&self) -> Vec<SyncPair> {
+        self.read_config().sync.pairs.clone()
+    }
+
+    /// Add a sync pair and persist it. The name must be new and the remote path
+    /// absolute; the local directory is created when it does not exist.
+    pub fn add_sync_pair(&self, pair: SyncPair) -> Result<()> {
+        if pair.name.trim().is_empty() {
+            return Err(NidvueError::Config(
+                "sync pair name must not be empty".into(),
+            ));
+        }
+        RemotePath::parse(&pair.remote)?;
+        std::fs::create_dir_all(&pair.local).map_err(|e| NidvueError::io(&pair.local, e))?;
+        self.update_pairs(|pairs| {
+            if pairs.iter().any(|p| p.name == pair.name) {
+                return Err(NidvueError::Config(format!(
+                    "sync pair {} already exists",
+                    pair.name
+                )));
+            }
+            pairs.push(pair);
+            Ok(())
+        })
+    }
+
+    /// Remove a sync pair by name and persist the rest.
+    pub fn remove_sync_pair(&self, name: &str) -> Result<()> {
+        self.update_pairs(|pairs| {
+            let before = pairs.len();
+            pairs.retain(|p| p.name != name);
+            if pairs.len() == before {
+                return Err(NidvueError::Config(format!("no sync pair named {name}")));
+            }
+            Ok(())
+        })
+    }
+
+    /// Pause or resume one sync pair. Persisted in `config.toml`.
+    pub fn set_sync_pair_paused(&self, name: &str, paused: bool) -> Result<()> {
+        self.update_pairs(|pairs| {
+            let pair = pairs
+                .iter_mut()
+                .find(|p| p.name == name)
+                .ok_or_else(|| NidvueError::Config(format!("no sync pair named {name}")))?;
+            pair.paused = paused;
+            Ok(())
+        })
+    }
+
+    /// Replace one pair's include and exclude globs. Persisted in
+    /// `config.toml`; the next pass scans with the new filters.
+    pub fn set_sync_pair_filters(
+        &self,
+        name: &str,
+        include: Vec<String>,
+        exclude: Vec<String>,
+    ) -> Result<()> {
+        self.update_pairs(|pairs| {
+            let pair = pairs
+                .iter_mut()
+                .find(|p| p.name == name)
+                .ok_or_else(|| NidvueError::Config(format!("no sync pair named {name}")))?;
+            pair.include = include;
+            pair.exclude = exclude;
+            Ok(())
+        })
+    }
+
+    fn update_pairs(
+        &self,
+        mutate: impl FnOnce(&mut Vec<SyncPair>) -> Result<()>,
+    ) -> Result<()> {
+        let mut guard = self
+            .inner
+            .config
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut next = guard.clone();
+        mutate(&mut next.sync.pairs)?;
+        next.validate()?;
+        let dir = next.state_dir.clone();
+        next.save(&dir)?;
+        *guard = next;
+        Ok(())
     }
 
     /// Open conflicts, newest first.
@@ -598,7 +728,7 @@ impl Client {
     /// Load the plugins installed below `<state>/plugins`.
     pub fn plugins(&self) -> Result<PluginHost> {
         let mut host = PluginHost::new()?;
-        let dir = self.inner.config.state_dir.join("plugins");
+        let dir = self.read_config().state_dir.join("plugins");
         if dir.is_dir() {
             for (path, result) in host.load_all(&dir) {
                 if let Err(e) = &result {

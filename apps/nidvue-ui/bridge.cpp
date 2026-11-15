@@ -12,6 +12,9 @@
 #include <QThread>
 #include <QTimer>
 #include <QDateTime>
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QTime>
 
 #include "nidvue.h"
 
@@ -58,6 +61,64 @@ QVariantList parseTransfers(const QJsonArray &array)
         row.insert("error", error.isString() ? error.toString() : QString());
         row.insert("retryable", object.value("retryable").toBool());
         row.insert("updatedMs", object.value("updated_ms").toVariant());
+        out.append(row);
+    }
+    return out;
+}
+
+QVariantList parseSyncPairs(const QString &json)
+{
+    QVariantList out;
+    const auto doc = QJsonDocument::fromJson(json.toUtf8());
+    if (!doc.isArray())
+        return out;
+    for (const auto &value : doc.array()) {
+        const auto object = value.toObject();
+        QVariantMap row;
+        row.insert("name", object.value("name").toString());
+        row.insert("local", object.value("local").toString());
+        row.insert("remote", object.value("remote").toString());
+        row.insert("paused", object.value("paused").toBool());
+        out.append(row);
+    }
+    return out;
+}
+
+QVariantList parseSyncReports(const QString &json)
+{
+    QVariantList out;
+    const auto doc = QJsonDocument::fromJson(json.toUtf8());
+    if (!doc.isArray())
+        return out;
+    for (const auto &value : doc.array()) {
+        const auto object = value.toObject();
+        QVariantMap row;
+        row.insert("pair", object.value("pair").toString());
+        row.insert("scanned", object.value("scanned").toVariant());
+        row.insert("planned", object.value("planned").toVariant());
+        row.insert("applied", object.value("applied").toVariant());
+        row.insert("conflicts", object.value("conflicts").toVariant());
+        row.insert("failed", object.value("failed").toVariant());
+        out.append(row);
+    }
+    return out;
+}
+
+QVariantList parsePlugins(const QString &json)
+{
+    QVariantList out;
+    const auto doc = QJsonDocument::fromJson(json.toUtf8());
+    if (!doc.isArray())
+        return out;
+    for (const auto &value : doc.array()) {
+        const auto object = value.toObject();
+        QVariantMap row;
+        row.insert("id", object.value("id").toString());
+        row.insert("name", object.value("name").toString());
+        row.insert("version", object.value("version").toString());
+        row.insert("license", object.value("license").toString());
+        row.insert("hooks", object.value("hooks").toVariant());
+        row.insert("dir", object.value("dir").toString());
         out.append(row);
     }
     return out;
@@ -120,6 +181,11 @@ void Worker::poll()
     out = nullptr;
     if (nidvue_client_conflicts_json(m_client, &out) == NIDVUE_OK) {
         emit conflictsJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    }
+    out = nullptr;
+    if (nidvue_client_sync_pairs_json(m_client, &out) == NIDVUE_OK) {
+        emit syncPairsJson(QString::fromUtf8(out));
         nidvue_string_free(out);
     }
 }
@@ -192,6 +258,45 @@ void Worker::setBandwidthLimit(qulonglong bytesPerSecond)
     poll();
 }
 
+void Worker::setCacheLimit(qulonglong bytes)
+{
+    if (!m_client)
+        return;
+    char *err = nullptr;
+    if (nidvue_client_set_cache_limit(m_client, bytes, &err) != NIDVUE_OK)
+        emit error(takeError(err));
+    poll();
+}
+
+void Worker::refreshPlugins()
+{
+    if (!m_client)
+        return;
+    char *out = nullptr;
+    if (nidvue_client_plugins_json(m_client, &out) == NIDVUE_OK) {
+        emit pluginsJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    }
+}
+
+void Worker::syncPairNow(const QString &name)
+{
+    if (!m_client)
+        return;
+    emit busy(QStringLiteral("syncing %1").arg(name), true);
+    char *out = nullptr;
+    char *err = nullptr;
+    if (nidvue_client_sync_pair_now(m_client, name.toUtf8().constData(), &out, &err)
+        == NIDVUE_OK) {
+        emit syncReportsJson(QStringLiteral("[%1]").arg(QString::fromUtf8(out)));
+        nidvue_string_free(out);
+    } else {
+        emit error(takeError(err));
+    }
+    emit busy(QStringLiteral("syncing"), false);
+    poll();
+}
+
 void Worker::syncNow()
 {
     if (!m_client)
@@ -203,7 +308,7 @@ void Worker::syncNow()
     if (code != NIDVUE_OK) {
         emit error(takeError(err));
     } else if (out) {
-        emit eventJson(QStringLiteral("{\"type\":\"sync_finished\",\"reports\":%1}").arg(QString::fromUtf8(out)));
+        emit syncReportsJson(QString::fromUtf8(out));
         nidvue_string_free(out);
     }
     emit busy(QStringLiteral("syncing"), false);
@@ -215,6 +320,76 @@ void Worker::clearTransfers()
     if (!m_client)
         return;
     nidvue_client_clear_transfers(m_client);
+    poll();
+}
+
+void Worker::addSyncPair(const QString &name, const QString &local, const QString &remote)
+{
+    if (!m_client)
+        return;
+    char *out = nullptr;
+    char *err = nullptr;
+    if (nidvue_client_sync_pair_add(m_client, name.toUtf8().constData(),
+                                    local.toUtf8().constData(), remote.toUtf8().constData(),
+                                    &out, &err)
+        == NIDVUE_OK) {
+        emit syncPairsJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    } else {
+        emit error(takeError(err));
+    }
+    poll();
+}
+
+void Worker::removeSyncPair(const QString &name)
+{
+    if (!m_client)
+        return;
+    char *out = nullptr;
+    char *err = nullptr;
+    if (nidvue_client_sync_pair_remove(m_client, name.toUtf8().constData(), &out, &err)
+        == NIDVUE_OK) {
+        emit syncPairsJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    } else {
+        emit error(takeError(err));
+    }
+    poll();
+}
+
+void Worker::setSyncPairPaused(const QString &name, bool paused)
+{
+    if (!m_client)
+        return;
+    char *out = nullptr;
+    char *err = nullptr;
+    if (nidvue_client_sync_pair_set_paused(m_client, name.toUtf8().constData(),
+                                           paused ? 1 : 0, &out, &err)
+        == NIDVUE_OK) {
+        emit syncPairsJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    } else {
+        emit error(takeError(err));
+    }
+    poll();
+}
+
+void Worker::setSyncPairFilters(const QString &name, const QString &include,
+                                const QString &exclude)
+{
+    if (!m_client)
+        return;
+    char *out = nullptr;
+    char *err = nullptr;
+    if (nidvue_client_sync_pair_set_filters(m_client, name.toUtf8().constData(),
+                                            include.toUtf8().constData(),
+                                            exclude.toUtf8().constData(), &out, &err)
+        == NIDVUE_OK) {
+        emit syncPairsJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    } else {
+        emit error(takeError(err));
+    }
     poll();
 }
 
@@ -240,6 +415,9 @@ Bridge::Bridge(QObject *parent)
     connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
     connect(m_worker, &Worker::statusJson, this, &Bridge::onStatus);
     connect(m_worker, &Worker::conflictsJson, this, &Bridge::onConflicts);
+    connect(m_worker, &Worker::syncPairsJson, this, &Bridge::onSyncPairs);
+    connect(m_worker, &Worker::syncReportsJson, this, &Bridge::onSyncReports);
+    connect(m_worker, &Worker::pluginsJson, this, &Bridge::onPlugins);
     connect(m_worker, &Worker::eventJson, this, &Bridge::onEvent);
     connect(m_worker, &Worker::error, this, &Bridge::onError);
     connect(m_worker, &Worker::busy, this, &Bridge::onBusy);
@@ -253,9 +431,15 @@ Bridge::Bridge(QObject *parent)
     connect(this, &Bridge::requestMount, m_worker, &Worker::mount);
     connect(this, &Bridge::requestUnmount, m_worker, &Worker::unmount);
     connect(this, &Bridge::requestSync, m_worker, &Worker::syncNow);
+    connect(this, &Bridge::requestSyncPair, m_worker, &Worker::syncPairNow);
+    connect(this, &Bridge::requestSetCacheLimit, m_worker, &Worker::setCacheLimit);
+    connect(this, &Bridge::requestRefreshPlugins, m_worker, &Worker::refreshPlugins);
     connect(this, &Bridge::requestSetPaused, m_worker, &Worker::setPaused);
     connect(this, &Bridge::requestSetBandwidth, m_worker, &Worker::setBandwidthLimit);
     connect(this, &Bridge::requestResolve, m_worker, &Worker::resolve);
+    connect(this, &Bridge::requestAddSyncPair, m_worker, &Worker::addSyncPair);
+    connect(this, &Bridge::requestRemoveSyncPair, m_worker, &Worker::removeSyncPair);
+    connect(this, &Bridge::requestSetSyncPairPaused, m_worker, &Worker::setSyncPairPaused);
 
     const QString state = qEnvironmentVariable("NIDVUE_STATE",
         QDir::homePath() + QStringLiteral("/.local/share/nidvue-drive"));
@@ -277,6 +461,62 @@ void Bridge::logout() { emit requestLogout(); }
 void Bridge::mount(const QString &mountpoint, bool readOnly) { emit requestMount(mountpoint, readOnly); }
 void Bridge::unmount() { emit requestUnmount(); }
 void Bridge::syncNow() { emit requestSync(); }
+
+void Bridge::syncPairNow(const QString &name) { emit requestSyncPair(name); }
+
+QString Bridge::syncSummary(const QString &name) const
+{
+    for (const auto &value : m_lastSync) {
+        const auto row = value.toMap();
+        if (row.value("pair").toString() != name)
+            continue;
+        const qulonglong applied = row.value("applied").toULongLong();
+        const qulonglong conflicts = row.value("conflicts").toULongLong();
+        const qulonglong failed = row.value("failed").toULongLong();
+        QStringList parts;
+        parts << QStringLiteral("%1 applied").arg(applied);
+        if (conflicts > 0)
+            parts << QStringLiteral("%1 conflicts").arg(conflicts);
+        if (failed > 0)
+            parts << QStringLiteral("%1 failed").arg(failed);
+        return parts.join(QStringLiteral(" · "));
+    }
+    return QString();
+}
+
+QString Bridge::syncTotals() const
+{
+    if (m_lastSync.isEmpty())
+        return QString();
+    qulonglong applied = 0;
+    qulonglong conflicts = 0;
+    qulonglong failed = 0;
+    for (const auto &value : m_lastSync) {
+        const auto row = value.toMap();
+        applied += row.value("applied").toULongLong();
+        conflicts += row.value("conflicts").toULongLong();
+        failed += row.value("failed").toULongLong();
+    }
+    QStringList parts;
+    parts << QStringLiteral("%1 applied").arg(applied);
+    if (conflicts > 0)
+        parts << QStringLiteral("%1 conflicts").arg(conflicts);
+    if (failed > 0)
+        parts << QStringLiteral("%1 failed").arg(failed);
+    return parts.join(QStringLiteral(" · "));
+}
+
+void Bridge::clearLogs()
+{
+    m_logs.clear();
+    emit logsChanged();
+    emit logsCleared();
+}
+
+void Bridge::copyLogs()
+{
+    QGuiApplication::clipboard()->setText(m_logs.join(QLatin1Char('\n')));
+}
 
 void Bridge::setPaused(bool paused)
 {
@@ -309,6 +549,34 @@ void Bridge::resolve(const QString &id, const QString &resolution) { emit reques
 void Bridge::clearTransfers()
 {
     QMetaObject::invokeMethod(m_worker, "clearTransfers", Qt::QueuedConnection);
+}
+
+void Bridge::addSyncPair(const QString &name, const QString &local, const QString &remote)
+{
+    emit requestAddSyncPair(name, local, remote);
+}
+
+void Bridge::removeSyncPair(const QString &name) { emit requestRemoveSyncPair(name); }
+
+void Bridge::setCacheLimitGb(int gb)
+{
+    if (gb <= 0)
+        return;
+    emit requestSetCacheLimit(qulonglong(gb) * 1024ull * 1024ull * 1024ull);
+}
+
+void Bridge::refreshPlugins() { emit requestRefreshPlugins(); }
+
+void Bridge::setSyncPairPaused(const QString &name, bool paused)
+{
+    emit requestSetSyncPairPaused(name, paused);
+}
+
+void Bridge::setSyncPairFilters(const QString &name, const QString &include,
+                                const QString &exclude)
+{
+    emit requestSetSyncPairFilters(name, include, exclude);
+}
 }
 
 void Bridge::clearError()
@@ -363,10 +631,83 @@ void Bridge::onConflicts(const QString &json)
     emit conflictsChanged();
 }
 
+void Bridge::onSyncPairs(const QString &json)
+{
+    m_syncPairs = parseSyncPairs(json);
+    emit syncPairsChanged();
+}
+
+void Bridge::onSyncReports(const QString &json)
+{
+    m_lastSync = parseSyncReports(json);
+    m_lastSyncAt = QTime::currentTime().toString(QStringLiteral("HH:mm:ss"));
+    for (const auto &value : m_lastSync) {
+        const auto row = value.toMap();
+        appendLog(QStringLiteral("sync %1: %2 applied, %3 conflicts, %4 failed")
+                      .arg(row.value("pair").toString())
+                      .arg(row.value("applied").toULongLong())
+                      .arg(row.value("conflicts").toULongLong())
+                      .arg(row.value("failed").toULongLong()));
+    }
+    emit lastSyncChanged();
+}
+
+void Bridge::onPlugins(const QString &json)
+{
+    m_plugins = parsePlugins(json);
+    emit pluginsChanged();
+}
+
 void Bridge::onEvent(const QString &json)
 {
     const auto object = QJsonDocument::fromJson(json.toUtf8()).object();
     const QString kind = object.value("type").toString();
+
+    if (kind.startsWith(QLatin1String("transfer_"))) {
+        const QString path = object.value("path").toString();
+        const QString state = kind == QLatin1String("transfer_queued")    ? QStringLiteral("active")
+                              : kind == QLatin1String("transfer_done")    ? QStringLiteral("done")
+                              : kind == QLatin1String("transfer_progress") ? QStringLiteral("active")
+                                                                          : QStringLiteral("failed");
+        const QString direction = object.value("direction").toString();
+        const qulonglong size = object.value("size").toVariant().toULongLong();
+
+        int at = -1;
+        for (int i = 0; i < m_transfers.size(); ++i) {
+            const auto row = m_transfers.at(i).toMap();
+            if (row.value("path").toString() == path
+                && row.value("direction").toString() == direction) {
+                at = i;
+                break;
+            }
+        }
+        QVariantMap row;
+        if (at >= 0)
+            row = m_transfers.at(at).toMap();
+        else
+            row.insert("started", QTime::currentTime().toString(QStringLiteral("HH:mm:ss")));
+        row.insert("path", path);
+        row.insert("direction", direction);
+        row.insert("state", state);
+        if (size > 0)
+            row.insert("size", size);
+        const qulonglong done = object.value("done").toVariant().toULongLong();
+        const qulonglong total = object.value("total").toVariant().toULongLong();
+        if (total > 0) {
+            row.insert("done", done);
+            row.insert("total", total);
+        }
+        if (kind == QLatin1String("transfer_failed"))
+            row.insert("error", object.value("error").toString());
+
+        if (at >= 0)
+            m_transfers[at] = row;
+        else
+            m_transfers.prepend(row);
+        while (m_transfers.size() > 200)
+            m_transfers.removeLast();
+        emit transfersChanged();
+    }
     if (kind.isEmpty()) {
         const auto inner = object.value("event").toObject();
         appendLog(QStringLiteral("%1 %2").arg(inner.value("type").toString(),

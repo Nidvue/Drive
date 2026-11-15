@@ -12,6 +12,8 @@
 //!
 //! The API surface is documented in `docs/jotta-api.md`.
 
+pub mod otlp;
+
 pub mod auth;
 pub mod client;
 pub mod ratelimit;

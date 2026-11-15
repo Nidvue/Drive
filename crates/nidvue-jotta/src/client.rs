@@ -144,7 +144,7 @@ pub struct Quota {
 /// Called with `(done, total)` as a transfer progresses.
 pub type ProgressFn = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum Body {
     None,
     Json(serde_json::Value),
@@ -152,7 +152,26 @@ enum Body {
         path: PathBuf,
         offset: u64,
         len: u64,
+        total: u64,
+        progress: Option<ProgressFn>,
     },
+}
+
+impl std::fmt::Debug for Body {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => f.write_str("Body::None"),
+            Self::Json(value) => f.debug_tuple("Body::Json").field(value).finish(),
+            Self::File {
+                path, offset, len, ..
+            } => f
+                .debug_struct("Body::File")
+                .field("path", path)
+                .field("offset", offset)
+                .field("len", len)
+                .finish(),
+        }
+    }
 }
 
 /// The Jottacloud client.
@@ -413,6 +432,8 @@ impl JottaClient {
                 path: local.to_path_buf(),
                 offset: allocated.resume_pos,
                 len: remaining,
+                total: size,
+                progress: progress.clone(),
             };
             let mut request = self
                 .http
@@ -429,9 +450,6 @@ impl JottaClient {
             let response = self
                 .execute(request, Method::POST, &allocated.upload_url)
                 .await?;
-            if let Some(cb) = &progress {
-                cb(size, size);
-            }
             let _ = response.bytes().await;
         }
 
@@ -491,7 +509,13 @@ impl JottaClient {
         Ok(match body {
             Body::None => request,
             Body::Json(value) => request.json(&value),
-            Body::File { path, offset, len } => {
+            Body::File {
+                path,
+                offset,
+                len,
+                total,
+                progress,
+            } => {
                 let mut file = tokio::fs::File::open(&path)
                     .await
                     .map_err(|e| NidvueError::io(&path, e))?;
@@ -501,7 +525,21 @@ impl JottaClient {
                         .map_err(|e| NidvueError::io(&path, e))?;
                 }
                 let reader = tokio::io::BufReader::new(file.take(len));
-                request.body(reqwest::Body::wrap_stream(ReaderStream::new(reader)))
+                let stream = ReaderStream::new(reader);
+                match progress {
+                    Some(cb) => {
+                        let mut sent = offset;
+                        let counted = stream.map(move |chunk| {
+                            if let Ok(bytes) = &chunk {
+                                sent += bytes.len() as u64;
+                                cb(sent, total);
+                            }
+                            chunk
+                        });
+                        request.body(reqwest::Body::wrap_stream(counted))
+                    }
+                    None => request.body(reqwest::Body::wrap_stream(stream)),
+                }
             }
         })
     }

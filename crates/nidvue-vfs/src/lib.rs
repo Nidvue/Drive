@@ -25,7 +25,9 @@ use nidvue_core::id::CorrelationId;
 use nidvue_core::path::RemotePath;
 use nidvue_core::time::now_ms;
 use nidvue_core::types::{EntryKind, EntryMeta, Version};
+pub use nidvue_jotta::client::ProgressFn;
 use nidvue_jotta::xml::{ListStream, RemoteEntry};
+
 use nidvue_jotta::JottaClient;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
@@ -104,15 +106,21 @@ pub trait Remote: Send + Sync {
     async fn remote_stat(&self, path: &RemotePath) -> Result<RemoteEntry>;
     /// List a tree.
     async fn remote_list(&self, path: &RemotePath) -> Result<ListStream>;
-    /// Stream a file into a writer.
+    /// Stream a file into a writer, reporting `(done, total)` as it goes.
     async fn remote_download(
         &self,
         path: &RemotePath,
         writer: &mut (dyn tokio::io::AsyncWrite + Unpin + Send),
         expected_size: Option<u64>,
+        progress: Option<ProgressFn>,
     ) -> Result<u64>;
     /// Upload a local file and return its verified size.
-    async fn remote_upload(&self, path: &RemotePath, local: &Path) -> Result<RemoteEntry>;
+    async fn remote_upload(
+        &self,
+        path: &RemotePath,
+        local: &Path,
+        progress: Option<ProgressFn>,
+    ) -> Result<RemoteEntry>;
     /// Create a directory.
     async fn remote_mkdir(&self, path: &RemotePath) -> Result<()>;
     /// Delete a path.
@@ -136,12 +144,19 @@ impl Remote for JottaClient {
         path: &RemotePath,
         writer: &mut (dyn tokio::io::AsyncWrite + Unpin + Send),
         expected_size: Option<u64>,
+        progress: Option<ProgressFn>,
     ) -> Result<u64> {
-        self.download_to(path, writer, expected_size, None).await
+        self.download_to(path, writer, expected_size, progress)
+            .await
     }
 
-    async fn remote_upload(&self, path: &RemotePath, local: &Path) -> Result<RemoteEntry> {
-        self.upload(path, local, None).await
+    async fn remote_upload(
+        &self,
+        path: &RemotePath,
+        local: &Path,
+        progress: Option<ProgressFn>,
+    ) -> Result<RemoteEntry> {
+        self.upload(path, local, progress).await
     }
 
     async fn remote_mkdir(&self, path: &RemotePath) -> Result<()> {
@@ -418,7 +433,7 @@ impl EngineVfs {
                 .map_err(|e| NidvueError::io(&tmp, e))?;
             let size = self
                 .remote
-                .remote_download(&self.absolute(path), &mut file, Some(row.size))
+                .remote_download(&self.absolute(path), &mut file, Some(row.size), None)
                 .await?;
             file.sync_all()
                 .await
@@ -829,7 +844,7 @@ pub async fn drain_spool(vfs: &EngineVfs, limit: usize) -> Result<Vec<RemotePath
         if let Some(parent) = path.parent() {
             vfs.remote.remote_mkdir(&parent).await?;
         }
-        let remote = vfs.remote.remote_upload(&path, &spool_path).await?;
+        let remote = vfs.remote.remote_upload(&path, &spool_path, None).await?;
         let local = hash_file(&spool_path)?;
         if remote.size != local.size {
             warn!(path = %path, "remote size differs after upload");
