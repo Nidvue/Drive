@@ -32,6 +32,7 @@ fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
         "test" => test(rest),
         "doc" => doc(),
         "deny" => deny(),
+        "arch" => arch(),
         "spdx" => spdx(),
         "secrets" => secrets(),
         "dco" => dco(rest.first().map(String::as_str)),
@@ -60,6 +61,7 @@ fn help() {
          test      the workspace test suite (extra args are passed to cargo test)\n\
          doc       rustdoc with warnings denied\n\
          deny      cargo-deny: licences, advisories, bans, sources\n\
+         arch      verify the crate dependency contract in ARCHITECTURE.md\n\
          spdx      verify the SPDX header on every tracked source file\n\
          secrets   scan tracked files for credential-shaped strings\n\
          dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
@@ -115,6 +117,7 @@ fn capture(program: &str, args: &[&str]) -> Result<String, String> {
 
 fn ci(skip_ui: bool) -> Result<(), String> {
     fmt(true)?;
+    arch()?;
     clippy()?;
     test(&[])?;
     doc()?;
@@ -177,6 +180,126 @@ fn deny() -> Result<(), String> {
         "cargo",
         &["deny", "check", "licenses", "bans", "sources", "advisories"],
     )
+}
+
+/// The crate contract in `ARCHITECTURE.md`, as a test instead of a review note.
+///
+/// A rule with no command behind it is a wish: this turns "only jotta speaks
+/// HTTP" and "core depends on no Nidvue crate" into a gate that fails the
+/// build, so a dependency added in a hurry cannot quietly cross a boundary.
+fn arch() -> Result<(), String> {
+    // Layering: a crate may depend on a lower rank, never on an equal or
+    // higher one. The order is the one the architecture diagram draws.
+    const RANKS: &[(&str, u8)] = &[
+        ("core", 0),
+        ("jotta", 1),
+        ("cache", 1),
+        ("plugin", 1),
+        ("vfs", 2),
+        ("mount", 3),
+        ("sync", 4),
+        ("sdk", 5),
+        ("ffi", 6),
+        ("cli", 6),
+    ];
+    let rank = |name: &str| RANKS.iter().find(|(n, _)| *n == name).map(|(_, r)| *r);
+    let mut problems = Vec::new();
+
+    for (name, mine) in RANKS {
+        let manifest = workspace_root().join(format!("crates/nidvue-{name}/Cargo.toml"));
+        let deps = manifest_deps(&manifest)?;
+        for dep in &deps {
+            let Some(other) = dep.strip_prefix("nidvue-") else {
+                continue;
+            };
+            match rank(other) {
+                Some(theirs) if theirs < *mine => {}
+                Some(_) => problems.push(format!(
+                    "nidvue-{name} depends on nidvue-{other}, which is at the same or a higher layer"
+                )),
+                None => problems.push(format!(
+                    "nidvue-{name} depends on unknown crate nidvue-{other}"
+                )),
+            }
+        }
+        if *name == "core" && deps.iter().any(|d| d.starts_with("nidvue-")) {
+            problems.push("nidvue-core depends on another Nidvue crate".to_string());
+        }
+        if deps.iter().any(|d| d == "reqwest") && *name != "jotta" {
+            problems.push(format!("nidvue-{name} speaks HTTP; only nidvue-jotta may"));
+        }
+        if deps.iter().any(|d| d == "fuser") && *name != "mount" {
+            problems.push(format!(
+                "nidvue-{name} touches the kernel; only nidvue-mount may"
+            ));
+        }
+        if deps
+            .iter()
+            .any(|d| d.starts_with("qt") || d.starts_with("cxx-qt"))
+        {
+            problems.push(format!("nidvue-{name} depends on Qt; the engine must not"));
+        }
+    }
+
+    // The C ABI lives in exactly one crate.
+    for entry in walk(&workspace_root().join("crates"))? {
+        if entry.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&entry).unwrap_or_default();
+        if text.contains("extern \"C\"") && !entry.to_string_lossy().contains("nidvue-ffi") {
+            problems.push(format!(
+                "{} declares extern \"C\"; only nidvue-ffi may",
+                entry.display()
+            ));
+        }
+    }
+
+    if problems.is_empty() {
+        println!("+ arch: crate contract holds ({} crates)", RANKS.len());
+        return Ok(());
+    }
+    Err(format!(
+        "crate contract violated:\n  - {}",
+        problems.join("\n  - ")
+    ))
+}
+
+/// Dependency names of one manifest, across every `*dependencies]` section.
+fn manifest_deps(manifest: &Path) -> Result<Vec<String>, String> {
+    let text = std::fs::read_to_string(manifest)
+        .map_err(|e| format!("read {}: {e}", manifest.display()))?;
+    let mut deps = Vec::new();
+    let mut in_deps = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_deps = line.ends_with("dependencies]");
+            continue;
+        }
+        if !in_deps || line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((key, _)) = line.split_once('=') {
+            deps.push(key.trim().to_string());
+        }
+    }
+    Ok(deps)
+}
+
+/// Every file under `dir`, recursively, without pulling in a walker crate.
+fn walk(dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut out = Vec::new();
+    let entries = std::fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))?;
+    for entry in entries {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.is_dir() {
+            out.extend(walk(&path)?);
+        } else {
+            out.push(path);
+        }
+    }
+    Ok(out)
 }
 
 fn bench() -> Result<(), String> {
