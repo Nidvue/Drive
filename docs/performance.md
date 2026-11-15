@@ -1,5 +1,7 @@
 # Performance budgets
 
+Related: [Costs](Team/Costs.md) · [Risks](Team/Risks.md) · [deviations](deviations.md)
+
 These are budgets, not claims. `cargo bench` and `nidvue-cli doctor --bench`
 measure them on the machine that runs them. A budget that is missed is either
 fixed or recorded in [`deviations.md`](deviations.md) with the measured number.
