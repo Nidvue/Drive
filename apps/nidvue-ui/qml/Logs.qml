@@ -9,37 +9,82 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 20
-        spacing: 8
+        anchors.leftMargin: Theme.pageGutter
+        anchors.rightMargin: Theme.pageGutter
+        anchors.topMargin: Theme.gapLg
+        anchors.bottomMargin: Theme.gapLg
+        spacing: Theme.gapMd
 
         RowLayout {
             Layout.fillWidth: true
-            Label {
-                text: qsTr("Activity")
-                font.pixelSize: 20
-                font.bold: true
-            }
+            spacing: Theme.gapSm
+
             Item { Layout.fillWidth: true }
-            Label {
-                text: qsTr("%1 lines").arg(Bridge.logs.length)
-                opacity: 0.6
+
+            PillButton {
+                variant: "ghost"
+                text: qsTr("Copy")
+                enabled: Bridge.logs.length > 0
+                onClicked: Bridge.copyLogs()
+                Accessible.name: qsTr("Copy the log to the clipboard")
+            }
+
+            PillButton {
+                variant: "ghost"
+                text: qsTr("Clear")
+                enabled: Bridge.logs.length > 0
+                onClicked: Bridge.clearLogs()
+                Accessible.name: qsTr("Clear the log")
             }
         }
 
-        ListView {
-            id: list
+        Card {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            reuseItems: true
-            model: Bridge.logs
-            ScrollBar.vertical: ScrollBar {}
-            delegate: Label {
-                width: list.width
-                text: modelData
-                font.family: "monospace"
-                font.pixelSize: 11
-                elide: Text.ElideRight
+            title: qsTr("Log output")
+            subtitle: Bridge.logs.length === 1 ? qsTr("1 line · newest last") : qsTr("%1 lines · newest last").arg(Bridge.logs.length)
+
+            content: Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                Label {
+                    visible: Bridge.logs.length === 0
+                    anchors.centerIn: parent
+                    text: qsTr("Nothing logged yet — sync passes, mounts and errors appear here.")
+                    color: Theme.textTertiary
+                    font.pixelSize: Theme.fontSmall
+                }
+
+                ListView {
+                    id: list
+                    anchors.fill: parent
+                    visible: Bridge.logs.length > 0
+                    clip: true
+                    reuseItems: true
+                    model: Bridge.logs
+                    spacing: 1
+                    ScrollBar.vertical: ScrollBar {}
+
+                    delegate: Rectangle {
+                        width: list.width
+                        implicitHeight: 18
+                        radius: 3
+                        color: index % 2 === 0 ? "transparent" : Theme.surfaceAlt
+
+                        Label {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            text: modelData
+                            color: Theme.textSecondary
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontCaption
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
             }
         }
     }

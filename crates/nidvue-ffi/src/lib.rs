@@ -23,6 +23,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 use std::sync::{Arc, Mutex};
 
+use nidvue_core::config::SyncPair;
 use nidvue_mount::MountHandle;
 use nidvue_sdk::{Client, ConflictPolicy};
 use tokio::runtime::Runtime;
@@ -59,6 +60,21 @@ fn set_err(err: *mut *mut c_char, message: impl Into<String>) {
     let text = CString::new(message.replace('\0', " ")).unwrap_or_default();
     // SAFETY: the caller passed a valid out-pointer; we overwrite it once.
     unsafe { *err = text.into_raw() };
+}
+
+fn report_json(report: &nidvue_sdk::SyncReport) -> serde_json::Value {
+    serde_json::json!({
+        "pair": report.pair,
+        "scanned": report.scanned,
+        "planned": report.planned,
+        "applied": report.applied,
+        "conflicts": report.conflicts,
+        "failed": report.failed.len(),
+        "errors": report.failed.iter().map(|(path, why)| serde_json::json!({
+            "path": path,
+            "error": why,
+        })).collect::<Vec<_>>(),
+    })
 }
 
 fn cstr<'a>(value: *const c_char) -> Option<&'a str> {
@@ -244,6 +260,236 @@ pub unsafe extern "C" fn nidvue_client_status_json(
     }
 }
 
+/// Set the cache cap in bytes.
+///
+/// # Safety
+/// `client` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_set_cache_limit(
+    client: *mut NidvueClient,
+    bytes: u64,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.set_cache_limit_bytes(bytes)
+    })) {
+        Ok(Ok(())) => NIDVUE_OK,
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_set_cache_limit");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Installed plugins as a JSON array into `out`.
+///
+/// # Safety
+/// `client` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_plugins_json(
+    client: *mut NidvueClient,
+    out: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.plugin_list().and_then(|plugins| {
+            serde_json::to_string(&plugins)
+                .map_err(|e| nidvue_core::NidvueError::Internal(format!("plugins json: {e}")))
+        })
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(_)) | Err(_) => NIDVUE_ERR,
+    }
+}
+
+/// Run one sync pass for a single pair; the report JSON goes into `out`.
+///
+/// # Safety
+/// `client` and `name` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_sync_pair_now(
+    client: *mut NidvueClient,
+    name: *const c_char,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let Some(name) = cstr(name) else {
+        set_err(err, "name is required");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client
+            .runtime
+            .block_on(client.client.sync_pair_now(name))
+            .and_then(|report| {
+                serde_json::to_string(&report_json(&report))
+                    .map_err(|e| nidvue_core::NidvueError::Internal(format!("report json: {e}")))
+            })
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_sync_pair_now");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Sync pairs as a JSON array into `out`.
+///
+/// # Safety
+/// `client` must be valid for the call; `out` must be a valid pointer.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_sync_pairs_json(
+    client: *mut NidvueClient,
+    out: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
+    match serde_json::to_string(&client.client.sync_pairs()) {
+        Ok(json) => json_out(out, json),
+        Err(_) => NIDVUE_ERR,
+    }
+}
+
+/// Add a sync pair, persist it, and write the new list into `out`.
+///
+/// # Safety
+/// `client`, `name`, `local` and `remote` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_sync_pair_add(
+    client: *mut NidvueClient,
+    name: *const c_char,
+    local: *const c_char,
+    remote: *const c_char,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let (Some(name), Some(local), Some(remote)) = (cstr(name), cstr(local), cstr(remote)) else {
+        set_err(err, "name, local and remote are required");
+        return NIDVUE_INVALID;
+    };
+    let pair = SyncPair {
+        name: name.to_string(),
+        local: std::path::PathBuf::from(local),
+        remote: remote.to_string(),
+        paused: false,
+        include: Vec::new(),
+        exclude: Vec::new(),
+        conflict_policy: None,
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.add_sync_pair(pair)?;
+        serde_json::to_string(&client.client.sync_pairs())
+            .map_err(|e| nidvue_core::NidvueError::Internal(format!("pairs json: {e}")))
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_sync_pair_add");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Remove a sync pair by name and write the remaining list into `out`.
+///
+/// # Safety
+/// `client` and `name` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_sync_pair_remove(
+    client: *mut NidvueClient,
+    name: *const c_char,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let Some(name) = cstr(name) else {
+        set_err(err, "name is required");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.remove_sync_pair(name)?;
+        serde_json::to_string(&client.client.sync_pairs())
+            .map_err(|e| nidvue_core::NidvueError::Internal(format!("pairs json: {e}")))
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_sync_pair_remove");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Pause or resume one sync pair and write the new list into `out`.
+///
+/// # Safety
+/// `client` and `name` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_sync_pair_set_paused(
+    client: *mut NidvueClient,
+    name: *const c_char,
+    paused: i32,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let Some(name) = cstr(name) else {
+        set_err(err, "name is required");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client.client.set_sync_pair_paused(name, paused != 0)?;
+        serde_json::to_string(&client.client.sync_pairs())
+            .map_err(|e| nidvue_core::NidvueError::Internal(format!("pairs json: {e}")))
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_sync_pair_set_paused");
+            NIDVUE_PANIC
+        }
+    }
+}
+
 /// Pause or resume every sync pair.
 ///
 /// # Safety
@@ -386,21 +632,8 @@ pub unsafe extern "C" fn nidvue_client_sync_now(
             .runtime
             .block_on(client.client.sync_now())
             .and_then(|reports| {
-                serde_json::to_string(
-                    &reports
-                        .iter()
-                        .map(|r| {
-                            serde_json::json!({
-                                "scanned": r.scanned,
-                                "planned": r.planned,
-                                "applied": r.applied,
-                                "conflicts": r.conflicts,
-                                "failed": r.failed.len(),
-                            })
-                        })
-                        .collect::<Vec<_>>(),
-                )
-                .map_err(|e| nidvue_core::NidvueError::Internal(format!("sync json: {e}")))
+                serde_json::to_string(&reports.iter().map(report_json).collect::<Vec<_>>())
+                    .map_err(|e| nidvue_core::NidvueError::Internal(format!("sync json: {e}")))
             })
     })) {
         Ok(Ok(json)) => json_out(out, json),
@@ -610,6 +843,197 @@ mod tests {
                 NIDVUE_OK
             );
             assert_eq!(take(conflicts), "[]");
+            nidvue_client_free(client);
+        }
+    }
+
+    #[test]
+    fn sync_pairs_round_trip_through_the_c_abi() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = CString::new(dir.path().to_str().unwrap()).unwrap();
+        let local = dir.path().join("docs");
+        let name = CString::new("docs").unwrap();
+        let local_c = CString::new(local.to_str().unwrap()).unwrap();
+        let remote = CString::new("/Archive/Documents").unwrap();
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: every pointer is valid for the duration of the test.
+        unsafe {
+            let client = nidvue_client_new(state.as_ptr(), &mut err);
+            assert!(!client.is_null());
+
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(nidvue_client_sync_pairs_json(client, &mut out), NIDVUE_OK);
+            assert_eq!(take(out), "[]");
+
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(
+                nidvue_client_sync_pair_add(
+                    client,
+                    name.as_ptr(),
+                    local_c.as_ptr(),
+                    remote.as_ptr(),
+                    &mut out,
+                    &mut err
+                ),
+                NIDVUE_OK
+            );
+            let added = take(out);
+            assert!(added.contains("\"name\":\"docs\""), "{added}");
+            assert!(added.contains("\"paused\":false"), "{added}");
+
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(
+                nidvue_client_sync_pair_set_paused(client, name.as_ptr(), 1, &mut out, &mut err),
+                NIDVUE_OK
+            );
+            assert!(take(out).contains("\"paused\":true"));
+
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(
+                nidvue_client_sync_pair_remove(client, name.as_ptr(), &mut out, &mut err),
+                NIDVUE_OK
+            );
+            assert_eq!(take(out), "[]");
+            nidvue_client_free(client);
+        }
+        assert!(!local.exists() || local.is_dir());
+    }
+
+    #[test]
+    fn sync_pair_errors_reach_the_caller() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = CString::new(dir.path().to_str().unwrap()).unwrap();
+        let name = CString::new("ghost").unwrap();
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: every pointer is valid for the duration of the test.
+        unsafe {
+            let client = nidvue_client_new(state.as_ptr(), &mut err);
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(
+                nidvue_client_sync_pair_remove(client, name.as_ptr(), &mut out, &mut err),
+                NIDVUE_ERR
+            );
+            assert!(!err.is_null(), "the error message is set");
+            let message = take(err);
+            assert!(message.contains("ghost"), "{message}");
+            nidvue_client_free(client);
+        }
+    }
+
+    #[test]
+    fn a_sync_pass_with_no_pairs_is_empty_and_a_named_pass_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = CString::new(dir.path().to_str().unwrap()).unwrap();
+        let missing = CString::new("ghost").unwrap();
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: every pointer is valid for the duration of the test.
+        unsafe {
+            let client = nidvue_client_new(state.as_ptr(), &mut err);
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(
+                nidvue_client_sync_now(client, &mut out, &mut err),
+                NIDVUE_OK
+            );
+            assert_eq!(take(out), "[]");
+
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(
+                nidvue_client_sync_pair_now(client, missing.as_ptr(), &mut out, &mut err),
+                NIDVUE_ERR
+            );
+            assert!(!err.is_null());
+            assert!(take(err).contains("ghost"));
+            nidvue_client_free(client);
+        }
+    }
+
+    #[test]
+    fn cache_limit_is_set_and_zero_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = CString::new(dir.path().to_str().unwrap()).unwrap();
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: every pointer is valid for the duration of the test.
+        unsafe {
+            let client = nidvue_client_new(state.as_ptr(), &mut err);
+            assert_eq!(
+                nidvue_client_set_cache_limit(client, 4 * 1024 * 1024 * 1024, &mut err),
+                NIDVUE_OK
+            );
+            assert!(err.is_null());
+            let stored = nidvue_core::config::AppConfig::load_or_default(dir.path()).unwrap();
+            assert_eq!(stored.cache.max_size_bytes, 4 * 1024 * 1024 * 1024);
+
+            assert_eq!(
+                nidvue_client_set_cache_limit(client, 0, &mut err),
+                NIDVUE_ERR
+            );
+            assert!(!err.is_null());
+            take(err);
+            nidvue_client_free(client);
+        }
+    }
+
+    #[test]
+    fn plugins_list_is_empty_for_a_fresh_state_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = CString::new(dir.path().to_str().unwrap()).unwrap();
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: every pointer is valid for the duration of the test.
+        unsafe {
+            let client = nidvue_client_new(state.as_ptr(), &mut err);
+            let mut out: *mut c_char = ptr::null_mut();
+            assert_eq!(nidvue_client_plugins_json(client, &mut out), NIDVUE_OK);
+            assert_eq!(take(out), "[]");
+            nidvue_client_free(client);
+        }
+    }
+
+    struct Collector {
+        seen: Mutex<Vec<String>>,
+    }
+
+    extern "C" fn collect(json: *const c_char, userdata: *mut c_void) {
+        // SAFETY: the callback is only installed for the test's collector.
+        let text = unsafe { CStr::from_ptr(json) }
+            .to_string_lossy()
+            .into_owned();
+        // SAFETY:  points at a live  for the whole test.
+        let collector = unsafe { &*(userdata as *const Collector) };
+        collector.seen.lock().unwrap().push(text);
+    }
+
+    #[test]
+    fn events_reach_the_c_callback_as_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = CString::new(dir.path().to_str().unwrap()).unwrap();
+        let collector = Box::new(Collector {
+            seen: Mutex::new(Vec::new()),
+        });
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: the collector outlives the subscription for the test.
+        unsafe {
+            let client = nidvue_client_new(state.as_ptr(), &mut err);
+            assert_eq!(
+                nidvue_client_subscribe(
+                    client,
+                    Some(collect),
+                    &*collector as *const Collector as *mut c_void
+                ),
+                NIDVUE_OK
+            );
+            assert_eq!(nidvue_client_set_paused(client, 1, &mut err), NIDVUE_OK);
+
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            while collector.seen.lock().unwrap().is_empty() && std::time::Instant::now() < deadline
+            {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            let seen = collector.seen.lock().unwrap().clone();
+            assert!(!seen.is_empty(), "the callback received nothing");
+            assert!(
+                seen.iter().any(|json| json.contains("\"type\"")),
+                "events are JSON: {seen:?}"
+            );
             nidvue_client_free(client);
         }
     }

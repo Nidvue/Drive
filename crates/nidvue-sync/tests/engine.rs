@@ -16,12 +16,13 @@ use async_trait::async_trait;
 use nidvue_cache::Index;
 use nidvue_core::config::{SyncConfig, SyncPair};
 use nidvue_core::error::{NidvueError, Result};
+use nidvue_core::event::{Direction, Event};
 use nidvue_core::path::RemotePath;
 use nidvue_core::time::now_ms;
 use nidvue_core::types::EntryKind;
 use nidvue_jotta::xml::{ListStream, RemoteEntry, RemoteFile, RemoteFolder, Stats};
 use nidvue_sync::SyncEngine;
-use nidvue_vfs::Remote;
+use nidvue_vfs::{ProgressFn, Remote};
 
 #[derive(Default)]
 struct FakeRemote {
@@ -132,6 +133,7 @@ impl Remote for FakeRemote {
         path: &RemotePath,
         writer: &mut (dyn tokio::io::AsyncWrite + Unpin + Send),
         _expected_size: Option<u64>,
+        progress: Option<ProgressFn>,
     ) -> Result<u64> {
         use tokio::io::AsyncWriteExt;
         let key = path.as_str().trim_start_matches('/').to_string();
@@ -146,10 +148,19 @@ impl Remote for FakeRemote {
             .write_all(&bytes)
             .await
             .map_err(|e| NidvueError::io(path.as_str(), e))?;
+        if let Some(cb) = &progress {
+            let total = bytes.len() as u64;
+            cb(total, total);
+        }
         Ok(bytes.len() as u64)
     }
 
-    async fn remote_upload(&self, path: &RemotePath, local: &Path) -> Result<RemoteEntry> {
+    async fn remote_upload(
+        &self,
+        path: &RemotePath,
+        local: &Path,
+        progress: Option<ProgressFn>,
+    ) -> Result<RemoteEntry> {
         if self.fail_upload.load(Ordering::SeqCst) {
             return Err(NidvueError::Network("upload disabled for this test".into()));
         }
@@ -165,6 +176,10 @@ impl Remote for FakeRemote {
             .unwrap()
             .insert(key.clone(), (bytes.clone(), mtime));
         self.add_parents(&key);
+        if let Some(cb) = &progress {
+            let total = bytes.len() as u64;
+            cb(total, total);
+        }
         Ok(RemoteEntry {
             kind: EntryKind::File,
             name: key.rsplit('/').next().unwrap_or(&key).to_string(),
@@ -255,6 +270,68 @@ fn write_local(root: &Path, rel: &str, bytes: &[u8]) {
     let p = root.join(rel);
     std::fs::create_dir_all(p.parent().unwrap()).unwrap();
     std::fs::write(p, bytes).unwrap();
+}
+
+#[tokio::test]
+async fn an_upload_emits_queued_and_done_events_with_a_size() {
+    let h = harness();
+    write_local(h.local.path(), "a.txt", b"hello");
+    let mut events = h.engine.subscribe();
+    h.engine.sync_pair(&pair(h.local.path())).await.unwrap();
+
+    let mut queued: Option<(String, u64)> = None;
+    let mut done = false;
+    while let Ok(envelope) = events.try_recv() {
+        match envelope.event {
+            Event::TransferQueued {
+                path,
+                direction: Direction::Upload,
+                size,
+            } => queued = Some((path, size)),
+            Event::TransferDone {
+                direction: Direction::Upload,
+                ..
+            } => done = true,
+            _ => {}
+        }
+    }
+    assert_eq!(
+        queued,
+        Some(("/Docs/a.txt".to_string(), 5)),
+        "queued event carries the path and the size"
+    );
+    assert!(done, "a completed upload emits transfer_done");
+}
+
+#[tokio::test]
+async fn a_transfer_reports_byte_progress() {
+    let h = harness();
+    let payload = vec![7u8; 700 * 1024];
+    write_local(h.local.path(), "big.bin", &payload);
+    let mut events = h.engine.subscribe();
+    h.engine.sync_pair(&pair(h.local.path())).await.unwrap();
+
+    let mut samples: Vec<(u64, u64)> = Vec::new();
+    while let Ok(envelope) = events.try_recv() {
+        if let Event::TransferProgress {
+            direction: Direction::Upload,
+            done,
+            total,
+            ..
+        } = envelope.event
+        {
+            samples.push((done, total));
+        }
+    }
+    assert!(!samples.is_empty(), "no progress was reported");
+    assert_eq!(
+        samples.last(),
+        Some(&(payload.len() as u64, payload.len() as u64))
+    );
+    assert!(
+        samples.len() <= 4,
+        "progress is throttled, not one event per chunk: {samples:?}"
+    );
 }
 
 #[tokio::test]

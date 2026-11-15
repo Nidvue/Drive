@@ -63,6 +63,32 @@ int32_t nidvue_client_unmount(NidvueClient *client);
 /* Run one sync pass; writes a JSON array of reports into *out. */
 int32_t nidvue_client_sync_now(NidvueClient *client, char **out, char **err);
 
+/* Set the cache cap in bytes. */
+int32_t nidvue_client_set_cache_limit(NidvueClient *client, uint64_t bytes, char **err);
+
+/* Installed plugins as a JSON array into *out. */
+int32_t nidvue_client_plugins_json(NidvueClient *client, char **out);
+
+/* Run one sync pass for a single pair; its report JSON goes into *out. */
+int32_t nidvue_client_sync_pair_now(NidvueClient *client, const char *name,
+                                    char **out, char **err);
+
+/* Sync pairs as a JSON array into *out. */
+int32_t nidvue_client_sync_pairs_json(NidvueClient *client, char **out);
+
+/* Add a sync pair and write the new list into *out. */
+int32_t nidvue_client_sync_pair_add(NidvueClient *client, const char *name,
+                                    const char *local, const char *remote,
+                                    char **out, char **err);
+
+/* Remove a sync pair by name and write the remaining list into *out. */
+int32_t nidvue_client_sync_pair_remove(NidvueClient *client, const char *name,
+                                       char **out, char **err);
+
+/* Pause or resume one sync pair and write the new list into *out. */
+int32_t nidvue_client_sync_pair_set_paused(NidvueClient *client, const char *name,
+                                           int32_t paused, char **out, char **err);
+
 /* Open conflicts as a JSON array into *out. */
 int32_t nidvue_client_conflicts_json(NidvueClient *client, char **out);
 

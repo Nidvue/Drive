@@ -130,6 +130,7 @@ async fn transfers_are_folded_from_the_event_bus() {
 
     client.publish(Event::TransferQueued {
         path: "/Archive/a.bin".into(),
+        size: 4096,
         direction: Direction::Upload,
     });
     assert!(

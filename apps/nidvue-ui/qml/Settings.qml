@@ -4,16 +4,27 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The main window's Settings page. The same pane opens from the tray as a
-// standalone detailed-settings window.
 Item {
+    id: page
+
     ScrollView {
+        id: scroll
         anchors.fill: parent
         contentWidth: availableWidth
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
         ColumnLayout {
-            width: parent.width
-            anchors.margins: 20
-            SettingsPane {}
+            x: Theme.pageGutter
+            width: scroll.availableWidth - Theme.pageGutter * 2
+            spacing: Theme.gapLg
+
+            Item { implicitHeight: Theme.gapXs }
+
+            SettingsPane {
+                Layout.fillWidth: true
+                Layout.bottomMargin: Theme.gapXl
+            }
         }
     }
 }
