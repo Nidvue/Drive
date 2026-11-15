@@ -1,5 +1,7 @@
 # Packaging
 
+Related: [Release](Team/Release.md) · [deviations](deviations.md)
+
 | Platform | Format | Recipe | Mount helper |
 |---|---|---|---|
 | Linux | AppImage + `.deb` | `packaging/linux.sh` | none: unprivileged FUSE3 (`fusermount3`, `user_allow_other` only for `allow_other`) |

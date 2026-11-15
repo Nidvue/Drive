@@ -1,0 +1,95 @@
+# PLAN - milestones and task graph
+
+Owner: Project Manager. One row per task; `deps` must be `done` before it runs.
+Priority: P0 code, P1 tests, P2 docs.
+
+Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Architecture](Architecture.md) · [Decisions](Decisions.md) · [Research](Research.md) · [Design](Design.md) · [Risks](Risks.md) · [Costs](Costs.md) · [Release](Release.md) · [Archive](Archive.md) · [Features](Features.md) · [Evolution](Evolution.md)
+
+## State
+
+The delivered work predates the task records: the queue was never populated, so
+this plan is written from the evidence that exists — the criteria ledger
+(`Criteria.md`, 19 verified), the commit history and the accepted results in
+[Archive](Archive.md). From here on every new slice is filed as a task before it
+starts (`teamwork.py task add`) so the board is the queue's state, not an opinion.
+
+## M1 - Engine skeleton and the API boundary (done, `e73c89d`)
+
+Exit: `cargo test -p nidvue-jotta -p nidvue-core` passes; no crate depends upward.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0001 | Freeze the crate contract and dependency direction | architect | P0 | - | `ARCHITECTURE.md`, ADR 0001-0005 | done |
+| T-0002 | `nidvue-core`: types, paths, hashing, config, errors, secrets | developer | P0 | architect:T-0001 | `crates/nidvue-core` | done |
+| T-0003 | `nidvue-jotta`: auth, JFS XML, allocate, rate limiting | developer | P0 | developer:T-0002 | `crates/nidvue-jotta` | done |
+| T-0004 | Fake Jotta server + integration tests | tester | P1 | developer:T-0003 | `crates/nidvue-jotta/tests/fake_jotta.rs` | done |
+
+## M2 - Cache, VFS and mount (done, `e73c89d`)
+
+Exit: a warm read never touches the network; a real FUSE mount serves the op set.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0005 | Content-addressed cache, index, LRU-K, hard cap | developer | P0 | developer:T-0002 | `crates/nidvue-cache` | done |
+| T-0006 | Read-through VFS, spooled writes, atomic downloads | developer | P0 | developer:T-0005 | `crates/nidvue-vfs` | done |
+| T-0007 | FUSE3 adapter on fuser 0.18 (0.15 carries RUSTSEC-2021-0154) | developer | P0 | developer:T-0006 | `crates/nidvue-mount` | done |
+| T-0008 | Real-mount test (`--include-ignored`) | tester | P1 | developer:T-0007 | `crates/nidvue-mount/tests/fuse_mount.rs` | done |
+
+## M3 - Sync engine and conflicts (done, `e73c89d`)
+
+Exit: SIGKILL during a mutation loses nothing; a concurrent edit keeps both files.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0009 | Journal-first WAL and three-way reconciler | developer | P0 | developer:T-0005 | `crates/nidvue-sync` | done |
+| T-0010 | Conflict copies + Conflict Center record | developer | P0 | developer:T-0009 | `crates/nidvue-sync` | done |
+| T-0011 | Crash-recovery and convergence tests (proptest) | tester | P1 | developer:T-0009 | `crates/nidvue-sync/tests/engine.rs` | done |
+
+## M4 - Front doors: plugin, SDK, FFI, CLI, UI (done, `e73c89d`)
+
+Exit: the UI launches with no QML errors and receives typed state over the C ABI.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0012 | WASM plugin host (capabilities, fuel, memory, trap containment) | developer | P0 | developer:T-0002 | `crates/nidvue-plugin` | done |
+| T-0013 | Stable SDK: typed events, JSON schema, C header | developer | P0 | developer:T-0009 | `crates/nidvue-sdk` | done |
+| T-0014 | C ABI bridge; panic containment at every entry point | developer | P0 | developer:T-0013 | `crates/nidvue-ffi` | done |
+| T-0015 | Headless CLI: login, mount, sync, status, doctor | developer | P0 | developer:T-0013 | `crates/nidvue-cli` | done |
+| T-0016 | Qt 6 + QML app, tray icon, popup, settings window | developer | P0 | developer:T-0014 | `apps/nidvue-ui` | done |
+| T-0017 | UI smoke test (offscreen launch, QML error scan) | tester | P1 | developer:T-0016 | `cargo xtask ui-smoke` | done |
+
+## M5 - Proof, packaging, governance (done, `35ba7a1`)
+
+Exit: `cargo xtask ci` green; every criterion verified; main protected.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0018 | Seven correctness invariants as executable tests | tester | P1 | developer:T-0009 | `tests/invariants` | done |
+| T-0019 | Measured budgets and honest deviations | tester | P1 | developer:T-0006 | `docs/performance.md`, `docs/deviations.md` | done |
+| T-0020 | Packaging recipes (deb/tar.gz, dmg, MSI) | release-engineer | P1 | developer:T-0015 | `packaging/` | done |
+| T-0021 | One green gate: `cargo xtask ci` | release-engineer | P0 | tester:T-0018 | `xtask/` | done |
+| T-0022 | CI matrix, CodeQL, cargo-deny, SPDX, secret scan, DCO | release-engineer | P0 | release-engineer:T-0021 | `.github/workflows/` | done |
+| T-0023 | Protected `main`, rebase-only PRs, required checks | ceo | P0 | release-engineer:T-0022 | [Decisions](Decisions.md) D-20261115-CEO | done |
+
+## M6 - Team records and close (this milestone)
+
+Exit: `teamwork.py loop` reports STOP and `teamwork.py audit` reports zero problems.
+
+The rows below are the close-out work items of this milestone, not task queue
+records: the queues are empty and this milestone is executed by the CEO lane
+directly, so it is planned here and evidenced in [Archive](Archive.md) and the
+ledger rather than claimed in a queue.
+
+| id | work item | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| W-1 | Committed team record set (Project, Plan, Board, Archive, Risks, Costs, Design, Research, Release, Features, Evolution, Architecture) | ceo | P2 | - | `docs/Team/` | done |
+| W-2 | Architecture-conformance test for the crate contract | architect | P0 | - | `cargo xtask arch` | done |
+| W-3 | Layered test records, one per area and layer, run by the owning role | ceo | P1 | - | `Tests.md`, `TestPlan.md` | done |
+| W-4 | Ledger export committed with the record set | ceo | P1 | W-1 | `docs/Team/AuditManifest.json` | done |
+| W-5 | Stale remote branches of merged pull requests deleted | release-engineer | P2 | - | `origin` | done |
+
+## Parallel rules
+
+- Freeze interfaces first, then run dev / test / design lanes concurrently.
+- Tests are written from the frozen contract, in parallel with implementation.
+- Docs never block code or tests.

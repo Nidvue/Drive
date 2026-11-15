@@ -1,5 +1,7 @@
 # The Jottacloud API surface Nidvue Drive uses
 
+Related: [Project](Team/Project.md) · [Research](Team/Research.md) · [deviations](deviations.md)
+
 > Unofficial notes, written from observed behaviour of the official clients and
 > the public `rclone` backend. Jottacloud publishes no formal API reference;
 > anything here can change without notice. Only documented, client-observed

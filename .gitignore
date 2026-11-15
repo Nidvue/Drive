@@ -29,9 +29,9 @@ nidvue-state/
 *.sqlite-wal
 *.sqlite-shm
 
-# teamwork skill workspace (local, hidden)
+# the team's own working tree is local; the committed record set in
+# docs/Team/ is project output and ships with the code
 .pi/
-docs/Team/
 
 # build output
 dist/
