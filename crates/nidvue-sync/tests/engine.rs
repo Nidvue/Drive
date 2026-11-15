@@ -155,7 +155,16 @@ impl Remote for FakeRemote {
         }
         let bytes = std::fs::read(local).map_err(|e| NidvueError::io(local, e))?;
         let key = path.as_str().trim_start_matches('/').to_string();
-        self.put(&key, &bytes);
+        // One write is one version: the timestamp this call reports must be the
+        // timestamp it stored, or the next listing looks like a remote change and
+        // the engine re-downloads a file nobody touched. Two separate `now_ms()`
+        // calls differ by a millisecond often enough to fail in CI and never here.
+        let mtime = now_ms();
+        self.files
+            .lock()
+            .unwrap()
+            .insert(key.clone(), (bytes.clone(), mtime));
+        self.add_parents(&key);
         Ok(RemoteEntry {
             kind: EntryKind::File,
             name: key.rsplit('/').next().unwrap_or(&key).to_string(),
@@ -163,8 +172,8 @@ impl Remote for FakeRemote {
             size: bytes.len() as u64,
             md5: Some(nidvue_core::hash::md5_reader(bytes.as_slice())?),
             state: Some("COMPLETED".into()),
-            modified_ms: now_ms(),
-            created_ms: now_ms(),
+            modified_ms: mtime,
+            created_ms: mtime,
         })
     }
 
