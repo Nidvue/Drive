@@ -2,8 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report privately through GitHub Security Advisories:
-<https://github.com/Nidvue/Drive/security/advisories/new>
+Report privately through [GitHub Security Advisories](https://github.com/Nidvue/Drive/security/advisories/new).
 
 Do **not** open a public issue for a vulnerability. Do not paste tokens,
 Personal Login Tokens, `credentials.enc`, `credentials.key`, refresh tokens or

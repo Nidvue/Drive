@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Nidvue
+#
+# Binaries that would otherwise bloat history go through Git LFS.
+# Built artefacts are deliberately NOT listed: the two example plugins under
+# plugins/ are committed as real bytes because the plugin tests load them from a
+# checkout, and a .wasm pointer would make those tests fail on a clone without
+# an LFS client.
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.gif filter=lfs diff=lfs merge=lfs -text
+*.webp filter=lfs diff=lfs merge=lfs -text
+*.ico filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.mov filter=lfs diff=lfs merge=lfs -text
+*.webm filter=lfs diff=lfs merge=lfs -text
+*.pdf filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.tar.gz filter=lfs diff=lfs merge=lfs -text
