@@ -1,5 +1,7 @@
 # Configuration
 
+Related: [deviations](deviations.md)
+
 The configuration is TOML at `<state>/config.toml` (default state directory:
 `$XDG_DATA_HOME/nidvue-drive` on Linux, `~/.local/share/nidvue-drive` otherwise,
 `NIDVUE_STATE` overrides). Every value has a default in
