@@ -49,3 +49,19 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - evidence: instance list -> 9 roles; graph audit -> no C-GRAPH-CHAFF; feature check -> 1 open feature, 0 problems @35ba7a1
 - falsified by: -
 - consequences: -
+
+## D-20261115-CEO-4 - Close-out landed through a protected pull request, not a direct merge
+
+- date: 2026-11-15
+- kind: process
+- status: accepted
+- deciders: CEO (ceo)
+- decided by: CEO
+- task: -
+- context: -
+- options considered: -
+- decision: the v0.1.0 close-out (executable crate contract, committed team record set, one test-double fix) landed as pull request 11, rebase-merged into main with the full CI matrix green on both operating systems; the branch was deleted after the merge
+- why: main is protected and no force-push is allowed, so a local merge cannot be pushed; the repository's own gate is the only path that both preserves linear history and proves the change on the merged content
+- evidence: gh pr checks 11 -> rust (ubuntu-24.04), rust (windows-2022), fuse mount smoke, qt ui, licences/spdx/secrets, links all pass; gh pr merge 11 --rebase --delete-branch -> main at ed7c3a6 @ed7c3a6
+- falsified by: -
+- consequences: the engine's task/review queue was not used for this change: the record of it is this decision, the commit messages and the ledger, and the team ran in the single-agent degraded mode
