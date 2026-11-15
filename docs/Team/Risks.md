@@ -37,3 +37,16 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 - [`../deviations.md`](../deviations.md) — every unmet requirement with its reason, in-repo.
 - [`../performance.md`](../performance.md) — measured budgets and the ones still unmeasured, in-repo.
+
+## Open finding: plugin build output is tracked
+
+`plugins/example-hello/target/` and `plugins/example-filter/target/` are committed,
+so every `cargo xtask ci` run (which rebuilds the example plugins) dirties the
+working tree with eight modified files that are build artefacts. `.gitignore` now
+covers `**/target/`, which stops new files appearing, but tracked files need
+`git rm -r --cached` plus a rebuild of the shipped `.wasm` — a deletion of tracked
+files, so it waits for the owner's authorization rather than being done quietly.
+
+- evidence: `git status --short | grep plugins/` -> 8 modified files after
+  `cargo xtask ci`
+- owner: Release Engineer

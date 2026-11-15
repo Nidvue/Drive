@@ -30,14 +30,25 @@ public slots:
     void mount(const QString &mountpoint, bool readOnly);
     void unmount();
     void syncNow();
+    void syncPairNow(const QString &name);
     void setPaused(bool paused);
     void setBandwidthLimit(qulonglong bytesPerSecond);
+    void setCacheLimit(qulonglong bytes);
+    void refreshPlugins();
     void resolve(const QString &id, const QString &resolution);
     void clearTransfers();
+    void addSyncPair(const QString &name, const QString &local, const QString &remote);
+    void removeSyncPair(const QString &name);
+    void setSyncPairPaused(const QString &name, bool paused);
+    void setSyncPairFilters(const QString &name, const QString &include,
+                            const QString &exclude);
 
 signals:
     void statusJson(const QString &json);
     void conflictsJson(const QString &json);
+    void syncPairsJson(const QString &json);
+    void syncReportsJson(const QString &json);
+    void pluginsJson(const QString &json);
     void eventJson(const QString &json);
     void error(const QString &message);
     void busy(const QString &what, bool active);
@@ -66,6 +77,9 @@ class Bridge : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString busyWhat READ busyWhat NOTIFY busyChanged)
     Q_PROPERTY(QVariantList conflicts READ conflicts NOTIFY conflictsChanged)
+    Q_PROPERTY(QVariantList syncPairs READ syncPairs NOTIFY syncPairsChanged)
+    Q_PROPERTY(QString lastSyncAt READ lastSyncAt NOTIFY lastSyncChanged)
+    Q_PROPERTY(QVariantList plugins READ plugins NOTIFY pluginsChanged)
     Q_PROPERTY(QVariantList transfers READ transfers NOTIFY transfersChanged)
     Q_PROPERTY(int transferLimit READ transferLimit CONSTANT)
     Q_PROPERTY(int liveTransfers READ liveTransfers NOTIFY transfersChanged)
@@ -91,6 +105,9 @@ public:
     bool busy() const { return m_busy; }
     QString busyWhat() const { return m_busyWhat; }
     QVariantList conflicts() const { return m_conflicts; }
+    QVariantList syncPairs() const { return m_syncPairs; }
+    QString lastSyncAt() const { return m_lastSyncAt; }
+    QVariantList plugins() const { return m_plugins; }
     QVariantList transfers() const { return m_transfers; }
     int transferLimit() const { return m_transferLimit; }
     int liveTransfers() const { return m_liveTransfers; }
@@ -102,13 +119,26 @@ public:
     Q_INVOKABLE void mount(const QString &mountpoint, bool readOnly);
     Q_INVOKABLE void unmount();
     Q_INVOKABLE void syncNow();
+    Q_INVOKABLE void syncPairNow(const QString &name);
+    Q_INVOKABLE QString syncSummary(const QString &name) const;
+    Q_INVOKABLE QString syncTotals() const;
+    Q_INVOKABLE void clearLogs();
+    Q_INVOKABLE void clearTransfers();
+    Q_INVOKABLE void copyLogs();
     Q_INVOKABLE void setPaused(bool paused);
     Q_INVOKABLE void setBandwidthLimitMbps(int mbps);
+    Q_INVOKABLE void setCacheLimitGb(int gb);
+    Q_INVOKABLE void refreshPlugins();
     Q_INVOKABLE void openMount();
     Q_INVOKABLE void showMainWindow();
     Q_INVOKABLE void resolve(const QString &id, const QString &resolution);
+    Q_INVOKABLE void addSyncPair(const QString &name, const QString &local,
+                                 const QString &remote);
+    Q_INVOKABLE void removeSyncPair(const QString &name);
+    Q_INVOKABLE void setSyncPairPaused(const QString &name, bool paused);
+    Q_INVOKABLE void setSyncPairFilters(const QString &name, const QString &include,
+                                        const QString &exclude);
     Q_INVOKABLE void clearError();
-    Q_INVOKABLE void clearTransfers();
 
 signals:
     void statusChanged();
@@ -118,7 +148,11 @@ signals:
     void showMainRequested();
     void busyChanged();
     void conflictsChanged();
+    void syncPairsChanged();
+    void lastSyncChanged();
+    void pluginsChanged();
     void transfersChanged();
+    void logsCleared();
     void logsChanged();
     void lastErrorChanged();
     void requestLogin(const QString &token);
@@ -126,13 +160,25 @@ signals:
     void requestMount(const QString &mountpoint, bool readOnly);
     void requestUnmount();
     void requestSync();
+    void requestSyncPair(const QString &name);
     void requestSetPaused(bool paused);
     void requestSetBandwidth(qulonglong bytesPerSecond);
+    void requestSetCacheLimit(qulonglong bytes);
+    void requestRefreshPlugins();
     void requestResolve(const QString &id, const QString &resolution);
+    void requestAddSyncPair(const QString &name, const QString &local,
+                            const QString &remote);
+    void requestRemoveSyncPair(const QString &name);
+    void requestSetSyncPairPaused(const QString &name, bool paused);
+    void requestSetSyncPairFilters(const QString &name, const QString &include,
+                                   const QString &exclude);
 
 private slots:
     void onStatus(const QString &json);
     void onConflicts(const QString &json);
+    void onSyncPairs(const QString &json);
+    void onSyncReports(const QString &json);
+    void onPlugins(const QString &json);
     void onEvent(const QString &json);
     void onError(const QString &message);
     void onBusy(const QString &what, bool active);
@@ -157,6 +203,10 @@ private:
     bool m_busy = false;
     QString m_busyWhat;
     QVariantList m_conflicts;
+    QVariantList m_syncPairs;
+    QVariantList m_lastSync;
+    QString m_lastSyncAt;
+    QVariantList m_plugins;
     QVariantList m_transfers;
     int m_transferLimit = 512;
     int m_liveTransfers = 0;

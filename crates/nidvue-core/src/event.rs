@@ -78,6 +78,9 @@ pub enum Event {
         path: String,
         /// Direction of the transfer.
         direction: Direction,
+        /// Bytes the transfer will move, when known.
+        #[serde(default)]
+        size: u64,
     },
     /// A transfer made progress.
     TransferProgress {
