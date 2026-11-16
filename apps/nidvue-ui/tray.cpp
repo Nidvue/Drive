@@ -169,6 +169,31 @@ void TrayController::refresh()
     m_mountAction->setText(m_bridge->mounted() ? QStringLiteral("Unmount")
                                                : QStringLiteral("Mount…"));
     m_syncAction->setEnabled(m_bridge->loggedIn() && !m_bridge->busy());
+
+    // A new conflict or a fresh error is the one thing a tray exists to say.
+    const qulonglong conflicts = m_bridge->conflictsOpen();
+    if (!m_firstRefresh) {
+        if (conflicts > m_lastConflicts) {
+            m_tray->showMessage(
+                QStringLiteral("Nidvue Drive"),
+                conflicts == 1
+                    ? QStringLiteral("1 file needs a decision — open the Conflict Center")
+                    : QStringLiteral("%1 files need a decision — open the Conflict Center")
+                          .arg(conflicts),
+                QSystemTrayIcon::Information, 8000);
+        }
+        if (health == QLatin1String("error") && m_lastHealth != health) {
+            const QString detail = m_bridge->lastError();
+            m_tray->showMessage(
+                QStringLiteral("Nidvue Drive"),
+                detail.isEmpty() ? QStringLiteral("Sync stopped with an error") : detail,
+                QSystemTrayIcon::Critical, 10000);
+        }
+    }
+    m_firstRefresh = false;
+    m_lastConflicts = conflicts;
+    m_lastHealth = health;
+
     emit statusTextChanged();
 }
 

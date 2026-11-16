@@ -486,6 +486,147 @@ impl AppConfig {
             log_level: self.log.level.clone(),
         }
     }
+
+    /// Read one value by dotted key, e.g. `sync.poll_interval_ms` or
+    /// `sync.pairs.docs.exclude`.
+    ///
+    /// A segment addresses an object field, a list index, or an element of a
+    /// list of objects by its `name`. The value comes back as JSON, so a list
+    /// is an array and a number is a number.
+    pub fn get_path(&self, key: &str) -> Result<serde_json::Value> {
+        let segs = key_segments(key)?;
+        let doc = self.to_json()?;
+        let mut node = &doc;
+        for seg in &segs {
+            node = descend(node, seg, key)?;
+        }
+        Ok(node.clone())
+    }
+
+    /// Set one value by dotted key. The text is parsed as JSON when it parses
+    /// (numbers, booleans, lists, objects, quoted strings) and taken as a
+    /// string otherwise. The result is validated before it replaces `self`.
+    pub fn set_path(&mut self, key: &str, raw: &str) -> Result<()> {
+        let segs = key_segments(key)?;
+        if segs[0] == "state_dir" {
+            return Err(NidvueError::Config(
+                "state_dir comes from --state, not from config".into(),
+            ));
+        }
+        let value: serde_json::Value = serde_json::from_str(raw)
+            .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()));
+        let mut doc = self.to_json()?;
+        assign(&mut doc, &segs, value, key)?;
+        let next: AppConfig = serde_json::from_value(doc)
+            .map_err(|e| NidvueError::Config(format!("{key}: {e}")))?;
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
+    /// Every leaf key with its current value, for `config list`.
+    pub fn leaves(&self) -> Result<Vec<(String, serde_json::Value)>> {
+        let mut out = Vec::new();
+        collect_leaves("", &self.to_json()?, &mut out);
+        Ok(out)
+    }
+
+    fn to_json(&self) -> Result<serde_json::Value> {
+        serde_json::to_value(self)
+            .map_err(|e| NidvueError::Internal(format!("config to json: {e}")))
+    }
+}
+
+fn key_segments(key: &str) -> Result<Vec<&str>> {
+    let segs: Vec<&str> = key.split('.').filter(|s| !s.is_empty()).collect();
+    if segs.is_empty() {
+        return Err(NidvueError::Config("config key is empty".into()));
+    }
+    Ok(segs)
+}
+
+fn descend<'a>(
+    node: &'a serde_json::Value,
+    seg: &str,
+    key: &str,
+) -> Result<&'a serde_json::Value> {
+    match node {
+        serde_json::Value::Object(map) => map
+            .get(seg)
+            .ok_or_else(|| NidvueError::Config(format!("unknown config key {key:?}"))),
+        serde_json::Value::Array(items) => {
+            let index = resolve_index(items, seg, key)?;
+            Ok(&items[index])
+        }
+        _ => Err(NidvueError::Config(format!(
+            "{key:?}: {seg:?} is not a field of a scalar"
+        ))),
+    }
+}
+
+fn assign(
+    node: &mut serde_json::Value,
+    segs: &[&str],
+    value: serde_json::Value,
+    key: &str,
+) -> Result<()> {
+    let Some((head, rest)) = segs.split_first() else {
+        *node = value;
+        return Ok(());
+    };
+    match node {
+        serde_json::Value::Object(map) => {
+            let child = map
+                .get_mut(*head)
+                .ok_or_else(|| NidvueError::Config(format!("unknown config key {key:?}")))?;
+            assign(child, rest, value, key)
+        }
+        serde_json::Value::Array(items) => {
+            let index = resolve_index(items, head, key)?;
+            assign(&mut items[index], rest, value, key)
+        }
+        _ => Err(NidvueError::Config(format!(
+            "{key:?}: {head:?} is not a field of a scalar"
+        ))),
+    }
+}
+
+fn resolve_index(items: &[serde_json::Value], seg: &str, key: &str) -> Result<usize> {
+    if let Ok(index) = seg.parse::<usize>() {
+        if index < items.len() {
+            return Ok(index);
+        }
+    }
+    items
+        .iter()
+        .position(|item| item.get("name").and_then(|n| n.as_str()) == Some(seg))
+        .ok_or_else(|| NidvueError::Config(format!("{key:?}: no entry named {seg:?}")))
+}
+
+fn collect_leaves(prefix: &str, node: &serde_json::Value, out: &mut Vec<(String, serde_json::Value)>) {
+    match node {
+        serde_json::Value::Object(map) => {
+            for (name, child) in map {
+                let key = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}.{name}")
+                };
+                collect_leaves(&key, child, out);
+            }
+        }
+        serde_json::Value::Array(items) if !items.is_empty() => {
+            for (index, child) in items.iter().enumerate() {
+                let name = child
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| index.to_string());
+                collect_leaves(&format!("{prefix}.{name}"), child, out);
+            }
+        }
+        other => out.push((prefix.to_string(), other.clone())),
+    }
 }
 
 #[cfg(test)]
@@ -539,6 +680,66 @@ mod tests {
         assert!(serde_json::to_string(&h)
             .unwrap()
             .contains("max_size_bytes"));
+    }
+
+    fn pair(name: &str) -> SyncPair {
+        SyncPair {
+            name: name.into(),
+            local: PathBuf::from("/tmp/docs"),
+            remote: "/Docs".into(),
+            paused: false,
+            include: vec![],
+            exclude: vec![],
+            conflict_policy: None,
+        }
+    }
+
+    #[test]
+    fn path_get_and_set_reach_every_value() {
+        let mut cfg = AppConfig::default();
+        cfg.sync.pairs = vec![pair("docs")];
+        assert_eq!(
+            cfg.get_path("sync.poll_interval_ms").unwrap(),
+            serde_json::json!(5_000)
+        );
+        cfg.set_path("sync.poll_interval_ms", "15000").unwrap();
+        assert_eq!(cfg.sync.poll_interval_ms, 15_000);
+        cfg.set_path("ui.theme", "dark").unwrap();
+        assert_eq!(cfg.ui.theme, "dark");
+        cfg.set_path("sync.paused", "true").unwrap();
+        assert!(cfg.sync.paused);
+        cfg.set_path("sync.pairs.docs.exclude", r#"["**/node_modules"]"#)
+            .unwrap();
+        assert_eq!(cfg.sync.pairs[0].exclude, vec!["**/node_modules"]);
+        assert_eq!(
+            cfg.get_path("sync.pairs.0.exclude").unwrap(),
+            serde_json::json!(["**/node_modules"])
+        );
+    }
+
+    #[test]
+    fn path_set_refuses_unknown_keys_and_bad_values() {
+        let mut cfg = AppConfig::default();
+        cfg.sync.pairs = vec![pair("docs")];
+        assert!(cfg.set_path("sync.nope", "1").is_err());
+        assert!(cfg.set_path("state_dir", "/tmp/x").is_err());
+        assert!(cfg.set_path("sync.pairs.other.paused", "true").is_err());
+        assert!(cfg.set_path("sync.pairs.docs.exclude", r#"["["]"#).is_err());
+        assert!(cfg.set_path("cache.max_size_bytes", "0").is_err());
+        assert!(cfg.get_path("sync.pairs.docs.nope").is_err());
+        assert!(cfg.get_path("").is_err());
+        assert_eq!(cfg.sync.pairs[0].exclude.len(), 0, "a failed set changes nothing");
+    }
+
+    #[test]
+    fn leaves_name_each_pair_and_its_values() {
+        let mut cfg = AppConfig::default();
+        cfg.sync.pairs = vec![pair("docs")];
+        let leaves = cfg.leaves().unwrap();
+        assert!(leaves
+            .iter()
+            .any(|(k, v)| k == "sync.pairs.docs.remote" && v == &serde_json::json!("/Docs")));
+        assert!(leaves.iter().any(|(k, _)| k == "cache.max_size_bytes"));
     }
 }
 

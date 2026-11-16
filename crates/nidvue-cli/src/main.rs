@@ -119,6 +119,33 @@ enum SyncAction {
         local: PathBuf,
         /// Remote directory inside the mountpoint
         remote: String,
+        /// Include glob, relative to the pair root (repeatable)
+        #[arg(long)]
+        include: Vec<String>,
+        /// Exclude glob, relative to the pair root (repeatable)
+        #[arg(long)]
+        exclude: Vec<String>,
+        /// keep_local, keep_remote or keep_both for this pair
+        #[arg(long)]
+        conflict_policy: Option<String>,
+        /// Add the pair paused
+        #[arg(long)]
+        paused: bool,
+    },
+    /// Remove a pair from the configuration
+    Remove {
+        /// Pair name
+        name: String,
+    },
+    /// Pause one pair
+    Pause {
+        /// Pair name
+        name: String,
+    },
+    /// Resume one pair
+    Resume {
+        /// Pair name
+        name: String,
     },
     /// List configured pairs
     List,
@@ -162,6 +189,15 @@ fn state_dir(cli: &Cli) -> PathBuf {
     PathBuf::from("nidvue-drive")
 }
 
+/// A closed pipe (`nidvue-cli config list | head`) is a normal end of output,
+/// not a panic.
+fn restore_sigpipe() {
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
 fn init_logging() {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_env("NIDVUE_LOG")
@@ -174,6 +210,7 @@ fn init_logging() {
 
 #[tokio::main]
 async fn main() {
+    restore_sigpipe();
     init_logging();
     let cli = Cli::parse();
     let state = state_dir(&cli);
@@ -281,27 +318,57 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 name,
                 local,
                 remote,
+                include,
+                exclude,
+                conflict_policy,
+                paused,
             } => {
                 let mut config = AppConfig::load_or_default(state)?;
                 if config.sync.pairs.iter().any(|p| &p.name == name) {
                     return Err(NidvueError::Config(format!("pair {name} already exists")));
                 }
                 RemotePath::parse(remote)?;
+                let policy = match conflict_policy {
+                    Some(text) => Some(ConflictPolicy::parse(text).ok_or_else(|| {
+                        NidvueError::Config(format!("unknown conflict policy {text:?}"))
+                    })?),
+                    None => None,
+                };
                 config.sync.pairs.push(SyncPair {
                     name: name.clone(),
                     local: local.clone(),
                     remote: remote.clone(),
-                    paused: false,
-                    include: vec![],
-                    exclude: vec![],
-                    conflict_policy: None,
+                    paused: *paused,
+                    include: include.clone(),
+                    exclude: exclude.clone(),
+                    conflict_policy: policy,
                 });
                 config.save(state)?;
                 println!("added pair {name}: {} ⇅ {remote}", local.display());
                 Ok(())
             }
+            SyncAction::Remove { name } => {
+                let mut config = AppConfig::load_or_default(state)?;
+                let before = config.sync.pairs.len();
+                config.sync.pairs.retain(|p| &p.name != name);
+                if config.sync.pairs.len() == before {
+                    return Err(NidvueError::Config(format!("no pair named {name:?}")));
+                }
+                config.save(state)?;
+                println!("removed pair {name}");
+                Ok(())
+            }
+            SyncAction::Pause { name } => set_pair_paused(state, name, true),
+            SyncAction::Resume { name } => set_pair_paused(state, name, false),
             SyncAction::List => {
                 let config = AppConfig::load_or_default(state)?;
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&config.sync.pairs).unwrap_or_default()
+                    );
+                    return Ok(());
+                }
                 if config.sync.pairs.is_empty() {
                     println!("no pairs configured");
                 }
@@ -313,6 +380,12 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                         pair.remote,
                         if pair.paused { " (paused)" } else { "" }
                     );
+                    if !pair.exclude.is_empty() {
+                        println!("  exclude: {}", pair.exclude.join(", "));
+                    }
+                    if !pair.include.is_empty() {
+                        println!("  include: {}", pair.include.join(", "));
+                    }
                 }
                 Ok(())
             }
@@ -450,9 +523,13 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             ConfigAction::Get { key } => {
                 let config = AppConfig::load_or_default(state)?;
                 let value = config_dot::get(&config, key)?;
-                match &value {
-                    serde_json::Value::String(text) => println!("{text}"),
-                    other => println!("{other}"),
+                if cli.json {
+                    println!("{}", serde_json::to_string_pretty(&value).unwrap_or_default());
+                } else {
+                    match &value {
+                        serde_json::Value::String(text) => println!("{text}"),
+                        other => println!("{other}"),
+                    }
                 }
                 Ok(())
             }
@@ -486,6 +563,27 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 Ok(())
             }
         },
+    }
+}
+
+fn set_pair_paused(state: &Path, name: &str, paused: bool) -> Result<(), NidvueError> {
+    let mut config = AppConfig::load_or_default(state)?;
+    let pair = config
+        .sync
+        .pairs
+        .iter_mut()
+        .find(|p| p.name == name)
+        .ok_or_else(|| NidvueError::Config(format!("no pair named {name:?}")))?;
+    pair.paused = paused;
+    config.save(state)?;
+    println!("{} pair {name}", if paused { "paused" } else { "resumed" });
+    Ok(())
+}
+
+fn plain(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        other => other.to_string(),
     }
 }
 

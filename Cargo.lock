@@ -2011,6 +2011,7 @@ name = "nidvue-cli"
 version = "0.2.0"
 dependencies = [
  "clap",
+ "libc",
  "nidvue-cache",
  "nidvue-core",
  "nidvue-mount",

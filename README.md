@@ -64,18 +64,25 @@ cargo run -p nidvue-cli -- login --token-stdin
 # 3. Check the connection
 cargo run -p nidvue-cli -- doctor
 
-# 4. Mount (headless; no UI needed)
-cargo run -p nidvue-cli -- mount ~/Jottacloud --cache-size 20G
+# 4. Mount (headless; no UI needed). The cache cap is configuration:
+cargo run -p nidvue-cli -- config set cache.max_size_bytes 21474836480
+cargo run -p nidvue-cli -- mount ~/Jottacloud
 
-# 5. Or sync a folder
-cargo run -p nidvue-cli -- sync add docs ~/Documents /Archive/Documents
+# 5. Or sync a folder, skipping what you do not want mirrored
+cargo run -p nidvue-cli -- sync add docs ~/Documents /Archive/Documents \
+    --exclude '**/node_modules' --exclude '*.tmp'
 cargo run -p nidvue-cli -- sync run docs
 
 # 6. The desktop app
 cargo xtask ui && ./apps/nidvue-ui/build/nidvue-ui
 ```
 
-`nidvue-cli status --json` is machine-readable for scripts and dashboards.
+`nidvue-cli status --json` is machine-readable for scripts and dashboards, and
+`nidvue-cli config list` prints every setting with its current value. Every
+value is reachable as a dotted path — `nidvue-cli config get sync.workers`,
+`nidvue-cli config set sync.pairs.docs.exclude '["**/.git"]'` — so a script
+never has to edit `config.toml` by hand. See
+[`docs/configuration.md`](docs/configuration.md).
 
 Metrics are opt-in and off by default:
 
