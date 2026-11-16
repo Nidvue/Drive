@@ -38,6 +38,7 @@ fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
         "dco" => dco(rest.first().map(String::as_str)),
         "ui" => ui(),
         "ui-smoke" => ui_smoke(),
+        "ffi-smoke" => ffi_smoke(),
         "plugins" => plugins(),
         "bench" => bench(),
         "package" => package(),
@@ -67,6 +68,7 @@ fn help() {
          dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
          ui        configure and build the Qt/QML application
          ui-smoke  launch the built UI headlessly and assert it initialises
+         ffi-smoke build a C consumer against include/nidvue.h and run it
          plugins   build the two example WASM plugins\n\
          bench     run the performance suite\n\
          package   build release binaries and package recipes\n\
@@ -99,6 +101,18 @@ fn cmd(program: &str, args: &[&str]) -> Result<(), String> {
     }
 }
 
+fn run(program: &str, args: &[&str], dir: &Path, what: &str) -> Result<(), String> {
+    let status = Command::new(program)
+        .args(args)
+        .current_dir(dir)
+        .status()
+        .map_err(|e| format!("{what}: spawn {program}: {e}"))?;
+    if !status.success() {
+        return Err(format!("{what} failed"));
+    }
+    Ok(())
+}
+
 fn capture(program: &str, args: &[&str]) -> Result<String, String> {
     let out = Command::new(program)
         .args(args)
@@ -126,6 +140,7 @@ fn ci(skip_ui: bool) -> Result<(), String> {
     secrets()?;
     dco(None)?;
     plugins()?;
+    ffi_smoke()?;
     if skip_ui {
         println!("+ ui build skipped by --skip-ui");
     } else {
@@ -378,6 +393,63 @@ fn plugins() -> Result<(), String> {
 }
 
 /// Launch the built UI headlessly and assert that it initialises the engine.
+fn ffi_smoke() -> Result<(), String> {
+    let root = workspace_root();
+    run(
+        "cargo",
+        &["build", "--release", "-p", "nidvue-ffi"],
+        &root,
+        "cargo build --release -p nidvue-ffi",
+    )?;
+    let library = root.join("target/release/libnidvue_ffi.a");
+    if !library.exists() {
+        return Err(format!("{} is missing after the build", library.display()));
+    }
+    let source = root.join("crates/nidvue-ffi/tests/consumer.c");
+    let binary = std::env::temp_dir().join(format!("nidvue-ffi-consumer-{}", std::process::id()));
+    let mut link = vec![
+        "-std=c11".to_string(),
+        "-Wall".to_string(),
+        "-Wextra".to_string(),
+        "-Werror".to_string(),
+        "-o".to_string(),
+        binary.display().to_string(),
+        source.display().to_string(),
+        "-I".to_string(),
+        root.join("crates/nidvue-ffi/include").display().to_string(),
+        library.display().to_string(),
+    ];
+    link.extend(platform_link_libraries(&root));
+    let args: Vec<&str> = link.iter().map(String::as_str).collect();
+    run("cc", &args, &root, "cc the C consumer")?;
+    let state = std::env::temp_dir().join(format!("nidvue-ffi-state-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&state);
+    let status = Command::new(&binary)
+        .arg(&state)
+        .status()
+        .map_err(|e| format!("run the C consumer: {e}"))?;
+    let _ = std::fs::remove_dir_all(&state);
+    let _ = std::fs::remove_file(&binary);
+    if !status.success() {
+        return Err("the C consumer reported a failure".to_string());
+    }
+    Ok(())
+}
+
+fn platform_link_libraries(root: &Path) -> Vec<String> {
+    let mut out = vec![
+        "-lpthread".to_string(),
+        "-ldl".to_string(),
+        "-lm".to_string(),
+    ];
+    let manifest =
+        std::fs::read_to_string(root.join("crates/nidvue-core/Cargo.toml")).unwrap_or_default();
+    if manifest.contains("keyring") && cfg!(target_os = "linux") {
+        out.push("-ldbus-1".to_string());
+    }
+    out
+}
+
 fn ui_smoke() -> Result<(), String> {
     let root = workspace_root();
     let binary = root.join("apps/nidvue-ui/build/nidvue-ui");
