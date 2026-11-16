@@ -13,6 +13,7 @@ pub mod evict;
 pub mod index;
 
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use nidvue_core::config::CacheConfig;
@@ -30,6 +31,10 @@ pub struct Cache {
     blobs: BlobStore,
     index: Arc<Index>,
     cfg: CacheConfig,
+    /// The live hard cap. `cfg.max_size_bytes` is the value the cache opened
+    /// with; this is the one eviction obeys, so a settings change applies at
+    /// once instead of on the next start.
+    capacity: AtomicU64,
 }
 
 impl Cache {
@@ -41,6 +46,7 @@ impl Cache {
             blobs,
             index,
             cfg: cfg.clone(),
+            capacity: AtomicU64::new(cfg.max_size_bytes),
         })
     }
 
@@ -70,15 +76,39 @@ impl Cache {
         &self.cfg
     }
 
-    /// Replace the hot-reloadable configuration.
+    /// Replace the hot-reloadable configuration. The hard cap is taken from
+    /// `cfg` too, so this is the same as [`Cache::set_capacity`] plus the
+    /// watermarks and policy.
     pub fn reconfigure(&mut self, cfg: CacheConfig) {
+        self.capacity.store(cfg.max_size_bytes, Ordering::Relaxed);
         self.cfg = cfg;
+    }
+
+    /// The live hard cap in bytes.
+    pub fn capacity(&self) -> u64 {
+        self.capacity.load(Ordering::Relaxed)
+    }
+
+    /// Change the hard cap and evict down to the new low watermark at once.
+    ///
+    /// Raising the cap changes nothing else; lowering it reclaims the excess
+    /// before the call returns, so `usage().bytes <= capacity()` afterwards
+    /// unless everything left is pinned or dirty.
+    pub fn set_capacity(&self, bytes: u64) -> Result<EvictionOutcome> {
+        if bytes == 0 {
+            return Err(NidvueError::Cache("cache capacity must be > 0".into()));
+        }
+        self.capacity.store(bytes, Ordering::Relaxed);
+        self.evict_to_capacity()
     }
 
     /// Store bytes, evicting first if the hard cap would be exceeded.
     pub fn put(&self, bytes: &[u8]) -> Result<Hash> {
-        Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy)
-            .ensure_room(bytes.len() as u64, &self.cfg)?;
+        Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy).ensure_room(
+            bytes.len() as u64,
+            self.capacity(),
+            &self.cfg,
+        )?;
         let hash = self.blobs.put(bytes)?;
         self.index
             .record_blob(hash.as_str(), bytes.len() as u64, now_ms())?;
@@ -90,8 +120,11 @@ impl Cache {
         let size = std::fs::metadata(source)
             .map_err(|e| NidvueError::io(source, e))?
             .len();
-        Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy)
-            .ensure_room(size, &self.cfg)?;
+        Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy).ensure_room(
+            size,
+            self.capacity(),
+            &self.cfg,
+        )?;
         let got = self.blobs.put_file(source)?;
         self.index
             .record_blob(got.hash.as_str(), got.size, now_ms())?;
@@ -138,7 +171,7 @@ impl Cache {
 
     /// Evict down to the low watermark.
     pub fn evict_to_capacity(&self) -> Result<EvictionOutcome> {
-        let low = (self.cfg.max_size_bytes as f64 * self.cfg.low_watermark) as u64;
+        let low = (self.capacity() as f64 * self.cfg.low_watermark) as u64;
         Evictor::new(&self.index, &self.blobs, self.cfg.eviction_policy).evict_to(low, 32)
     }
 
@@ -188,8 +221,7 @@ impl Cache {
     pub fn effective_capacity(&self) -> u64 {
         let free = self.free_disk_bytes();
         let usable = free.saturating_sub(self.cfg.min_free_disk_bytes);
-        self.cfg
-            .max_size_bytes
+        self.capacity()
             .min(usable.max(self.cfg.min_free_disk_bytes))
     }
 }
@@ -302,6 +334,36 @@ mod tests {
         assert_eq!(report.removed, 1);
         assert!(cache.read(&good).is_ok());
         assert!(cache.read(&bad).is_err());
+        assert_eq!(cache.usage().unwrap().blobs, 1);
+    }
+
+    #[test]
+    fn the_capacity_is_live_and_evicts_when_lowered() {
+        let (cache, _dir) = small_cache(1024);
+        for i in 0..8u8 {
+            cache.put(&[i; 100]).unwrap();
+        }
+        assert!(cache.usage().unwrap().bytes > 500);
+        assert_eq!(cache.capacity(), 1024);
+
+        // Lowering the cap reclaims at once, down to the low watermark.
+        let outcome = cache.set_capacity(256).unwrap();
+        assert!(outcome.removed > 0);
+        assert_eq!(cache.capacity(), 256);
+        assert!(cache.usage().unwrap().bytes <= 256);
+
+        // The next write obeys the new cap, not the one the cache opened with.
+        let hash = cache.put(&[42u8; 100]).unwrap();
+        assert!(cache.read(&hash).is_ok());
+        assert!(cache.usage().unwrap().bytes <= 256);
+    }
+
+    #[test]
+    fn a_zero_capacity_is_refused_and_changes_nothing() {
+        let (cache, _dir) = small_cache(512);
+        cache.put(b"keep me").unwrap();
+        assert!(cache.set_capacity(0).is_err());
+        assert_eq!(cache.capacity(), 512);
         assert_eq!(cache.usage().unwrap().blobs, 1);
     }
 

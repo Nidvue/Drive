@@ -27,6 +27,10 @@ class Preferences : public QObject {
 public:
     explicit Preferences(QObject *parent = nullptr);
 
+    /// The default theme from `config.toml` (`ui.theme`), read before the first
+    /// frame. A choice the user made in this window always wins over it.
+    static void setConfigDefaultTheme(const QString &mode);
+
     QString themeMode() const { return m_themeMode; }
     void setThemeMode(const QString &mode);
 

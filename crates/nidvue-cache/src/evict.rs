@@ -74,20 +74,28 @@ impl<'a> Evictor<'a> {
     /// Make room for `incoming` bytes: evict to the low watermark when the
     /// high watermark would be crossed. Returns an error when the hard cap
     /// cannot be honoured even after eviction.
-    pub fn ensure_room(&self, incoming: u64, cfg: &CacheConfig) -> Result<EvictionOutcome> {
+    ///
+    /// `cap` is passed separately from `cfg` because the cap is live: a
+    /// settings change takes effect on the next write, not on the next start.
+    pub fn ensure_room(
+        &self,
+        incoming: u64,
+        cap: u64,
+        cfg: &CacheConfig,
+    ) -> Result<EvictionOutcome> {
         let usage = self.index.cache_usage()?;
-        let high = (cfg.max_size_bytes as f64 * cfg.high_watermark) as u64;
+        let high = (cap as f64 * cfg.high_watermark) as u64;
         if usage.bytes.saturating_add(incoming) <= high {
             return Ok(EvictionOutcome::default());
         }
-        let low = (cfg.max_size_bytes as f64 * cfg.low_watermark) as u64;
+        let low = (cap as f64 * cfg.low_watermark) as u64;
         let target = low.saturating_sub(incoming);
         let outcome = self.evict_to(target, 32)?;
         let after = self.index.cache_usage()?;
-        if after.bytes.saturating_add(incoming) > cfg.max_size_bytes {
+        if after.bytes.saturating_add(incoming) > cap {
             return Err(nidvue_core::NidvueError::Cache(format!(
-                "cache is full: {} bytes used, {} requested, {} cap",
-                after.bytes, incoming, cfg.max_size_bytes
+                "cache is full: {} bytes used, {} requested, {cap} cap",
+                after.bytes, incoming
             )));
         }
         Ok(outcome)

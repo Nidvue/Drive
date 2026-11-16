@@ -6,6 +6,29 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-16
+
+### Added
+- An **Advanced** card in Settings that lists every configuration key with an
+  editable value, so the whole of `config.toml` is reachable from the window and
+  not only the common settings. Backed by `nidvue_client_config_list_json`.
+- `nidvue_config_peek`: read one value straight from `config.toml` without
+  opening the engine, so the app can honour `ui.theme` and `ui.start_minimised`
+  before the first frame.
+
+### Changed
+- The cache cap is **live**: `Cache` keeps it in an `AtomicU64`, `set_capacity`
+  evicts to the new low watermark before returning, and the SDK applies it on
+  `config set cache.max_size_bytes` (and from the Settings slider). Lowering the
+  cap reclaims the excess immediately instead of at the next start.
+- `ui.start_minimised` starts the app in the tray (ignored when the desktop has
+  no tray, so it cannot start invisible); `ui.theme` seeds the starting theme
+  and a choice made in the window still wins.
+
+### Fixed
+- `cargo xtask ui-smoke` now fails when the settings editor receives no rows, so
+  a broken config path cannot pass the gate.
+
 ## [0.2.0] - 2026-11-16
 
 Closes the credential, telemetry and transfer-list deviations from `v0.1.0`.

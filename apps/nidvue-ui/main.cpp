@@ -8,15 +8,18 @@
 
 #include <QApplication>
 #include <QDebug>
+#include <QDir>
 #include <QFont>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QSystemTrayIcon>
 #include <QTimer>
 
 #include "bridge.h"
+#include "nidvue.h"
 #include "preferences.h"
 #include "tray.h"
 
@@ -51,12 +54,37 @@ int main(int argc, char *argv[])
     // syncing, and the tray is the way back. Without a tray it quits.
     QGuiApplication::setQuitOnLastWindowClosed(false);
 
+    // Two settings must be known before the first frame: the state directory
+    // (the engine and the config file both live there) and whether to start in
+    // the tray. Reading them straight from config.toml keeps the window from
+    // flashing on screen and then hiding.
+    const QString state = qEnvironmentVariable("NIDVUE_STATE",
+        QDir::homePath() + QStringLiteral("/.local/share/nidvue-drive"));
+    const auto peek = [&state](const char *key) {
+        char *out = nullptr;
+        char *err = nullptr;
+        QString value;
+        if (nidvue_config_peek(state.toUtf8().constData(), key, &out, &err) == NIDVUE_OK) {
+            value = QString::fromUtf8(out);
+            nidvue_string_free(out);
+        } else if (err) {
+            nidvue_string_free(err);
+        }
+        return value;
+    };
+    const QString configTheme = peek("ui.theme");
+    if (configTheme == QStringLiteral("light") || configTheme == QStringLiteral("dark"))
+        Preferences::setConfigDefaultTheme(configTheme);
+    const bool startMinimised = peek("ui.start_minimised") == QStringLiteral("true")
+                                && QSystemTrayIcon::isSystemTrayAvailable();
+
     Bridge bridge;
     Preferences preferences;
     qInfo("theme: mode=%s dark=%d systemDark=%d", qPrintable(preferences.themeMode()),
           preferences.dark(), preferences.systemDark());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("Bridge"), &bridge);
+    engine.rootContext()->setContextProperty(QStringLiteral("startMinimised"), startMinimised);
     qmlRegisterSingletonInstance("Nidvue.Preferences", 1, 0, "Preferences", &preferences);
     TrayController tray(&bridge, &engine);
     engine.rootContext()->setContextProperty(QStringLiteral("Tray"), &tray);
@@ -80,11 +108,15 @@ int main(int argc, char *argv[])
         });
     }
     // `--smoke-windows` opens the tray popup and the detailed settings window
-    // once, so a headless CI run proves they instantiate without QML errors.
+    // once, so a headless CI run proves they instantiate without QML errors, and
+    // reports how many settings rows arrived from the engine.
     if (app.arguments().contains(QStringLiteral("--smoke-windows"))) {
         QTimer::singleShot(200, &tray, [&tray]() {
             tray.showPopup();
             tray.openSettingsWindow();
+        });
+        QTimer::singleShot(900, &bridge, [&bridge]() {
+            qInfo("smoke: settings rows=%d", int(bridge.configRows().size()));
         });
         QTimer::singleShot(1200, &app, &QCoreApplication::quit);
     }

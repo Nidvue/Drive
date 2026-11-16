@@ -76,9 +76,9 @@ Each `[[sync.pairs]]` entry has `name`, `local`, `remote`, `paused`,
 | `log.otel_endpoint` | none | OTLP/HTTP base URL, e.g. `http://127.0.0.1:4318`; posts metrics to `<endpoint>/v1/metrics` and per-pass spans to `<endpoint>/v1/traces` |
 | `log.otel_interval_s` | 15 | seconds between OTLP metric exports |
 | `log.prometheus_bind` | none | bind address for the scrape endpoint, e.g. `127.0.0.1:9464` |
-| `ui.theme` | `system` | reserved: the desktop app keeps its theme choice in Qt settings |
+| `ui.theme` | `system` | the theme the app starts in; a choice made in the window wins over it |
 | `ui.language` | `en` | reserved: no translation ships yet |
-| `ui.start_minimised` | false | reserved: not read by the app yet |
+| `ui.start_minimised` | false | start in the tray instead of showing the window; ignored when the desktop has no tray |
 
 ## `[secret]`
 

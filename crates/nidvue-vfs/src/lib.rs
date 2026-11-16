@@ -791,7 +791,7 @@ impl Vfs for EngineVfs {
     async fn statfs(&self) -> Result<FsStats> {
         let usage = self.cache.usage()?;
         Ok(FsStats {
-            total_bytes: self.cache.config().max_size_bytes,
+            total_bytes: self.cache.capacity(),
             used_bytes: usage.bytes,
             free_bytes: self
                 .cache

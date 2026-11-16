@@ -35,6 +35,8 @@ public slots:
     void setBandwidthLimit(qulonglong bytesPerSecond);
     void setCacheLimit(qulonglong bytes);
     void refreshPlugins();
+    void refreshConfig();
+    void setConfigValue(const QString &key, const QString &value);
     void resolve(const QString &id, const QString &resolution);
     void clearTransfers();
     void addSyncPair(const QString &name, const QString &local, const QString &remote);
@@ -49,6 +51,7 @@ signals:
     void syncPairsJson(const QString &json);
     void syncReportsJson(const QString &json);
     void pluginsJson(const QString &json);
+    void configJson(const QString &json);
     void eventJson(const QString &json);
     void error(const QString &message);
     void busy(const QString &what, bool active);
@@ -80,6 +83,7 @@ class Bridge : public QObject {
     Q_PROPERTY(QVariantList syncPairs READ syncPairs NOTIFY syncPairsChanged)
     Q_PROPERTY(QString lastSyncAt READ lastSyncAt NOTIFY lastSyncChanged)
     Q_PROPERTY(QVariantList plugins READ plugins NOTIFY pluginsChanged)
+    Q_PROPERTY(QVariantList configRows READ configRows NOTIFY configChanged)
     Q_PROPERTY(QVariantList transfers READ transfers NOTIFY transfersChanged)
     Q_PROPERTY(int transferLimit READ transferLimit CONSTANT)
     Q_PROPERTY(int liveTransfers READ liveTransfers NOTIFY transfersChanged)
@@ -108,6 +112,7 @@ public:
     QVariantList syncPairs() const { return m_syncPairs; }
     QString lastSyncAt() const { return m_lastSyncAt; }
     QVariantList plugins() const { return m_plugins; }
+    QVariantList configRows() const { return m_configRows; }
     QVariantList transfers() const { return m_transfers; }
     int transferLimit() const { return m_transferLimit; }
     int liveTransfers() const { return m_liveTransfers; }
@@ -129,6 +134,8 @@ public:
     Q_INVOKABLE void setBandwidthLimitMbps(int mbps);
     Q_INVOKABLE void setCacheLimitGb(int gb);
     Q_INVOKABLE void refreshPlugins();
+    Q_INVOKABLE void refreshConfig();
+    Q_INVOKABLE void setConfigValue(const QString &key, const QString &value);
     Q_INVOKABLE void openMount();
     Q_INVOKABLE void showMainWindow();
     Q_INVOKABLE void resolve(const QString &id, const QString &resolution);
@@ -151,6 +158,7 @@ signals:
     void syncPairsChanged();
     void lastSyncChanged();
     void pluginsChanged();
+    void configChanged();
     void transfersChanged();
     void logsCleared();
     void logsChanged();
@@ -165,6 +173,8 @@ signals:
     void requestSetBandwidth(qulonglong bytesPerSecond);
     void requestSetCacheLimit(qulonglong bytes);
     void requestRefreshPlugins();
+    void requestRefreshConfig();
+    void requestSetConfigValue(const QString &key, const QString &value);
     void requestResolve(const QString &id, const QString &resolution);
     void requestAddSyncPair(const QString &name, const QString &local,
                             const QString &remote);
@@ -179,6 +189,7 @@ private slots:
     void onSyncPairs(const QString &json);
     void onSyncReports(const QString &json);
     void onPlugins(const QString &json);
+    void onConfig(const QString &json);
     void onEvent(const QString &json);
     void onError(const QString &message);
     void onBusy(const QString &what, bool active);
@@ -207,6 +218,7 @@ private:
     QVariantList m_lastSync;
     QString m_lastSyncAt;
     QVariantList m_plugins;
+    QVariantList m_configRows;
     QVariantList m_transfers;
     int m_transferLimit = 512;
     int m_liveTransfers = 0;
