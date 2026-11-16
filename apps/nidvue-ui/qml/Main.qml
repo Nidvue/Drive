@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 560
     minimumWidth: 860
     minimumHeight: 440
-    visible: true
+    visible: !startMinimised
     title: qsTr("Nidvue Drive")
     color: Theme.bg
 

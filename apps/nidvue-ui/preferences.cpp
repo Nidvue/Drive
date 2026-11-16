@@ -16,6 +16,7 @@
 
 namespace {
 constexpr auto kThemeKey = "appearance/themeMode";
+QString g_configTheme;
 constexpr qreal kDarkThreshold = 0.5;
 
 QString normalise(const QString &mode)
@@ -80,10 +81,18 @@ qreal kdeWindowLuminance()
 }
 } // namespace
 
+void Preferences::setConfigDefaultTheme(const QString &mode)
+{
+    g_configTheme = mode;
+}
+
 Preferences::Preferences(QObject *parent)
     : QObject(parent)
-    , m_themeMode(normalise(
-          QSettings().value(QLatin1String(kThemeKey), QStringLiteral("system")).toString()))
+    , m_themeMode(normalise(QSettings()
+                                .value(QLatin1String(kThemeKey),
+                                       g_configTheme.isEmpty() ? QStringLiteral("system")
+                                                               : g_configTheme)
+                                .toString()))
 {
     m_recheck = new QTimer(this);
     m_recheck->setSingleShot(true);

@@ -479,7 +479,7 @@ impl Client {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// Push the values the engine reads from atomics or the pair list.
+    /// Push the values the engine reads from atomics or the live cache cap.
     fn apply_live(&self, config: &AppConfig) {
         self.inner
             .paused
@@ -487,6 +487,12 @@ impl Client {
         self.inner
             .bandwidth_bps
             .store(config.sync.bandwidth_limit_bps, Ordering::Relaxed);
+        let cap = config.cache.max_size_bytes;
+        if self.inner.cache.capacity() != cap {
+            if let Err(e) = self.inner.cache.set_capacity(cap) {
+                tracing::warn!(error = %e, "cache capacity not applied");
+            }
+        }
     }
 
     /// Exchange a Personal Login Token and persist the result.
@@ -584,7 +590,7 @@ impl Client {
             queue_depth: self.inner.transfers.queued(),
             active_transfers: self.inner.transfers.running(),
             cache_bytes: usage.bytes,
-            cache_capacity: self.read_config().cache.max_size_bytes,
+            cache_capacity: self.inner.cache.capacity(),
             index_entries: entries,
             conflicts_open: conflicts,
             health,
@@ -609,7 +615,7 @@ impl Client {
             paused: self.paused(),
             bandwidth_limit_bps: self.bandwidth_limit_bps(),
             cache: CacheUsageView {
-                capacity: self.read_config().cache.max_size_bytes,
+                capacity: self.inner.cache.capacity(),
                 ..usage.into()
             },
             health: stats.health,
@@ -945,6 +951,28 @@ mod tests {
             2,
             "a rejected value changes nothing"
         );
+    }
+
+    #[tokio::test]
+    async fn the_cache_cap_applies_without_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::open(dir.path()).await.unwrap();
+        let before = client.cache().capacity();
+        assert_eq!(before, client.config().cache.max_size_bytes);
+
+        client
+            .config_set("cache.max_size_bytes", "1048576")
+            .unwrap();
+        assert_eq!(client.cache().capacity(), 1_048_576);
+        assert_eq!(client.status().await.unwrap().cache.capacity, 1_048_576);
+
+        // The old path (the Settings slider and the CLI flag) reaches the same
+        // live value, and a restart reads what was written.
+        client.set_cache_limit_bytes(2_097_152).unwrap();
+        assert_eq!(client.cache().capacity(), 2_097_152);
+        let again = Client::open(dir.path()).await.unwrap();
+        assert_eq!(again.config().cache.max_size_bytes, 2_097_152);
+        assert_eq!(again.cache().capacity(), 2_097_152);
     }
 
     #[tokio::test]

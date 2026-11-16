@@ -489,12 +489,23 @@ fn ui_smoke() -> Result<(), String> {
             "tray windows did not open (popup={popup}, settings={settings}):\n{stderr}"
         ));
     }
+    let rows = stderr
+        .split("smoke: settings rows=")
+        .nth(1)
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|count| count.parse::<usize>().ok())
+        .unwrap_or(0);
+    if rows == 0 {
+        return Err(format!(
+            "the settings editor received no rows from the engine:\n{stderr}"
+        ));
+    }
     let initialised = state.join("db").join("index.sqlite").exists();
     let _ = std::fs::remove_dir_all(&state);
     if !initialised {
         return Err("the UI did not initialise the engine state directory".into());
     }
-    println!("+ ui smoke: engine initialised, no QML errors");
+    println!("+ ui smoke: engine initialised, {rows} settings rows, no QML errors");
     Ok(())
 }
 

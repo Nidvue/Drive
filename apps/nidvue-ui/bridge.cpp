@@ -374,6 +374,34 @@ void Worker::setSyncPairPaused(const QString &name, bool paused)
     poll();
 }
 
+void Worker::refreshConfig()
+{
+    if (!m_client)
+        return;
+    char *out = nullptr;
+    char *err = nullptr;
+    if (nidvue_client_config_list_json(m_client, &out, &err) == NIDVUE_OK) {
+        emit configJson(QString::fromUtf8(out));
+        nidvue_string_free(out);
+    } else {
+        emit error(takeError(err));
+    }
+}
+
+void Worker::setConfigValue(const QString &key, const QString &value)
+{
+    if (!m_client)
+        return;
+    char *err = nullptr;
+    if (nidvue_client_config_set(m_client, key.toUtf8().constData(),
+                                 value.toUtf8().constData(), &err)
+        != NIDVUE_OK) {
+        emit error(takeError(err));
+    }
+    refreshConfig();
+    poll();
+}
+
 void Worker::setSyncPairFilters(const QString &name, const QString &include,
                                 const QString &exclude)
 {
@@ -418,6 +446,7 @@ Bridge::Bridge(QObject *parent)
     connect(m_worker, &Worker::syncPairsJson, this, &Bridge::onSyncPairs);
     connect(m_worker, &Worker::syncReportsJson, this, &Bridge::onSyncReports);
     connect(m_worker, &Worker::pluginsJson, this, &Bridge::onPlugins);
+    connect(m_worker, &Worker::configJson, this, &Bridge::onConfig);
     connect(m_worker, &Worker::eventJson, this, &Bridge::onEvent);
     connect(m_worker, &Worker::error, this, &Bridge::onError);
     connect(m_worker, &Worker::busy, this, &Bridge::onBusy);
@@ -434,6 +463,8 @@ Bridge::Bridge(QObject *parent)
     connect(this, &Bridge::requestSyncPair, m_worker, &Worker::syncPairNow);
     connect(this, &Bridge::requestSetCacheLimit, m_worker, &Worker::setCacheLimit);
     connect(this, &Bridge::requestRefreshPlugins, m_worker, &Worker::refreshPlugins);
+    connect(this, &Bridge::requestRefreshConfig, m_worker, &Worker::refreshConfig);
+    connect(this, &Bridge::requestSetConfigValue, m_worker, &Worker::setConfigValue);
     connect(this, &Bridge::requestSetPaused, m_worker, &Worker::setPaused);
     connect(this, &Bridge::requestSetBandwidth, m_worker, &Worker::setBandwidthLimit);
     connect(this, &Bridge::requestResolve, m_worker, &Worker::resolve);
@@ -568,6 +599,13 @@ void Bridge::setCacheLimitGb(int gb)
 
 void Bridge::refreshPlugins() { emit requestRefreshPlugins(); }
 
+void Bridge::refreshConfig() { emit requestRefreshConfig(); }
+
+void Bridge::setConfigValue(const QString &key, const QString &value)
+{
+    emit requestSetConfigValue(key, value);
+}
+
 void Bridge::setSyncPairPaused(const QString &name, bool paused)
 {
     emit requestSetSyncPairPaused(name, paused);
@@ -656,6 +694,40 @@ void Bridge::onPlugins(const QString &json)
 {
     m_plugins = parsePlugins(json);
     emit pluginsChanged();
+}
+
+void Bridge::onConfig(const QString &json)
+{
+    QVariantList rows;
+    const auto object = QJsonDocument::fromJson(json.toUtf8()).object();
+    rows.reserve(object.size());
+    QStringList keys = object.keys();
+    keys.sort();
+    for (const auto &key : keys) {
+        const auto value = object.value(key);
+        QString text;
+        if (value.isArray()) {
+            text = QString::fromUtf8(
+                QJsonDocument(value.toArray()).toJson(QJsonDocument::Compact));
+        } else if (value.isObject()) {
+            text = QString::fromUtf8(
+                QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact));
+        } else if (value.isString()) {
+            text = value.toString();
+        } else if (value.isBool()) {
+            text = value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+        } else if (value.isNull()) {
+            text = QString();
+        } else {
+            text = QString::number(value.toDouble());
+        }
+        QVariantMap row;
+        row.insert("key", key);
+        row.insert("value", text);
+        rows.append(row);
+    }
+    m_configRows = rows;
+    emit configChanged();
 }
 
 void Bridge::onEvent(const QString &json)

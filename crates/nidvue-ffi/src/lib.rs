@@ -776,6 +776,81 @@ pub unsafe extern "C" fn nidvue_client_config_set(
     }
 }
 
+/// Every configuration leaf as a flat JSON object of `dot.path -> value`.
+///
+/// This is the list the settings editor renders; the keys are the same ones
+/// `nidvue_client_config_set` accepts.
+///
+/// # Safety
+/// `client` must be valid; `out` must be a valid out-pointer.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_config_list_json(
+    client: *mut NidvueClient,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        let config = client.client.config();
+        let leaves = nidvue_core::config::dot::list(&config)?;
+        let map: serde_json::Map<String, serde_json::Value> = leaves.into_iter().collect();
+        serde_json::to_string(&serde_json::Value::Object(map))
+            .map_err(|e| nidvue_core::NidvueError::Internal(format!("config json: {e}")))
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_config_list_json");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Read one value straight from `config.toml` without opening the engine.
+///
+/// The app needs `ui.start_minimised` before it decides whether to show its
+/// window, which is before the engine exists. Returns `NIDVUE_OK` and writes
+/// the JSON value, or `NIDVUE_ERR` when the key is unknown.
+///
+/// # Safety
+/// `state_dir` and `key` must be valid for the call; `out` a valid out-pointer.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_config_peek(
+    state_dir: *const c_char,
+    key: *const c_char,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let (Some(state_dir), Some(key)) = (cstr(state_dir), cstr(key)) else {
+        set_err(err, "state_dir and key are required");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        let config =
+            nidvue_core::config::AppConfig::load_or_default(std::path::Path::new(state_dir))?;
+        nidvue_core::config::dot::get(&config, key).and_then(|value| {
+            serde_json::to_string(&value)
+                .map_err(|e| nidvue_core::NidvueError::Internal(format!("config json: {e}")))
+        })
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_config_peek");
+            NIDVUE_PANIC
+        }
+    }
+}
+
 /// Open conflicts as a JSON array.
 ///
 /// # Safety

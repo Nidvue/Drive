@@ -176,8 +176,18 @@ impl AuthManager {
 
     /// Load a persisted token. Returns false when none is stored.
     pub async fn restore(&self) -> Result<bool> {
-        let Some(raw) = self.store.load(STORE_KEY)? else {
-            return Ok(false);
+        // A store that cannot answer is "no token yet", not "cannot start":
+        // the platform keyring can be present and still fail a read (a locked
+        // collection, a session bus that changed under us). Failing open would
+        // make the whole client unusable for a problem the user fixes by
+        // logging in again.
+        let raw = match self.store.load(STORE_KEY) {
+            Ok(Some(raw)) => raw,
+            Ok(None) => return Ok(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "stored token unreadable; continuing without it");
+                return Ok(false);
+            }
         };
         let set: TokenSet = serde_json::from_str(raw.expose())
             .map_err(|e| NidvueError::Secret(format!("stored token is corrupt: {e}")))?;
@@ -339,6 +349,32 @@ mod tests {
             r#"{{"well_known_link":"{well_known}","username":"alice","auth_token":"pw-123"}}"#
         );
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(raw)
+    }
+
+    struct BrokenStore;
+
+    impl SecretStore for BrokenStore {
+        fn load(&self, _key: &str) -> Result<Option<SecretString>> {
+            Err(nidvue_core::NidvueError::Secret(
+                "dbus error: client public key size is invalid".into(),
+            ))
+        }
+        fn store(&self, _key: &str, _value: &SecretString) -> Result<()> {
+            Ok(())
+        }
+        fn delete(&self, _key: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn an_unreadable_store_does_not_stop_the_client() {
+        let auth = AuthManager::new(reqwest::Client::new(), Arc::new(BrokenStore));
+        assert!(
+            !auth.restore().await.unwrap(),
+            "a store that cannot answer means no token, not a failure"
+        );
+        assert!(!auth.is_logged_in().await);
     }
 
     #[test]
