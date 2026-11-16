@@ -283,9 +283,12 @@ pub struct StoreSelection {
     pub store: Arc<dyn SecretStore>,
     /// Which backend it is.
     pub backend: SecretBackend,
-    /// Set when the requested backend was not usable and the file store took
-    /// over; carries the platform's own message.
+    /// Set when the requested backend was not usable; carries the platform's
+    /// own message. With [`SecretBackend::Auto`] the file store took over; with
+    /// [`SecretBackend::Keyring`] the store is the keyring and it does not work.
     pub fallback_reason: Option<String>,
+    /// True when the store cannot do what the configuration asked for.
+    pub degraded: bool,
 }
 
 impl StoreSelection {
@@ -293,7 +296,7 @@ impl StoreSelection {
     pub fn describe(&self) -> String {
         match &self.fallback_reason {
             None => self.backend.to_string(),
-            Some(reason) => format!("{} (fell back from keyring: {reason})", self.backend),
+            Some(reason) => format!("{} ({reason})", self.backend),
         }
     }
 }
@@ -328,22 +331,34 @@ pub fn open_store(backend: SecretBackend, credentials_file: impl Into<PathBuf>) 
             store: file(),
             backend: SecretBackend::File,
             fallback_reason: None,
+            degraded: false,
         },
-        SecretBackend::Keyring => StoreSelection {
-            store: Arc::new(KeyringStore::default_service()),
-            backend: SecretBackend::Keyring,
-            fallback_reason: None,
+        SecretBackend::Keyring => match keyring_is_usable(&keyring_store) {
+            Ok(()) => StoreSelection {
+                store: Arc::new(keyring_store),
+                backend: SecretBackend::Keyring,
+                fallback_reason: None,
+                degraded: false,
+            },
+            Err(e) => StoreSelection {
+                store: Arc::new(keyring_store),
+                backend: SecretBackend::Keyring,
+                fallback_reason: Some(format!("requested but unusable: {e}")),
+                degraded: true,
+            },
         },
         SecretBackend::Auto => match keyring_is_usable(&keyring_store) {
             Ok(()) => StoreSelection {
                 store: Arc::new(keyring_store),
                 backend: SecretBackend::Keyring,
                 fallback_reason: None,
+                degraded: false,
             },
             Err(e) => StoreSelection {
                 store: file(),
                 backend: SecretBackend::File,
-                fallback_reason: Some(e.to_string()),
+                fallback_reason: Some(format!("fell back from keyring: {e}")),
+                degraded: false,
             },
         },
     }
@@ -440,8 +455,25 @@ mod tests {
                     .expect("a fallback states its reason");
                 assert!(!reason.is_empty());
                 assert!(sel.describe().starts_with("file (fell back from keyring:"));
+                assert!(!sel.degraded, "an auto fallback is a working store");
             }
             SecretBackend::Auto => panic!("auto resolves to a concrete backend"),
+        }
+    }
+
+    #[test]
+    fn an_explicit_keyring_that_cannot_work_is_reported_degraded() {
+        let dir = tempfile::tempdir().unwrap();
+        let sel = open_store(SecretBackend::Keyring, dir.path().join("credentials.enc"));
+        assert_eq!(sel.backend, SecretBackend::Keyring);
+        match keyring_is_usable(&KeyringStore::default_service()) {
+            Ok(()) => assert!(!sel.degraded, "a working keyring is not degraded"),
+            Err(_) => {
+                assert!(sel.degraded, "an unusable keyring must not report ok");
+                assert!(sel
+                    .describe()
+                    .starts_with("keyring (requested but unusable:"));
+            }
         }
     }
 
