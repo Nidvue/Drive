@@ -8,11 +8,14 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 ## Snapshot
 
 - Date: 2026-11-16 · Milestone: M8 (usable end to end) · Verified criteria: 24/24
-- Revision of record: `33fa2e4` on `feat/ux-parity-v2`, rebased onto
-  `feat/v0.2.0-close-deviations` (`40cb8ea`). Not on `main`: the branch needs the
-  one approving review the protection rule requires, and this environment has a
-  single GitHub account, which cannot approve its own pull request. The blocker
-  and the options are recorded in [Risks](Risks.md) R-10.
+- Revision of record: `19c5617` on `feat/ux-parity-v2` (pull request 14), rebased
+  onto `feat/v0.2.0-close-deviations` (`40cb8ea`, pull request 13). CI is green on
+  that SHA in every job — rust (ubuntu-24.04), rust (windows-2022), licences/
+  advisories/spdx/secrets, qt ui, fuse mount smoke, analyze (cpp), CodeQL, links.
+  Not on `main`: the branch needs the one approving review the protection rule
+  requires, and this environment has a single GitHub account, which cannot
+  approve its own pull request. The blocker and the options are recorded in
+  [Risks](Risks.md) R-10 and [Decisions](Decisions.md) D-20261116-CEO-6.
 - Both parallel branches are green locally on the same gate
   (`cargo xtask ci`), and the v0.2.0 branch is green in CI on `40cb8ea`.
 - Open feature: F-0001, the whole product as one slice.
