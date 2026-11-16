@@ -32,6 +32,13 @@ Closes the credential, telemetry and transfer-list deviations from `v0.1.0`.
   live rows never evicted).
 - `nidvue-cli config get|set|list|path`: every configuration key by dot path,
   parsed against the type already there and validated before it is written.
+- `nidvue-cli sync add --include/--exclude/--conflict-policy/--paused`,
+  `sync remove`, `sync pause`, `sync resume` and `sync list --json`.
+- Per-pair exclude globs in Settings, a filter box on the Activity page, and tray
+  notifications for a new conflict and for the first error of a run.
+- `Client::config_get`/`config_set` and `Client::set_sync_pair_filters` in the
+  SDK, `nidvue_client_config_get`/`_set` and
+  `nidvue_client_sync_pair_set_filters` in the C ABI.
 - `cache.capacity` in the status view, so the dashboard's cache bar has a real
   denominator instead of a zero.
 - Benches: `transfer` (cold read, sustained transfer, warm read against an
@@ -81,6 +88,9 @@ Closes the credential, telemetry and transfer-list deviations from `v0.1.0`.
 - The Conflict Center's "Keep local" and "Keep remote" buttons did nothing: the
   labels the UI and the CLI document (`keep_local`, `keep_remote`) were not
   accepted by the conflict-policy parser. Both spellings parse now, with a test.
+- `nidvue-cli … | head` panicked with a broken pipe instead of ending the output.
+- A sync pair added or paused at runtime left `Client::config()` stale; the
+  configuration is now one lock, updated by every write.
 - The desktop app aborted on any desktop with a tray (`QWidget` created from a
   `QGuiApplication`); it now uses `QApplication`.
 - Qt's compiled-QML disk cache served stale UI after a rebuild; the cache is

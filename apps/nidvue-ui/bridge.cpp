@@ -440,6 +440,7 @@ Bridge::Bridge(QObject *parent)
     connect(this, &Bridge::requestAddSyncPair, m_worker, &Worker::addSyncPair);
     connect(this, &Bridge::requestRemoveSyncPair, m_worker, &Worker::removeSyncPair);
     connect(this, &Bridge::requestSetSyncPairPaused, m_worker, &Worker::setSyncPairPaused);
+    connect(this, &Bridge::requestSetSyncPairFilters, m_worker, &Worker::setSyncPairFilters);
 
     const QString state = qEnvironmentVariable("NIDVUE_STATE",
         QDir::homePath() + QStringLiteral("/.local/share/nidvue-drive"));
@@ -576,7 +577,6 @@ void Bridge::setSyncPairFilters(const QString &name, const QString &include,
                                 const QString &exclude)
 {
     emit requestSetSyncPairFilters(name, include, exclude);
-}
 }
 
 void Bridge::clearError()

@@ -854,6 +854,89 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn config_set_persists_and_applies_live_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::open(dir.path()).await.unwrap();
+        client
+            .add_sync_pair(SyncPair {
+                name: "docs".into(),
+                local: dir.path().join("docs"),
+                remote: "/Docs".into(),
+                paused: false,
+                include: vec![],
+                exclude: vec![],
+                conflict_policy: None,
+            })
+            .unwrap();
+
+        let value = client
+            .config_set("sync.pairs.docs.exclude", r#"["**/node_modules","*.tmp"]"#)
+            .unwrap();
+        assert_eq!(value, serde_json::json!(["**/node_modules", "*.tmp"]));
+        assert_eq!(client.sync_pairs()[0].exclude.len(), 2);
+
+        client.config_set("sync.paused", "true").unwrap();
+        assert!(client.paused());
+        client.config_set("sync.bandwidth_limit_bps", "125000").unwrap();
+        assert_eq!(client.bandwidth_limit_bps(), 125_000);
+        assert_eq!(
+            client.config_get("sync.pairs.docs.remote").unwrap(),
+            serde_json::json!("/Docs")
+        );
+
+        let again = Client::open(dir.path()).await.unwrap();
+        assert_eq!(
+            again.sync_pairs()[0].exclude,
+            vec!["**/node_modules", "*.tmp"]
+        );
+        assert!(again.paused());
+
+        assert!(client
+            .config_set("sync.pairs.docs.exclude", r#"["["]"#)
+            .is_err());
+        assert!(client.config_set("nope", "1").is_err());
+        assert_eq!(
+            client.sync_pairs()[0].exclude.len(),
+            2,
+            "a rejected value changes nothing"
+        );
+    }
+
+    #[tokio::test]
+    async fn pair_filters_are_validated_and_persisted() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = Client::open(dir.path()).await.unwrap();
+        client
+            .add_sync_pair(SyncPair {
+                name: "docs".into(),
+                local: dir.path().join("docs"),
+                remote: "/Docs".into(),
+                paused: false,
+                include: vec![],
+                exclude: vec![],
+                conflict_policy: None,
+            })
+            .unwrap();
+        client
+            .set_sync_pair_filters(
+                "docs",
+                vec!["**/*.md".into()],
+                vec!["**/node_modules".into(), "*.tmp".into()],
+            )
+            .unwrap();
+        assert_eq!(client.sync_pairs()[0].exclude.len(), 2);
+        let again = Client::open(dir.path()).await.unwrap();
+        assert_eq!(again.sync_pairs()[0].include, vec!["**/*.md"]);
+        assert_eq!(again.sync_pairs()[0].exclude.len(), 2);
+        assert!(client
+            .set_sync_pair_filters("docs", vec![], vec!["[".into()])
+            .is_err());
+        assert!(client
+            .set_sync_pair_filters("ghost", vec![], vec![])
+            .is_err());
+    }
+
     #[test]
     fn schema_covers_events_and_config() {
         let schema = Client::json_schema();

@@ -7,6 +7,20 @@ import QtQuick.Layouts
 Item {
     id: page
 
+    /// The log filtered by the search box; the whole list when the box is empty.
+    readonly property var lines: {
+        var needle = filter.text.toLowerCase()
+        if (needle.length === 0)
+            return Bridge.logs
+        var out = []
+        for (var i = 0; i < Bridge.logs.length; ++i) {
+            var line = Bridge.logs[i]
+            if (line.toLowerCase().indexOf(needle) >= 0)
+                out.push(line)
+        }
+        return out
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.leftMargin: Theme.pageGutter
@@ -18,6 +32,13 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.gapSm
+
+            Field {
+                id: filter
+                Layout.preferredWidth: 280
+                placeholderText: qsTr("Filter lines…")
+                Accessible.name: qsTr("Filter the log")
+            }
 
             Item { Layout.fillWidth: true }
 
@@ -42,16 +63,20 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             title: qsTr("Log output")
-            subtitle: Bridge.logs.length === 1 ? qsTr("1 line · newest last") : qsTr("%1 lines · newest last").arg(Bridge.logs.length)
+            subtitle: page.lines.length === 1
+                      ? qsTr("1 line · newest last")
+                      : qsTr("%1 lines · newest last").arg(page.lines.length)
 
             content: Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
                 Label {
-                    visible: Bridge.logs.length === 0
+                    visible: page.lines.length === 0
                     anchors.centerIn: parent
-                    text: qsTr("Nothing logged yet — sync passes, mounts and errors appear here.")
+                    text: Bridge.logs.length === 0
+                          ? qsTr("Nothing logged yet — sync passes, mounts and errors appear here.")
+                          : qsTr("No line matches the filter.")
                     color: Theme.textTertiary
                     font.pixelSize: Theme.fontSmall
                 }
@@ -59,10 +84,10 @@ Item {
                 ListView {
                     id: list
                     anchors.fill: parent
-                    visible: Bridge.logs.length > 0
+                    visible: page.lines.length > 0
                     clip: true
                     reuseItems: true
-                    model: Bridge.logs
+                    model: page.lines
                     spacing: 1
                     ScrollBar.vertical: ScrollBar {}
 

@@ -89,6 +89,20 @@ int32_t nidvue_client_sync_pair_remove(NidvueClient *client, const char *name,
 int32_t nidvue_client_sync_pair_set_paused(NidvueClient *client, const char *name,
                                            int32_t paused, char **out, char **err);
 
+/* Replace one pair's include/exclude globs (comma-separated) and write the
+ * new pair list into *out. */
+int32_t nidvue_client_sync_pair_set_filters(NidvueClient *client, const char *name,
+                                            const char *include, const char *exclude,
+                                            char **out, char **err);
+
+/* Read one configuration value by dotted key into *out as JSON. */
+int32_t nidvue_client_config_get(NidvueClient *client, const char *key,
+                                 char **out, char **err);
+
+/* Write one configuration value by dotted key and persist it. */
+int32_t nidvue_client_config_set(NidvueClient *client, const char *key,
+                                 const char *value, char **err);
+
 /* Open conflicts as a JSON array into *out. */
 int32_t nidvue_client_conflicts_json(NidvueClient *client, char **out);
 

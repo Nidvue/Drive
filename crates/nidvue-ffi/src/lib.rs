@@ -648,6 +648,134 @@ pub unsafe extern "C" fn nidvue_client_sync_now(
     }
 }
 
+/// Replace one pair's include and exclude globs.
+///
+/// Each argument is a comma-separated glob list; an empty string clears it.
+/// The new pair list goes into `*out`.
+///
+/// # Safety
+/// `client`, `name`, `include` and `exclude` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_sync_pair_set_filters(
+    client: *mut NidvueClient,
+    name: *const c_char,
+    include: *const c_char,
+    exclude: *const c_char,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let Some(name) = cstr(name) else {
+        set_err(err, "name is required");
+        return NIDVUE_INVALID;
+    };
+    let split = |text: Option<&str>| -> Vec<String> {
+        text.unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|glob| !glob.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let include = split(cstr(include));
+    let exclude = split(cstr(exclude));
+    match catch_unwind(AssertUnwindSafe(|| {
+        client
+            .client
+            .set_sync_pair_filters(name, include, exclude)?;
+        serde_json::to_string(&client.client.sync_pairs())
+            .map_err(|e| nidvue_core::NidvueError::Internal(format!("pairs json: {e}")))
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_sync_pair_set_filters");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Read one configuration value by dotted key into `*out` as JSON.
+///
+/// # Safety
+/// `client` and `key` must be valid for the call; `out` a valid out-pointer.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_config_get(
+    client: *mut NidvueClient,
+    key: *const c_char,
+    out: *mut *mut c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let Some(key) = cstr(key) else {
+        set_err(err, "key is required");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        client
+            .client
+            .config_get(key)
+            .and_then(|value| {
+                serde_json::to_string(&value)
+                    .map_err(|e| nidvue_core::NidvueError::Internal(format!("config json: {e}")))
+            })
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_config_get");
+            NIDVUE_PANIC
+        }
+    }
+}
+
+/// Write one configuration value by dotted key and persist it.
+///
+/// The value is JSON when it parses (lists, numbers, booleans, quoted strings)
+/// and a plain string otherwise.
+///
+/// # Safety
+/// `client`, `key` and `value` must be valid for the call.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_config_set(
+    client: *mut NidvueClient,
+    key: *const c_char,
+    value: *const c_char,
+    err: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        set_err(err, "client is null");
+        return NIDVUE_INVALID;
+    };
+    let (Some(key), Some(value)) = (cstr(key), cstr(value)) else {
+        set_err(err, "key and value are required");
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| client.client.config_set(key, value))) {
+        Ok(Ok(_)) => NIDVUE_OK,
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_client_config_set");
+            NIDVUE_PANIC
+        }
+    }
+}
+
 /// Open conflicts as a JSON array.
 ///
 /// # Safety

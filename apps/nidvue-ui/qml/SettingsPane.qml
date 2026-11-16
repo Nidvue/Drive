@@ -181,68 +181,89 @@ ColumnLayout {
             Repeater {
                 model: Bridge.syncPairs
 
-                delegate: RowLayout {
+                delegate: ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.gapSm
+                    spacing: Theme.gapXs
 
-                    ColumnLayout {
+                    RowLayout {
                         Layout.fillWidth: true
-                        spacing: 0
+                        spacing: Theme.gapSm
 
-                        Label {
-                            text: modelData.name
-                            color: modelData.paused ? Theme.textSecondary : Theme.textPrimary
-                            font.pixelSize: Theme.fontBody
-                            font.bold: true
-                            elide: Text.ElideRight
+                        ColumnLayout {
                             Layout.fillWidth: true
+                            spacing: 0
+
+                            Label {
+                                text: modelData.name
+                                color: modelData.paused ? Theme.textSecondary : Theme.textPrimary
+                                font.pixelSize: Theme.fontBody
+                                font.bold: true
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+
+                            Label {
+                                text: modelData.local + "  \u21c5  " + modelData.remote
+                                color: Theme.textTertiary
+                                font.pixelSize: Theme.fontCaption
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
                         }
 
                         Label {
-                            text: modelData.local + "  \u21c5  " + modelData.remote
+                            text: Bridge.syncSummary(modelData.name)
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontCaption
-                            elide: Text.ElideMiddle
+                            visible: text.length > 0
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            text: qsTr("Paused")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontCaption
+                            visible: modelData.paused
+                        }
+
+                        PillButton {
+                            variant: "ghost"
+                            text: qsTr("Sync")
+                            enabled: Bridge.loggedIn && !Bridge.busy
+                            onClicked: Bridge.syncPairNow(modelData.name)
+                            Accessible.name: qsTr("Sync %1 now").arg(modelData.name)
+                        }
+
+                        Toggle {
+                            checked: modelData.paused
+                            accessibleName: qsTr("Pause %1").arg(modelData.name)
+                            onToggled: function (value) {
+                                Bridge.setSyncPairPaused(modelData.name, value)
+                            }
+                        }
+
+                        PillButton {
+                            variant: "danger"
+                            text: qsTr("Remove")
+                            onClicked: Bridge.removeSyncPair(modelData.name)
+                            Accessible.name: qsTr("Remove %1").arg(modelData.name)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.gapMd
+                        spacing: Theme.gapSm
+
+                        Field {
+                            id: excludeField
                             Layout.fillWidth: true
+                            placeholderText: qsTr("Exclude globs, comma separated (e.g. **/node_modules, *.tmp)")
+                            text: (modelData.exclude || []).join(", ")
+                            Accessible.name: qsTr("Exclude globs for %1").arg(modelData.name)
+                            onEditingFinished: Bridge.setSyncPairFilters(
+                                modelData.name, (modelData.include || []).join(", "), text)
                         }
-                    }
-
-                    Label {
-                        text: Bridge.syncSummary(modelData.name)
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontCaption
-                        visible: text.length > 0
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        text: qsTr("Paused")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontCaption
-                        visible: modelData.paused
-                    }
-
-                    PillButton {
-                        variant: "ghost"
-                        text: qsTr("Sync")
-                        enabled: Bridge.loggedIn && !Bridge.busy
-                        onClicked: Bridge.syncPairNow(modelData.name)
-                        Accessible.name: qsTr("Sync %1 now").arg(modelData.name)
-                    }
-
-                    Toggle {
-                        checked: modelData.paused
-                        accessibleName: qsTr("Pause %1").arg(modelData.name)
-                        onToggled: function (value) {
-                            Bridge.setSyncPairPaused(modelData.name, value)
-                        }
-                    }
-
-                    PillButton {
-                        variant: "danger"
-                        text: qsTr("Remove")
-                        onClicked: Bridge.removeSyncPair(modelData.name)
-                        Accessible.name: qsTr("Remove %1").arg(modelData.name)
                     }
                 }
             }
