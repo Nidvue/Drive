@@ -38,6 +38,7 @@ public:
     bool available() const;
     QString statusText() const { return m_statusText; }
 
+    /// Notify a new conflict or a fresh error, then keep the icon honest.
     /// Show the compact popup next to the tray, or hide it when visible.
     Q_INVOKABLE void togglePopup();
     Q_INVOKABLE void showPopup();
@@ -69,4 +70,7 @@ private:
     QPointer<QQuickWindow> m_popup;
     QPointer<QQuickWindow> m_settings;
     QString m_statusText;
+    QString m_lastHealth;
+    qulonglong m_lastConflicts = 0;
+    bool m_firstRefresh = true;
 };

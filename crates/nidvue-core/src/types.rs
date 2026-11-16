@@ -150,12 +150,17 @@ pub enum ConflictPolicy {
 }
 
 impl ConflictPolicy {
-    /// Parse from the configuration strings.
+    /// Parse from the configuration strings, the CLI words and the labels the
+    /// UI and the conflict table use (`keep_local`, `keep_remote`).
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "keep_both" | "keep-both" | "both" => Some(Self::KeepBoth),
-            "prefer_local" | "prefer-local" | "local" => Some(Self::PreferLocal),
-            "prefer_remote" | "prefer-remote" | "remote" => Some(Self::PreferRemote),
+            "prefer_local" | "prefer-local" | "local" | "keep_local" | "keep-local" => {
+                Some(Self::PreferLocal)
+            }
+            "prefer_remote" | "prefer-remote" | "remote" | "keep_remote" | "keep-remote" => {
+                Some(Self::PreferRemote)
+            }
             _ => None,
         }
     }
@@ -173,6 +178,24 @@ impl ConflictPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn conflict_policy_parses_every_documented_spelling() {
+        for text in ["keep_local", "keep-local", "prefer_local", "local"] {
+            assert_eq!(ConflictPolicy::parse(text), Some(ConflictPolicy::PreferLocal));
+        }
+        for text in ["keep_remote", "keep-remote", "prefer_remote", "remote"] {
+            assert_eq!(
+                ConflictPolicy::parse(text),
+                Some(ConflictPolicy::PreferRemote)
+            );
+        }
+        assert_eq!(
+            ConflictPolicy::parse("keep_both"),
+            Some(ConflictPolicy::KeepBoth)
+        );
+        assert_eq!(ConflictPolicy::parse("nonsense"), None);
+    }
 
     #[test]
     fn content_comparison_uses_hashes() {

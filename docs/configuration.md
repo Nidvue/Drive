@@ -73,12 +73,12 @@ Each `[[sync.pairs]]` entry has `name`, `local`, `remote`, `paused`,
 | `log.json` | false | JSON lines |
 | `log.dir` | empty | rotating file log directory |
 | `log.max_files` | 7 | rotated files kept |
-| `log.otel_endpoint` | none | OTLP/HTTP base URL, e.g. `http://127.0.0.1:4318`; exports to `<endpoint>/v1/metrics` |
-| `log.otel_interval_s` | 15 | seconds between OTLP exports |
+| `log.otel_endpoint` | none | OTLP/HTTP base URL, e.g. `http://127.0.0.1:4318`; posts metrics to `<endpoint>/v1/metrics` and per-pass spans to `<endpoint>/v1/traces` |
+| `log.otel_interval_s` | 15 | seconds between OTLP metric exports |
 | `log.prometheus_bind` | none | bind address for the scrape endpoint, e.g. `127.0.0.1:9464` |
-| `ui.theme` | `system` | `system`, `dark`, `light` |
-| `ui.language` | `en` | BCP-47 tag |
-| `ui.start_minimised` | false | start in the tray |
+| `ui.theme` | `system` | reserved: the desktop app keeps its theme choice in Qt settings |
+| `ui.language` | `en` | reserved: no translation ships yet |
+| `ui.start_minimised` | false | reserved: not read by the app yet |
 
 ## `[secret]`
 
@@ -96,7 +96,8 @@ downgrading.
 ## CLI flags
 
 `nidvue-cli` exposes `--state`, `--json`, and per-command flags (`--token-stdin`,
-`--read-only`, `--bench`).
+`--read-only`, `--bench`, `--include`, `--exclude`, `--conflict-policy`,
+`--paused`).
 
 Every key above is also reachable by dot path, which is what closes the long
 tail without a flag per key:
@@ -109,12 +110,15 @@ nidvue-cli config get cache.max_size_bytes  # one leaf
 nidvue-cli config set cache.max_size_bytes 1048576
 nidvue-cli config set secret.backend keyring
 nidvue-cli config set log.prometheus_bind 127.0.0.1:9464
+nidvue-cli config set sync.pairs.docs.exclude '["**/node_modules", "*.tmp"]'
 ```
 
-The value is parsed against the type already there, the result is validated
-before it is written, and an unknown key is an error that names the closest
-match. A value that would make the configuration invalid (a zero cache, a
-watermark pair out of order) is refused, not written.
+A list is addressed by index (`sync.pairs.0.paused`) or by the name of one of
+its entries (`sync.pairs.docs.paused`), so a pair is addressable without
+counting. The value is parsed against the type already there, the result is
+validated before it is written, and an unknown key is an error that names the
+closest match. A value that would make the configuration invalid (a zero cache,
+a watermark pair out of order) is refused, not written.
 
 ## Telemetry
 
@@ -126,7 +130,8 @@ curl -s http://127.0.0.1:9464/healthz    # ok
 ```
 
 `log.otel_endpoint = "http://127.0.0.1:4318"` posts OTLP/HTTP JSON metrics every
-`log.otel_interval_s` seconds. Both read the same snapshot, so a scrape and an
-export cannot disagree. Neither transport can stop a sync: a collector that is
+`log.otel_interval_s` seconds, and one span per finished sync pass, failed
+transfer and error-health transition to `<endpoint>/v1/traces`. The metrics and
+the scrape read the same snapshot, so they cannot disagree. Neither transport can stop a sync: a collector that is
 down is a logged warning. `nidvue-cli doctor` reports which transports are live
 and which store holds the credentials.
