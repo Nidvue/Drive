@@ -419,7 +419,7 @@ fn ffi_smoke() -> Result<(), String> {
         root.join("crates/nidvue-ffi/include").display().to_string(),
         library.display().to_string(),
     ];
-    link.extend(platform_link_libraries(&root));
+    link.extend(platform_link_libraries());
     let args: Vec<&str> = link.iter().map(String::as_str).collect();
     run("cc", &args, &root, "cc the C consumer")?;
     let state = std::env::temp_dir().join(format!("nidvue-ffi-state-{}", std::process::id()));
@@ -436,15 +436,13 @@ fn ffi_smoke() -> Result<(), String> {
     Ok(())
 }
 
-fn platform_link_libraries(root: &Path) -> Vec<String> {
+fn platform_link_libraries() -> Vec<String> {
     let mut out = vec![
         "-lpthread".to_string(),
         "-ldl".to_string(),
         "-lm".to_string(),
     ];
-    let manifest =
-        std::fs::read_to_string(root.join("crates/nidvue-core/Cargo.toml")).unwrap_or_default();
-    if manifest.contains("keyring") && cfg!(target_os = "linux") {
+    if cfg!(target_os = "linux") {
         out.push("-ldbus-1".to_string());
     }
     out

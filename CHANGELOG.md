@@ -15,7 +15,11 @@ Closes the credential, telemetry and transfer-list deviations from `v0.1.0`.
   by `secret.backend` (`auto` by default): Secret Service on Linux, the Security
   framework on macOS, the Credential Manager on Windows. `auto` probes the
   platform store and falls back to the encrypted file with the reason recorded;
-  `doctor` prints which store is live and why.
+  `doctor` prints which store is live and why. The Linux backend needs
+  `libdbus-1-dev` at build time (already a runtime dependency of every Linux
+  desktop) and is declared in the CI and packaging steps; an explicitly
+  requested `keyring` that cannot work is a failed `doctor` check, never a
+  silent downgrade.
 - `nidvue-telemetry`: a Prometheus scrape endpoint (`log.prometheus_bind`, text
   exposition 0.0.4 on `/metrics` and `/healthz`) and an OTLP/HTTP JSON metrics
   exporter (`log.otel_endpoint`, `<endpoint>/v1/metrics`, interval
@@ -42,10 +46,10 @@ Closes the credential, telemetry and transfer-list deviations from `v0.1.0`.
   registry instead of two zeroes.
 
 ### Fixed
-- The UI linked without `libdbus-1`, which the keyring backend needs on Linux;
-  the CMake target now resolves it through `pkg-config`.
 - `Transfers.qml` was missing from the QML resource list, so the page could not
   be loaded.
+- `doctor` aborted instead of reporting when the engine could not open; it now
+  records the failure as a check and returns the report.
 
 ## [0.1.0] - 2026-11-14
 
