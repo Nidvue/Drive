@@ -31,6 +31,7 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 | secret scan | `cargo xtask secrets` | yes |
 | DCO | `cargo xtask dco` | yes, on pull requests |
 | UI | `cargo xtask ui && cargo xtask ui-smoke` | yes |
+| C ABI | `cargo xtask ffi-smoke` (compile, link and run a C consumer) | yes |
 | real FUSE mount | `cargo test -p nidvue-mount -- --include-ignored` | yes, in the `fuse mount smoke` job |
 | CodeQL | `.github/workflows/codeql.yml` (C++ only) | alert, not a merge block |
 

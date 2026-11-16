@@ -46,6 +46,8 @@ Direct dependencies and why each is allowed:
 | rusqlite (bundled) | MIT | journal, metadata index, sync state |
 | sha2, md-5 | MIT/Apache-2.0 | content identity, Allocate MD5 |
 | chacha20poly1305 | MIT/Apache-2.0 | encrypted credential file |
+| keyring | MIT/Apache-2.0 | OS credential store (Secret Service, Security framework, Credential Manager) |
+| secret-service, zbus, dbus-secret-service | MIT | the Linux keyring backend, reached over D-Bus |
 | fuser | MIT | FUSE3 bindings |
 | wasmtime | Apache-2.0 WITH LLVM-exception | WASM plugin sandbox |
 | notify | CC0-1.0 | filesystem events |
@@ -54,6 +56,7 @@ Direct dependencies and why each is allowed:
 | tracing, tracing-subscriber | MIT | structured logs |
 | schemars | MIT | JSON schema generation |
 | zeroize | MIT/Apache-2.0 | wiping key material |
+| (none new) | — | the OTLP exporter reuses `reqwest`; no `opentelemetry-*` crate is linked |
 
 The authoritative, version-pinned list is `Cargo.lock` plus
 `cargo deny list`; this table is the human-readable summary.
