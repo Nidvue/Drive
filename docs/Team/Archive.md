@@ -232,3 +232,81 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: cargo xtask arch @9c34e07 -> 11 crates, contract holds; grep for the three new config keys in docs/configuration.md @9c34e07 -> present with defaults matching nidvue-core/src/config.rs; docs/performance.md @9c34e07 -> every quoted number matches the bench output recorded in this review's siblings (189 ms, 86.8 %, 274x, 664/861/57 ms, 54 MiB) | artifacts: docs/deviations.md:f8c3474dd1ea3071:6091 | replay: cargo xtask arch
 - findings history: 
 - branch / merge: - / pending
+
+## T-0025 · Dot-path configuration for the CLI, the SDK and the C ABI  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (sequential; see Board snapshot)
+- task / issue: -
+- area: config
+- self-check: [pass] Re-read the change: `nidvue_core::config::dot` walks the serialised `AppConfig`, so a key in the file is a key on the path and an unknown key is refused with the closest match; a list segment is an index or the `name` of an entry, so `sync.pairs.docs.exclude` addresses one pair without counting; `set` coerces against the type already there and validates before the value replaces the old one, so a refused value leaves the file byte-identical; the CLI, the SDK (`config_get`/`config_set`) and the C ABI (`nidvue_client_config_get`/`_set`) all call the one implementation, and the old duplicate in `nidvue-cli` is now a re-export. | test: cargo test -p nidvue-core -p nidvue-cli -p nidvue-sdk @33fa2e4 -> 40 passed, 0 failed | artifacts: crates/nidvue-core/src/config.rs | replay: cargo test -p nidvue-core config
+- author evidence: cargo test -p nidvue-cli @33fa2e4 -> 3 cli + 5 config tests pass, including a pair-name path and a rejected zero cache
+- reviewer evidence: cargo test -p nidvue-core config @33fa2e4 -> 7 passed (path_get_and_set_reach_every_value, path_set_refuses_unknown_keys_and_bad_values, leaves_name_each_pair_and_its_values) | replay: cargo test -p nidvue-core config
+- findings history: the first pass duplicated the CLI's dot-path module in core; the reviewer required one implementation, so the CLI re-exports core's module
+- branch / merge: feat/ux-parity-v2 / pending
+
+## T-0028 · The Conflict Center resolves a conflict  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (sequential)
+- task / issue: -
+- area: conflicts
+- self-check: [pass] Re-read the change: `Conflicts.qml` and `nidvue-cli conflicts resolve` both pass `keep_local`/`keep_remote`, and `ConflictPolicy::parse` accepted neither, so every resolve click returned a config error. The parser now accepts both spellings (with the hyphenated variants) and the config names, and a test covers every documented spelling plus a nonsense one. Nothing else changed: the resolution path, the conflict copy and the archive entry are untouched. | test: cargo test -p nidvue-core conflict_policy @33fa2e4 -> 1 passed | artifacts: crates/nidvue-core/src/types.rs | replay: cargo test -p nidvue-core conflict_policy
+- author evidence: cargo test -p nidvue-core @33fa2e4 -> conflict_policy_parses_every_documented_spelling passes; the UI buttons pass `keep_local`, which now parses to `PreferLocal`
+- reviewer evidence: grep -n 'keep_local' apps/nidvue-ui/qml/Conflicts.qml @33fa2e4 -> the button passes the label the parser now accepts; cargo test -p nidvue-core conflict_policy @33fa2e4 -> 1 passed
+- findings history: -
+- branch / merge: feat/ux-parity-v2 / pending
+
+## T-0026 · Sync-pair management and the long tail from the CLI  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (sequential)
+- task / issue: -
+- area: cli
+- self-check: [pass] Re-read the change: `sync add` gained `--include`, `--exclude`, `--conflict-policy` and `--paused`; `sync remove`, `sync pause`, `sync resume` and `sync list --json` were added, each persisting through `AppConfig::save` (so `validate` runs before the write) and each reporting a missing pair as an error instead of a silent no-op. `restore_sigpipe` makes `nidvue-cli … | head` end the output instead of panicking. The empty case (`sync remove ghost`) and the second call (`sync add` twice) are covered by tests. | test: cargo test -p nidvue-cli @33fa2e4 -> 8 passed, 0 failed | artifacts: crates/nidvue-cli/src/main.rs, crates/nidvue-cli/tests/cli.rs | replay: cargo test -p nidvue-cli
+- author evidence: cargo test -p nidvue-cli @33fa2e4 -> a_pair_is_added_listed_filtered_and_removed, config_get_set_reach_a_nested_value_and_reject_a_bad_one, config_list_names_every_key_it_can_set all pass
+- reviewer evidence: nidvue-cli --state <tmp> sync add docs … --exclude '**/node_modules' then --json sync list @33fa2e4 -> exclude array present; nidvue-cli config list | head -> no panic
+- findings history: -
+- branch / merge: feat/ux-parity-v2 / pending
+
+## T-0027 · Pair filters, log filter and tray notifications in the UI  (developer)
+- date: 2026-11-16
+- priority: P1
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (sequential)
+- task / issue: -
+- area: ui
+- self-check: [pass] Re-read the change: the Settings pair row shows the pair's exclude globs and writes them back through `nidvue_client_sync_pair_set_filters` (comma-separated, trimmed, empty clears), which is validated in Rust before the write; the Activity page filters its list without touching the model; the tray compares the conflict count and the health between refreshes, so a new conflict and the first error of a run are announced once and a startup is silent. Empty case: no pairs, no filter match, and no tray host each degrade to the previous behaviour. | test: cargo xtask ui-smoke @33fa2e4 -> engine initialised, no QML errors | artifacts: apps/nidvue-ui/qml/SettingsPane.qml, Logs.qml, tray.cpp | replay: cargo xtask ui && cargo xtask ui-smoke
+- author evidence: cargo xtask ui && cargo xtask ui-smoke @33fa2e4 -> UI built, both windows instantiate offscreen with no QML errors
+- reviewer evidence: cargo xtask ui-smoke @33fa2e4 -> "engine initialised, no QML errors"; grep -n setSyncPairFilters apps/nidvue-ui/bridge.cpp -> worker slot, bridge method and connection present
+- findings history: -
+- branch / merge: feat/ux-parity-v2 / pending
+
+## T-0029 · One configuration lock in the SDK  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (sequential)
+- task / issue: -
+- area: sdk
+- self-check: [pass] Re-read the change: `Inner::config` is an `RwLock<AppConfig>`, every writer (`set_paused`, `set_bandwidth_limit_bps`, `set_cache_limit_bytes`, the pair operations, `config_set`) goes through one path that validates, saves atomically and then applies the live atomics, so `Client::config()` can no longer return a value older than the last write. Concurrent writers serialise on the lock; readers clone. A rejected value leaves both the file and the in-memory copy untouched, which the test asserts. | test: cargo test -p nidvue-sdk @33fa2e4 -> 5 lib tests pass | artifacts: crates/nidvue-sdk/src/lib.rs | replay: cargo test -p nidvue-sdk
+- author evidence: cargo test -p nidvue-sdk config_set_persists_and_applies_live_values @33fa2e4 -> 1 passed
+- reviewer evidence: cargo test -p nidvue-sdk pair_filters_are_validated_and_persisted @33fa2e4 -> 1 passed; cargo test -p nidvue-sdk @33fa2e4 -> 5 passed
+- findings history: -
+- branch / merge: feat/ux-parity-v2 / pending
+
+## T-0030 · CLI integration tests  (tester)
+- date: 2026-11-16
+- priority: P1
+- owner: tester role (work by: Tester)
+- reviewer: Reviewer-1 (sequential)
+- task / issue: -
+- area: cli
+- self-check: [pass] Re-read the change: the tests run the built binary against a temporary state directory, so they cover argument parsing, the file the CLI writes and the value a later read returns — the seam that actually breaks. They assert the failure cases too (unknown key, a zero cache, a missing pair) and that a refused write leaves the previous value in place. | test: cargo test -p nidvue-cli --test cli @33fa2e4 -> 3 passed | artifacts: crates/nidvue-cli/tests/cli.rs | replay: cargo test -p nidvue-cli --test cli
+- author evidence: cargo test -p nidvue-cli --test cli @33fa2e4 -> 3 passed, 0 failed
+- reviewer evidence: cargo test -p nidvue-cli --test cli @33fa2e4 -> 3 passed; the suite fails when `config set` stops writing the file (checked by reading the assertion bodies, not by mutation)
+- findings history: -
+- branch / merge: feat/ux-parity-v2 / pending
