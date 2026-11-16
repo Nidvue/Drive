@@ -26,7 +26,7 @@ the reasons for the big calls. Each "big call" also has an ADR in `docs/adr/`.
                                               │
    ┌──────────────┬──────────────┬────────────┴───┬───────────────┐
    │ nidvue-sync  │  nidvue-vfs  │  nidvue-mount  │ nidvue-plugin │
-   │ journal      │  read/write  │  FUSE3/WinFSP  │ WASM host     │
+   │ journal      │  read/write  │  FUSE3/macFUSE │ WASM host     │
    │ scanner      │  pipeline    │  adapters      │ capabilities  │
    │ reconciler   │              │                │               │
    └──────┬───────┴──────┬───────┴────────┬───────┴───────┬───────┘
@@ -37,11 +37,16 @@ the reasons for the big calls. Each "big call" also has an ADR in `docs/adr/`.
    │   LRU-K eviction · pins · readahead                          │
    └──────────────────────────────┬───────────────────────────────┘
                                   │
-   ┌──────────────────────────────▼───────────────────────────────┐
-   │                        nidvue-jotta                          │
-   │  auth (OIDC + personal login token) · JFS XML · Allocate      │
-   │  token bucket · AIMD · single-flight · retry with jitter      │
-   └──────────────────────────────┬───────────────────────────────┘
+   ┌──────────────────────────────┼───────────────────────────────┐
+   │                              ▼                               │
+   │  ┌──────────────────────────┐   ┌─────────────────────────┐  │
+   │  │      nidvue-jotta        │   │    nidvue-telemetry     │  │
+   │  │  auth (OIDC + token)     │   │  /metrics scrape        │  │
+   │  │  JFS XML · Allocate      │   │  OTLP/HTTP exporter     │  │
+   │  │  bucket · AIMD · retry   │   │  reads core::metrics    │  │
+   │  └────────────┬─────────────┘   └────────────┬────────────┘  │
+   │               │                              │               │
+   └───────────────┴──────────────┬───────────────┘───────────────┘
                                   │
    ┌──────────────────────────────▼───────────────────────────────┐
    │                        nidvue-core                           │
@@ -54,7 +59,8 @@ Rules, enforced by review and by the dependency list of each `Cargo.toml`:
 | Rule | Why |
 |---|---|
 | `core` depends on no Nidvue crate | everything may depend on it; it must never depend back |
-| only `jotta` speaks HTTP | one place for auth, retry, rate limiting, redaction |
+| only `jotta` and `telemetry` speak HTTP | one place for auth, retry, rate limiting, redaction; telemetry is a second egress with its own contract and cannot touch credentials |
+| `core` owns the metric payloads, `telemetry` only moves them | the wire formats are pure functions with unit tests, and neither transport can change a value |
 | only `mount` touches the kernel | the VFS semantics are platform-independent |
 | `sync` never mentions Qt | the engine is usable headless, from the CLI, from a test |
 | the UI performs no I/O | every byte arrives through the FFI bridge as typed state |

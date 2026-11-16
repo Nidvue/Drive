@@ -6,21 +6,35 @@ Every requirement that is not fully met is listed here with the reason and the
 upgrade path. An empty row is not allowed: "works" without evidence is not a
 status.
 
-Status at `v0.1.0`.
+Status at `v0.2.0`. Three items closed in this release (3, 4, 5); one narrowed
+(7); the rest are unchanged, and each carries the measurement or the build
+prerequisite that keeps it open.
+
+## Closed in v0.2.0
+
+| # | Requirement | Was | Now |
+|---|---|---|---|
+| 3 | OS keyring for credentials | not wired | `secret.backend = auto` (default) probes the platform store and uses it when it answers, with the encrypted file as the fallback and the reason recorded. `auto` is verified by `secret::tests::auto_always_lands_on_a_working_store`; the real Secret Service round trip is `secret::tests::keyring_round_trips_through_the_os_store`, which is `#[ignore]`d because it needs a running provider on the session bus — this build machine has a bus and no provider, so the fallback branch is the one that ran. |
+| 4 | OpenTelemetry export | config field only | `log.otel_endpoint` exports OTLP/HTTP JSON to `<endpoint>/v1/metrics` every `log.otel_interval_s` seconds, through the existing HTTP client. No `opentelemetry-*` dependency: the payload is built in `nidvue-core::metrics` and posted by `nidvue-telemetry`. Verified by `exporter_posts_otlp_json` against a mock collector. |
+| 5 | Prometheus endpoint | config field only | `log.prometheus_bind` serves `/metrics` (text exposition 0.0.4) and `/healthz` from the live snapshot. Verified end to end by `the_scrape_endpoint_serves_live_values`, which binds the real socket and reads the real response. |
+
+## Open
 
 | # | Requirement | Status | Reason / upgrade path |
 |---|---|---|---|
-| 1 | macOS mount backend (macFUSE) | not compiled | The macFUSE headers are not available in this build environment, so `nidvue-mount` returns a typed `Unsupported` on macOS rather than shipping an unbuildable adapter. The VFS contract is platform-independent and covered by the Linux mount test; enabling macFUSE is a build-flag change plus a CI runner with the SDK. |
+| 1 | macOS mount backend (macFUSE) | not compiled | `fuser` 0.18 supports macOS (`macfuse-4-compat`), so the adapter is the same code as Linux behind a different `cfg`; what is missing is the macFUSE headers at build time. `nidvue-mount` returns a typed `Unsupported` on macOS rather than shipping an unbuildable module. Enabling it is a build flag plus a runner with the SDK. |
 | 1b | macOS CI job | omitted | This organisation's Actions cannot start a macOS runner: the job is cancelled before it runs (three attempts, no runner assigned). The macOS packaging recipe and the adapter contract exist; a runner is all that is missing. |
-| 2 | Windows mount backend (WinFSP) | not implemented | `nidvue-mount` returns a typed `Unsupported` on Windows instead of pretending. The WinFSP host bindings are the remaining work; the VFS contract and errno mapping are platform-independent and already tested. |
-| 3 | OS keyring for credentials | not wired | Tokens are encrypted at rest with ChaCha20-Poly1305 in `credentials.enc` (`0600` key file beside it). Threat model: protects against accidental disclosure (backups, log scraping, crash reports), not against an attacker who can read the state directory. A keyring backend slots in behind `SecretStore`. |
-| 4 | OpenTelemetry export | config field only | `log.otel_endpoint` exists and is documented, but no OTLP exporter is wired. CI cannot assert an external collector; JSON/Prometheus-shaped status is the tested path. |
-| 5 | Prometheus endpoint | config field only | `log.prometheus_bind` is documented; the endpoint is not served yet. `status --json` is the machine-readable path today. |
-| 6 | 100k-file initial sync measurement | synthetic only | Measured against the fake Jotta server in `tests/`; the real service's behaviour is not a property this project can guarantee. The engine is bounded by the index, not by RAM (state lives in SQLite). |
-| 7 | Cold read / sustained transfer / UI frame budgets | not measured | These need a real 50 Mbit link and a windowed session. `doctor --bench` measures the cache and metadata budgets, which are green; the rest are listed in `docs/performance.md` as pending rather than claimed. |
-| 8 | Every config value has a CLI flag and a UI control | partial | All values are documented with defaults in `docs/configuration.md` and validated; `--state`, `--json`, `--token-stdin`, `--read-only` and `sync add` cover the common path. The long tail is TOML-only. |
+| 2 | Windows mount backend (WinFSP) | not implemented | `fuser` 0.18 has no Windows backend (its feature list is `libfuse`, `libfuse2`, `libfuse3`, `macfuse-4-compat`, `macos-no-mount`, `async-trait`, `tokio`, `serde`, `serializable`, `experimental` — no WinFSP), so this is a second host implementation against the WinFSP API, not a build flag. `nidvue-mount` returns a typed `Unsupported` on Windows instead of pretending. The VFS contract and the errno mapping are platform-independent and tested. |
+| 6 | 100k-file initial sync measurement | synthetic, measured | Measured, but against a local filesystem and an empty remote, not the real service: `cargo bench -p nidvue-benches --bench initial_sync` scans 100 000 paths in 664 ms, indexes them in 861 ms, and plans the first pass in 57 ms with a 54 MiB peak RSS (566 bytes/path). What this does not cover is 100k network transfers, which are bounded by the link, not by the engine. Numbers in [`performance.md`](performance.md). |
+| 7 | Cold read / sustained transfer / UI frame budgets | measured, UI frame not | Cold read and sustained transfer are measured against an emulated 50 Mbit/s link: 189 ms for 1 MiB (budget 400 ms) and 86.8 % of link capacity sustained (budget 80 %). The UI frame budget is still unmeasured — it needs a windowed session on a real display, and `cargo xtask ui-smoke` only proves the QML engine starts headless. |
+| 8 | Every config value has a CLI flag and a UI control | CLI closed, UI partial | Every key is now readable and writable by dot path: `nidvue-cli config get|set|list|path`, verified by `every_leaf_round_trips_through_set`, which walks the whole configuration. The UI still exposes only the common path; the long tail is CLI and TOML. |
 | 9 | Qt end-to-end against a live account | manual | CI builds the UI, launches it headlessly (`QT_QPA_PLATFORM=offscreen`) and asserts it initialises the engine with no QML errors. A live account is not available to CI. |
 | 9b | Tray on desktops without a status-notifier host | best-effort | `QSystemTrayIcon` needs a tray host; on a bare Wayland session without one the icon is absent and the app behaves as if it had no tray (closing the window quits). The controller checks `isSystemTrayAvailable()` rather than showing a dead icon. |
-| 10 | Virtualised 100k-row views | partial | Log and conflict lists use `ListView` with `reuseItems`; a 100k-row transfer list is not implemented because the transfer list itself is not exposed as a model yet (the dashboard shows aggregates). |
+| 10 | Virtualised 100k-row views | closed for transfers | The transfer list is exposed (`Status.transfers`, `nidvue_client_transfers_json`) and rendered by `Transfers.qml` with `reuseItems: true` over a bounded model — `MAX_TRANSFERS` (512) rows, evicted oldest-first, and a live row is never evicted. Verified by `the_list_is_bounded_and_keeps_live_rows` and `transfers_are_folded_from_the_event_bus`. |
 | 11 | OIDC login by username/password | not implemented | Only the Personal Login Token flow is supported, which is the flow Jottacloud documents for command-line clients. No password is ever collected or stored. |
 | 12 | Native plugin dylibs | refused | `PluginHost::load` refuses a native plugin with a typed error. Loading one is a licence decision (it must be AGPL-3.0) and needs a trusted-dylib host; neither is half-done. |
+
+## Sources
+
+- [`performance.md`](performance.md) — the measured numbers quoted above, with the command that produced each.
+- [`configuration.md`](configuration.md) — every key, including `secret.backend`, `log.otel_endpoint` and `log.prometheus_bind`.
