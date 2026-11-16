@@ -30,7 +30,8 @@ use nidvue_jotta::auth::AuthManager;
 use nidvue_jotta::client::{JottaClient, JottaConfig, Quota};
 use nidvue_mount::{MountHandle, MountOptions};
 use nidvue_plugin::PluginHost;
-use nidvue_sync::{SyncEngine, SyncReport};
+use nidvue_sync::SyncEngine;
+pub use nidvue_sync::SyncReport;
 use nidvue_telemetry::{MetricsCache, OtlpExporter, PrometheusServer};
 use nidvue_vfs::EngineVfs;
 use serde::{Deserialize, Serialize};
@@ -129,6 +130,23 @@ impl From<Quota> for QuotaView {
             quota: q.quota,
         }
     }
+}
+
+/// One installed plugin, as the UI and the CLI show it.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct PluginInfo {
+    /// Plugin id from its manifest.
+    pub id: String,
+    /// Display name.
+    pub name: String,
+    /// Semantic version.
+    pub version: String,
+    /// SPDX licence expression.
+    pub license: String,
+    /// Hooks the plugin declares.
+    pub hooks: Vec<String>,
+    /// Directory it was loaded from.
+    pub dir: String,
 }
 
 struct Inner {
@@ -721,10 +739,7 @@ impl Client {
         })
     }
 
-    fn update_pairs(
-        &self,
-        mutate: impl FnOnce(&mut Vec<SyncPair>) -> Result<()>,
-    ) -> Result<()> {
+    fn update_pairs(&self, mutate: impl FnOnce(&mut Vec<SyncPair>) -> Result<()>) -> Result<()> {
         let mut guard = self
             .inner
             .config
@@ -755,6 +770,33 @@ impl Client {
                 resolution: policy.as_str().to_string(),
             }));
         Ok(())
+    }
+
+    /// Set the cache cap in bytes. Persisted in `config.toml`; the running
+    /// cache picks it up on the next start.
+    pub fn set_cache_limit_bytes(&self, bytes: u64) -> Result<()> {
+        if bytes == 0 {
+            return Err(NidvueError::Config("cache limit must be > 0".into()));
+        }
+        self.config_set("cache.max_size_bytes", &bytes.to_string())?;
+        Ok(())
+    }
+
+    /// The installed plugins, described for the UI and the CLI.
+    pub fn plugin_list(&self) -> Result<Vec<PluginInfo>> {
+        let host = self.plugins()?;
+        Ok(host
+            .plugins()
+            .iter()
+            .map(|p| PluginInfo {
+                id: p.manifest.id.clone(),
+                name: p.manifest.name.clone(),
+                version: p.manifest.version.clone(),
+                license: p.manifest.license.clone(),
+                hooks: p.manifest.capabilities.hooks.clone(),
+                dir: p.dir.display().to_string(),
+            })
+            .collect())
     }
 
     /// Load the plugins installed below `<state>/plugins`.
@@ -878,7 +920,9 @@ mod tests {
 
         client.config_set("sync.paused", "true").unwrap();
         assert!(client.paused());
-        client.config_set("sync.bandwidth_limit_bps", "125000").unwrap();
+        client
+            .config_set("sync.bandwidth_limit_bps", "125000")
+            .unwrap();
         assert_eq!(client.bandwidth_limit_bps(), 125_000);
         assert_eq!(
             client.config_get("sync.pairs.docs.remote").unwrap(),

@@ -33,15 +33,27 @@ fn a_pair_is_added_listed_filtered_and_removed() {
     stdout(&run(
         state,
         &[
-            "sync", "add", "docs", "/tmp/docs", "/Archive/Docs", "--exclude", "**/node_modules",
-            "--exclude", "*.tmp", "--conflict-policy", "keep_local",
+            "sync",
+            "add",
+            "docs",
+            "/tmp/docs",
+            "/Archive/Docs",
+            "--exclude",
+            "**/node_modules",
+            "--exclude",
+            "*.tmp",
+            "--conflict-policy",
+            "keep_local",
         ],
     ));
 
     let listed = stdout(&run(state, &["--json", "sync", "list"]));
     let pairs: serde_json::Value = serde_json::from_str(&listed).unwrap();
     assert_eq!(pairs[0]["name"], "docs");
-    assert_eq!(pairs[0]["exclude"], serde_json::json!(["**/node_modules", "*.tmp"]));
+    assert_eq!(
+        pairs[0]["exclude"],
+        serde_json::json!(["**/node_modules", "*.tmp"])
+    );
     assert_eq!(pairs[0]["conflict_policy"], "prefer_local");
 
     stdout(&run(state, &["sync", "pause", "docs"]));
@@ -51,7 +63,10 @@ fn a_pair_is_added_listed_filtered_and_removed() {
 
     stdout(&run(state, &["sync", "remove", "docs"]));
     let listed = stdout(&run(state, &["--json", "sync", "list"]));
-    assert_eq!(serde_json::from_str::<serde_json::Value>(&listed).unwrap(), serde_json::json!([]));
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&listed).unwrap(),
+        serde_json::json!([])
+    );
 }
 
 #[test]
@@ -63,16 +78,29 @@ fn config_get_set_reach_a_nested_value_and_reject_a_bad_one() {
         &["sync", "add", "docs", "/tmp/docs", "/Archive/Docs"],
     ));
 
-    assert_eq!(stdout(&run(state, &["config", "get", "sync.poll_interval_ms"])).trim(), "5000");
-    stdout(&run(state, &["config", "set", "sync.poll_interval_ms", "15000"]));
-    assert_eq!(stdout(&run(state, &["config", "get", "sync.poll_interval_ms"])).trim(), "15000");
+    assert_eq!(
+        stdout(&run(state, &["config", "get", "sync.poll_interval_ms"])).trim(),
+        "5000"
+    );
+    stdout(&run(
+        state,
+        &["config", "set", "sync.poll_interval_ms", "15000"],
+    ));
+    assert_eq!(
+        stdout(&run(state, &["config", "get", "sync.poll_interval_ms"])).trim(),
+        "15000"
+    );
 
     stdout(&run(
         state,
         &["config", "set", "sync.pairs.docs.exclude", r#"["**/.git"]"#],
     ));
     assert_eq!(
-        stdout(&run(state, &["--json", "config", "get", "sync.pairs.docs.exclude"])).trim(),
+        stdout(&run(
+            state,
+            &["--json", "config", "get", "sync.pairs.docs.exclude"]
+        ))
+        .trim(),
         r#"[
   "**/.git"
 ]"#
@@ -80,7 +108,7 @@ fn config_get_set_reach_a_nested_value_and_reject_a_bad_one() {
 
     let bad = run(state, &["config", "set", "sync.nope", "1"]);
     assert!(!bad.status.success());
-    assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown config key"));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown configuration key"));
 
     let zero = run(state, &["config", "set", "cache.max_size_bytes", "0"]);
     assert!(!zero.status.success());
@@ -106,5 +134,5 @@ fn config_list_names_every_key_it_can_set() {
     }
     let listed = stdout(&run(dir.path(), &["--json", "config", "list"]));
     let config: serde_json::Value = serde_json::from_str(&listed).unwrap();
-    assert!(config["cache"]["max_size_bytes"].is_number());
+    assert!(config["cache.max_size_bytes"].is_number());
 }

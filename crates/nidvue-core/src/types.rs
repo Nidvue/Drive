@@ -182,7 +182,10 @@ mod tests {
     #[test]
     fn conflict_policy_parses_every_documented_spelling() {
         for text in ["keep_local", "keep-local", "prefer_local", "local"] {
-            assert_eq!(ConflictPolicy::parse(text), Some(ConflictPolicy::PreferLocal));
+            assert_eq!(
+                ConflictPolicy::parse(text),
+                Some(ConflictPolicy::PreferLocal)
+            );
         }
         for text in ["keep_remote", "keep-remote", "prefer_remote", "remote"] {
             assert_eq!(

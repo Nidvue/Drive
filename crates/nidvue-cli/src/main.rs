@@ -524,7 +524,10 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 let config = AppConfig::load_or_default(state)?;
                 let value = config_dot::get(&config, key)?;
                 if cli.json {
-                    println!("{}", serde_json::to_string_pretty(&value).unwrap_or_default());
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&value).unwrap_or_default()
+                    );
                 } else {
                     match &value {
                         serde_json::Value::String(text) => println!("{text}"),
@@ -578,13 +581,6 @@ fn set_pair_paused(state: &Path, name: &str, paused: bool) -> Result<(), NidvueE
     config.save(state)?;
     println!("{} pair {name}", if paused { "paused" } else { "resumed" });
     Ok(())
-}
-
-fn plain(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::String(text) => text.clone(),
-        other => other.to_string(),
-    }
 }
 
 async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError> {
