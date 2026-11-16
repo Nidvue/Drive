@@ -18,16 +18,39 @@ Reference machine: Linux x86_64, 24 cores, local NVMe, Rust 1.99 release build.
 | Same page on a 1,000,000-entry index | flat | **270 µs** (dir0 vs dir999) | pass |
 | Three-way plan | — | **1.44 µs/path** (100k paths in 144 ms) | — |
 
-Still to be measured on a real link, and therefore listed in
-`docs/deviations.md` rather than claimed here:
+Against an emulated 50 Mbit/s link, `cargo bench -p nidvue-benches --bench
+transfer` (2026-11-16). The link is the bench's own input — the synthetic remote
+serves bytes at a fixed rate — so the fraction is measured against a link whose
+capacity is known exactly, not against a nominal one:
 
-| Budget | Target (p50) |
-|---|---|
-| Cold read, 1 MiB on a 50 Mbit link | ≤ 400 ms |
-| Sustained transfer | ≥ 80 % of measured link capacity |
-| UI frame | ≤ 16 ms, no frame blocked by engine work |
-| Initial sync, 100k small files | bounded memory, resumable |
-| Eviction while active | ≤ 5 % CPU |
+| Budget | Target | Measured | Verdict |
+|---|---|---|---|
+| Cold read, 1 MiB on a 50 Mbit/s link | ≤ 400 ms | **189 ms** | pass |
+| Sustained transfer | ≥ 80 % of link capacity | **86.8 %** (8 MiB in 64 objects, 5.18 MiB/s) | pass |
+| Warm read after the cold read | ≥ 100× faster | **274×** (690 µs) | pass |
+| Peak RSS during the transfer benches | — | **8.1 MiB** | — |
+
+A 100k-path initial sync, `cargo bench -p nidvue-benches --bench initial_sync`
+(2026-11-16). This measures the engine's half — scan, index, plan — not 100k
+network transfers:
+
+| Step | Measured | Per path |
+|---|---|---|
+| `scan_local` over 100 000 files | **664 ms** | 6.6 µs |
+| index 100 000 rows | **861 ms** | 8.6 µs |
+| first three-way plan over an empty remote (100 100 actions) | **57 ms** | 0.57 µs |
+| peak RSS | **54 MiB** | 566 bytes |
+
+Bounded memory is the claim, and 566 bytes per path is the number behind it: the
+index lives in SQLite, not in RAM.
+
+Still to be measured, and therefore listed in `docs/deviations.md` rather than
+claimed here:
+
+| Budget | Target (p50) | Why it is open |
+|---|---|---|
+| UI frame | ≤ 16 ms, no frame blocked by engine work | needs a windowed session on a real display; `ui-smoke` only proves the QML engine starts headless |
+| Eviction while active | ≤ 5 % CPU | needs a sustained sync against a full cache, which needs the link above |
 
 ## Method
 
@@ -45,6 +68,8 @@ Still to be measured on a real link, and therefore listed in
 
 ```sh
 cargo bench -p nidvue-benches
+cargo bench -p nidvue-benches --bench transfer
+cargo bench -p nidvue-benches --bench initial_sync
 cargo run -p nidvue-cli --release -- doctor --bench
 cargo run -p nidvue-cli --release -- doctor --bench --json > bench.json
 ```

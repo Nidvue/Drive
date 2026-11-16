@@ -6,6 +6,47 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
+Closes the credential, telemetry and transfer-list deviations from `v0.1.0`.
+
+### Added
+- OS keyring credential store behind the existing `SecretStore` seam, selected
+  by `secret.backend` (`auto` by default): Secret Service on Linux, the Security
+  framework on macOS, the Credential Manager on Windows. `auto` probes the
+  platform store and falls back to the encrypted file with the reason recorded;
+  `doctor` prints which store is live and why.
+- `nidvue-telemetry`: a Prometheus scrape endpoint (`log.prometheus_bind`, text
+  exposition 0.0.4 on `/metrics` and `/healthz`) and an OTLP/HTTP JSON metrics
+  exporter (`log.otel_endpoint`, `<endpoint>/v1/metrics`, interval
+  `log.otel_interval_s`). No `opentelemetry-*` dependency: the payloads are pure
+  functions in `nidvue-core::metrics`.
+- A bounded transfer list: `Status.transfers`, `transfer_limit`,
+  `nidvue_client_transfers_json` / `nidvue_client_clear_transfers` in the C ABI,
+  `Client::transfers` and `Client::publish` in the SDK, and a virtualised
+  `Transfers` page in the UI (`ListView` with `reuseItems`, 512-row ceiling,
+  live rows never evicted).
+- `nidvue-cli config get|set|list|path`: every configuration key by dot path,
+  parsed against the type already there and validated before it is written.
+- `cache.capacity` in the status view, so the dashboard's cache bar has a real
+  denominator instead of a zero.
+- Benches: `transfer` (cold read, sustained transfer, warm read against an
+  emulated 50 Mbit/s link) and `initial_sync` (100 000 paths: scan, index, plan,
+  peak RSS).
+
+### Changed
+- The crate contract allows two HTTP egresses: `nidvue-jotta` for the API and
+  `nidvue-telemetry` for metrics. `cargo xtask arch` enforces both the list and
+  the rule that only `core` renders a metric payload.
+- `stats()` reports real queue depth and active transfers from the transfer
+  registry instead of two zeroes.
+
+### Fixed
+- The UI linked without `libdbus-1`, which the keyring backend needs on Linux;
+  the CMake target now resolves it through `pkg-config`.
+- `Transfers.qml` was missing from the QML resource list, so the page could not
+  be loaded.
+
 ## [0.1.0] - 2026-11-14
 
 First public pre-release.

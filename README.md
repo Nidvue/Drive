@@ -41,12 +41,15 @@ Jottacloud is a trademark of its owner. Licensed **AGPL-3.0-only**.
 
 ## Status
 
-`v0.1.0` — first public pre-release. The engine, cache, sync planner, journal,
-FUSE3 mount, WASM plugin host, CLI, SDK and Qt UI are implemented and tested.
+`v0.2.0` — second pre-release. The engine, cache, sync planner, journal, FUSE3
+mount, WASM plugin host, CLI, SDK and Qt UI are implemented and tested. `v0.2.0`
+adds the OS keyring credential store, a Prometheus scrape endpoint, an
+OTLP/HTTP metrics exporter, a bounded transfer list in the SDK, the C ABI and
+the UI, and dot-path configuration from the CLI.
+
 The Linux FUSE mount is exercised against a real mount in CI; the Windows and
-macOS mount backends are not compiled yet (see `docs/deviations.md`). What is not done yet is
-listed honestly in [`docs/deviations.md`](docs/deviations.md) — with numbers,
-not adjectives.
+macOS mount backends are not compiled yet. What is not done is listed honestly
+in [`docs/deviations.md`](docs/deviations.md) — with numbers, not adjectives.
 
 ## Quickstart
 
@@ -73,6 +76,17 @@ cargo xtask ui && ./apps/nidvue-ui/build/nidvue-ui
 ```
 
 `nidvue-cli status --json` is machine-readable for scripts and dashboards.
+
+Metrics are opt-in and off by default:
+
+```sh
+nidvue-cli config set log.prometheus_bind 127.0.0.1:9464   # curl :9464/metrics
+nidvue-cli config set log.otel_endpoint http://127.0.0.1:4318
+nidvue-cli config list                                     # every key
+```
+
+Credentials live in the OS keyring when the platform has one and fall back to an
+encrypted file when it does not; `nidvue-cli doctor` says which, and why.
 
 ## Build and test
 
@@ -110,6 +124,7 @@ crates/nidvue-vfs      virtual filesystem, read/write pipeline
 crates/nidvue-sync     journal, scanner, reconciler, scheduler
 crates/nidvue-mount    FUSE3 / WinFSP / macFUSE adapters
 crates/nidvue-plugin   WASM host, manifest, capabilities
+crates/nidvue-telemetry Prometheus scrape endpoint, OTLP/HTTP exporter
 crates/nidvue-sdk      stable Rust API, events, JSON schema
 crates/nidvue-ffi      C ABI consumed by the Qt app
 crates/nidvue-cli      headless control
