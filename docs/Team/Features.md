@@ -17,6 +17,6 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - interface: Architecture.md#3
 - paths: crates/, apps/nidvue-ui, plugins/, benches/, tests/invariants, packaging/, xtask/
 - depends-on: -
-- state: ready
+- state: active
 - created: 2026-11-15
-- updated: 2026-11-15
+- updated: 2026-11-16
