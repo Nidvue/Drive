@@ -517,8 +517,8 @@ impl AppConfig {
             .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()));
         let mut doc = self.to_json()?;
         assign(&mut doc, &segs, value, key)?;
-        let next: AppConfig = serde_json::from_value(doc)
-            .map_err(|e| NidvueError::Config(format!("{key}: {e}")))?;
+        let next: AppConfig =
+            serde_json::from_value(doc).map_err(|e| NidvueError::Config(format!("{key}: {e}")))?;
         next.validate()?;
         *self = next;
         Ok(())
@@ -545,11 +545,7 @@ fn key_segments(key: &str) -> Result<Vec<&str>> {
     Ok(segs)
 }
 
-fn descend<'a>(
-    node: &'a serde_json::Value,
-    seg: &str,
-    key: &str,
-) -> Result<&'a serde_json::Value> {
+fn descend<'a>(node: &'a serde_json::Value, seg: &str, key: &str) -> Result<&'a serde_json::Value> {
     match node {
         serde_json::Value::Object(map) => map
             .get(seg)
@@ -603,7 +599,11 @@ fn resolve_index(items: &[serde_json::Value], seg: &str, key: &str) -> Result<us
         .ok_or_else(|| NidvueError::Config(format!("{key:?}: no entry named {seg:?}")))
 }
 
-fn collect_leaves(prefix: &str, node: &serde_json::Value, out: &mut Vec<(String, serde_json::Value)>) {
+fn collect_leaves(
+    prefix: &str,
+    node: &serde_json::Value,
+    out: &mut Vec<(String, serde_json::Value)>,
+) {
     match node {
         serde_json::Value::Object(map) => {
             for (name, child) in map {
@@ -728,7 +728,11 @@ mod tests {
         assert!(cfg.set_path("cache.max_size_bytes", "0").is_err());
         assert!(cfg.get_path("sync.pairs.docs.nope").is_err());
         assert!(cfg.get_path("").is_err());
-        assert_eq!(cfg.sync.pairs[0].exclude.len(), 0, "a failed set changes nothing");
+        assert_eq!(
+            cfg.sync.pairs[0].exclude.len(),
+            0,
+            "a failed set changes nothing"
+        );
     }
 
     #[test]

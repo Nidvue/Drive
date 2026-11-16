@@ -17,7 +17,7 @@ use nidvue_core::config::CacheConfig;
 use nidvue_core::error::Result;
 use nidvue_core::path::RemotePath;
 use nidvue_jotta::xml::{ListStream, RemoteEntry};
-use nidvue_vfs::{EngineVfs, Remote, Vfs};
+use nidvue_vfs::{EngineVfs, ProgressFn, Remote, Vfs};
 
 const LINK_BYTES_PER_SECOND: u64 = 6_250_000;
 const CHUNK: u64 = 64 * 1024;
@@ -59,6 +59,7 @@ impl Remote for Link {
         _path: &RemotePath,
         writer: &mut (dyn tokio::io::AsyncWrite + Unpin + Send),
         _expected_size: Option<u64>,
+        progress: Option<ProgressFn>,
     ) -> Result<u64> {
         use tokio::io::AsyncWriteExt;
         let payload = vec![0x5au8; CHUNK as usize];
@@ -70,12 +71,23 @@ impl Remote for Link {
                 .await
                 .map_err(|e| nidvue_core::NidvueError::Internal(format!("synthetic write: {e}")))?;
             written += take as u64;
+            if let Some(report) = &progress {
+                report(written, self.size);
+            }
             tokio::time::sleep(self.chunk_delay()).await;
         }
         Ok(written)
     }
 
-    async fn remote_upload(&self, path: &RemotePath, _local: &Path) -> Result<RemoteEntry> {
+    async fn remote_upload(
+        &self,
+        path: &RemotePath,
+        _local: &Path,
+        progress: Option<ProgressFn>,
+    ) -> Result<RemoteEntry> {
+        if let Some(report) = &progress {
+            report(self.size, self.size);
+        }
         self.remote_stat(path).await
     }
 

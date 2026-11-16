@@ -695,7 +695,10 @@ pub unsafe extern "C" fn nidvue_client_sync_pair_set_filters(
             NIDVUE_ERR
         }
         Err(_) => {
-            set_err(err, "panic contained in nidvue_client_sync_pair_set_filters");
+            set_err(
+                err,
+                "panic contained in nidvue_client_sync_pair_set_filters",
+            );
             NIDVUE_PANIC
         }
     }
@@ -721,13 +724,10 @@ pub unsafe extern "C" fn nidvue_client_config_get(
         return NIDVUE_INVALID;
     };
     match catch_unwind(AssertUnwindSafe(|| {
-        client
-            .client
-            .config_get(key)
-            .and_then(|value| {
-                serde_json::to_string(&value)
-                    .map_err(|e| nidvue_core::NidvueError::Internal(format!("config json: {e}")))
-            })
+        client.client.config_get(key).and_then(|value| {
+            serde_json::to_string(&value)
+                .map_err(|e| nidvue_core::NidvueError::Internal(format!("config json: {e}")))
+        })
     })) {
         Ok(Ok(json)) => json_out(out, json),
         Ok(Err(e)) => {
