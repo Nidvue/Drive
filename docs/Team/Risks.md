@@ -60,3 +60,23 @@ files, so it waits for the owner's authorization rather than being done quietly.
 - evidence: gh api repos/Nidvue/Drive/branches/main/protection @2026-11-16 -> required_approving_review_count=1, enforce_admins.enabled=true; gh pr merge 13 --admin -> refused with the same rule.
 - mitigation: the user adds a second reviewer identity, or authorizes a recorded temporary exception (set the count to 0, merge the reviewed pull requests, restore it), or the repository is worked on from a fork whose pull requests carry two accounts.
 - upgrade path: the decision and the authorization are recorded in [Decisions](Decisions.md) D-20261116-CEO-6 before any change to the rule.
+
+## R-11 - The pre-0.2.0 commit history carries the owner's work email
+
+- severity: low (the owner's own address, in the owner's own repository)
+- likelihood: certain — it is in published history
+- owner: Release Engineer
+- statement: commits before the 0.2.0 release were authored as `Ping Zhao <ping.zhao@nidvue.com>`; every commit from 0.2.0 on uses a role mailbox (`<role>@agents.nidvue.com`). A history scan reports 216 findings, all of them that one address in commit metadata; the tree itself carries no credentials.
+- evidence: `python3 privacy_scan.py --history --root .` -> 216 findings, all `personal-email` in commit author/message of commits older than 0.2.0; `git log --format='%an <%ae>' -6 main` -> role mailboxes only.
+- mitigation: nothing to do for the shipped product — the release artefacts contain no author metadata. Rewriting published history to change the address is a red line (force-push, history rewrite) and needs the owner's explicit authorization, so it is not done.
+- upgrade path: if the owner wants the address gone, the rewrite is a single authorized `git filter-repo --mail-map` plus a force-push, then a re-tag; recorded as a decision first.
+
+## R-12 - `privacy_scan.py` flags a canary string in an invariant test
+
+- severity: none (false positive, recorded so the next run does not re-triage it)
+- likelihood: certain
+- owner: Tester
+- statement: `tests/invariants/tests/invariants.rs` contains the literal `eyJhbGciOiJIUzI1NiJ9.super-secret-refresh-token`, which is a fake token the test writes and then asserts is absent from the state directory in plaintext. The scanner reads it as an environment secret; the repository's own gate (`cargo xtask secrets`) passes because it looks for credential shapes that could be real.
+- evidence: `python3 privacy_scan.py --tree --root .` -> 38 findings, all in that one test file; `cargo xtask secrets` -> `secrets: no credential-shaped strings in tracked files`.
+- mitigation: the canary is the point of the test; renaming it would weaken the invariant.
+- upgrade path: an allow-list entry for that file if the scanner becomes part of the gate.
