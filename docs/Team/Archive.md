@@ -374,4 +374,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: commit e9c1180
 - reviewer evidence: git show b383e73 -> 2 files (CODEOWNERS 1 rule, Release.md 41 lines); gh api repos/Nidvue/Drive/branches/main/protection -> checks=5 strict, admins=true, last_push=true, codeowners=false, reviews=0, force=false, deletions=false, linear=true, conversation resolution=true; the table in Release.md matches that object field by field; teamwork.py pr merge --by Developer-1 -> refused ('only the Reviewer may merge'); teamwork.py review --by ReleaseEngineer -> refused ('only the Reviewer role may review')
 - findings history: 
-- branch / merge: releaseengineer/t-0002-protect-main-and-make-the-reviewer-the-o / pending
+- branch / merge: releaseengineer/t-0002-protect-main-and-make-the-reviewer-the-o / 76af248
