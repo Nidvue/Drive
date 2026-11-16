@@ -23,6 +23,16 @@ pub enum Direction {
     Download,
 }
 
+impl Direction {
+    /// A stable string for JSON, ids and the UI.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Upload => "upload",
+            Self::Download => "download",
+        }
+    }
+}
+
 /// Overall engine health, surfaced in the tray and the dashboard.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,

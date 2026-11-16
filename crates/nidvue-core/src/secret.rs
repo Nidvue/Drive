@@ -10,20 +10,22 @@
 //!
 //! Threat model, stated plainly: this protects against accidental disclosure -
 //! config dumps, backups, log scraping, a crash report - not against an
-//! attacker who can already read the state directory. The upgrade path is an OS
-//! keyring / TPM-backed store behind the same [`SecretStore`] trait; see
+//! attacker who can already read the state directory. The stronger store is the
+//! OS keyring ([`KeyringStore`]), selected by `secret.backend`; see
 //! `docs/deviations.md`.
 
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
+use crate::config::SecretBackend;
 use crate::error::{NidvueError, Result};
 
 const MAGIC: &[u8; 7] = b"NIDVUE1";
@@ -219,6 +221,134 @@ pub fn redact_token(token: &str) -> String {
     format!("{head}…<{} chars>", token.chars().count())
 }
 
+/// The service name every keyring entry is filed under.
+pub const KEYRING_SERVICE: &str = "nidvue-drive";
+
+/// Credentials in the OS keyring: Secret Service on Linux, the Security
+/// framework on macOS, the Credential Manager on Windows.
+///
+/// Every operation maps the platform error onto [`NidvueError::Secret`], and a
+/// missing entry is `Ok(None)` rather than an error, so the caller cannot tell a
+/// fresh install from a keyring that lost its entry.
+pub struct KeyringStore {
+    service: String,
+}
+
+impl KeyringStore {
+    /// A store filed under `service`.
+    pub fn new(service: impl Into<String>) -> Self {
+        Self {
+            service: service.into(),
+        }
+    }
+
+    /// The default store, filed under [`KEYRING_SERVICE`].
+    pub fn default_service() -> Self {
+        Self::new(KEYRING_SERVICE)
+    }
+
+    fn entry(&self, key: &str) -> Result<keyring::Entry> {
+        keyring::Entry::new(&self.service, key)
+            .map_err(|e| NidvueError::Secret(format!("keyring entry {key}: {e}")))
+    }
+}
+
+impl SecretStore for KeyringStore {
+    fn load(&self, key: &str) -> Result<Option<SecretString>> {
+        match self.entry(key)?.get_password() {
+            Ok(value) => Ok(Some(SecretString::new(value))),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(NidvueError::Secret(format!("keyring read {key}: {e}"))),
+        }
+    }
+
+    fn store(&self, key: &str, value: &SecretString) -> Result<()> {
+        self.entry(key)?
+            .set_password(value.expose())
+            .map_err(|e| NidvueError::Secret(format!("keyring write {key}: {e}")))
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        match self.entry(key)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(NidvueError::Secret(format!("keyring delete {key}: {e}"))),
+        }
+    }
+}
+
+/// The store the client actually opened, and why.
+#[derive(Clone)]
+pub struct StoreSelection {
+    /// The live store.
+    pub store: Arc<dyn SecretStore>,
+    /// Which backend it is.
+    pub backend: SecretBackend,
+    /// Set when the requested backend was not usable and the file store took
+    /// over; carries the platform's own message.
+    pub fallback_reason: Option<String>,
+}
+
+impl StoreSelection {
+    /// One line for `doctor` and `status`.
+    pub fn describe(&self) -> String {
+        match &self.fallback_reason {
+            None => self.backend.to_string(),
+            Some(reason) => format!("{} (fell back from keyring: {reason})", self.backend),
+        }
+    }
+}
+
+/// Probe the OS keyring with a throwaway entry.
+fn keyring_is_usable(store: &KeyringStore) -> Result<()> {
+    let probe = "__nidvue_probe";
+    let value = SecretString::new("probe");
+    store.store(probe, &value)?;
+    let read_back = store.load(probe)?;
+    store.delete(probe)?;
+    match read_back {
+        Some(v) if v.expose() == "probe" => Ok(()),
+        _ => Err(NidvueError::Secret(
+            "keyring probe did not read back".into(),
+        )),
+    }
+}
+
+/// Open the credential store the configuration asks for.
+///
+/// `auto` prefers the OS keyring and records the reason when it is unavailable;
+/// `keyring` is a hard requirement and fails instead of downgrading; `file` is
+/// the encrypted file store and never probes the platform.
+pub fn open_store(backend: SecretBackend, credentials_file: impl Into<PathBuf>) -> StoreSelection {
+    let credentials_file = credentials_file.into();
+    let file =
+        || Arc::new(EncryptedFileStore::new(credentials_file.clone())) as Arc<dyn SecretStore>;
+    let keyring_store = KeyringStore::default_service();
+    match backend {
+        SecretBackend::File => StoreSelection {
+            store: file(),
+            backend: SecretBackend::File,
+            fallback_reason: None,
+        },
+        SecretBackend::Keyring => StoreSelection {
+            store: Arc::new(KeyringStore::default_service()),
+            backend: SecretBackend::Keyring,
+            fallback_reason: None,
+        },
+        SecretBackend::Auto => match keyring_is_usable(&keyring_store) {
+            Ok(()) => StoreSelection {
+                store: Arc::new(keyring_store),
+                backend: SecretBackend::Keyring,
+                fallback_reason: None,
+            },
+            Err(e) => StoreSelection {
+                store: file(),
+                backend: SecretBackend::File,
+                fallback_reason: Some(e.to_string()),
+            },
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +412,60 @@ mod tests {
         let s = SecretString::new("abcdef123456");
         assert_eq!(format!("{s:?}"), "<redacted 12 bytes>");
         assert_eq!(redact_token("abcdef123456"), "abcd…<12 chars>");
+    }
+
+    #[test]
+    fn file_backend_is_selected_without_probing_the_platform() {
+        let dir = tempfile::tempdir().unwrap();
+        let sel = open_store(SecretBackend::File, dir.path().join("credentials.enc"));
+        assert_eq!(sel.backend, SecretBackend::File);
+        assert!(sel.fallback_reason.is_none());
+        assert_eq!(sel.describe(), "file");
+        sel.store.store("k", &SecretString::new("v")).unwrap();
+        assert_eq!(sel.store.load("k").unwrap().unwrap().expose(), "v");
+    }
+
+    #[test]
+    fn auto_always_lands_on_a_working_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let sel = open_store(SecretBackend::Auto, dir.path().join("credentials.enc"));
+        sel.store.store("k", &SecretString::new("v")).unwrap();
+        assert_eq!(sel.store.load("k").unwrap().unwrap().expose(), "v");
+        match sel.backend {
+            SecretBackend::Keyring => assert!(sel.fallback_reason.is_none()),
+            SecretBackend::File => {
+                let reason = sel
+                    .fallback_reason
+                    .as_ref()
+                    .expect("a fallback states its reason");
+                assert!(!reason.is_empty());
+                assert!(sel.describe().starts_with("file (fell back from keyring:"));
+            }
+            SecretBackend::Auto => panic!("auto resolves to a concrete backend"),
+        }
+    }
+
+    #[test]
+    fn backend_names_round_trip() {
+        for name in ["auto", "file", "keyring"] {
+            let parsed: SecretBackend = name.parse().unwrap();
+            assert_eq!(parsed.to_string(), name);
+        }
+        assert!("nonsense".parse::<SecretBackend>().is_err());
+    }
+
+    #[test]
+    #[ignore = "needs a running Secret Service on the session bus"]
+    fn keyring_round_trips_through_the_os_store() {
+        let store = KeyringStore::new("nidvue-drive-test");
+        let key = "round-trip";
+        store
+            .store(key, &SecretString::new("keyring-value"))
+            .unwrap();
+        let got = store.load(key).unwrap().expect("stored value");
+        assert_eq!(got.expose(), "keyring-value");
+        store.delete(key).unwrap();
+        assert!(store.load(key).unwrap().is_none());
+        store.delete(key).unwrap();
     }
 }

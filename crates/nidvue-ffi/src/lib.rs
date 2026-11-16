@@ -438,6 +438,42 @@ pub unsafe extern "C" fn nidvue_client_conflicts_json(
     }
 }
 
+/// Transfers seen so far as a JSON array, oldest first.
+///
+/// # Safety
+/// `client` must be valid; `out` must be a valid out-pointer.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_transfers_json(
+    client: *mut NidvueClient,
+    out: *mut *mut c_char,
+) -> i32 {
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        serde_json::to_string(&client.client.transfers())
+            .map_err(|e| nidvue_core::NidvueError::Internal(format!("transfers json: {e}")))
+    })) {
+        Ok(Ok(json)) => json_out(out, json),
+        Ok(Err(_)) | Err(_) => NIDVUE_ERR,
+    }
+}
+
+/// Forget every recorded transfer row.
+///
+/// # Safety
+/// `client` must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_client_clear_transfers(client: *mut NidvueClient) -> i32 {
+    let Some(client) = client.as_ref() else {
+        return NIDVUE_INVALID;
+    };
+    match catch_unwind(AssertUnwindSafe(|| client.client.clear_transfers())) {
+        Ok(()) => NIDVUE_OK,
+        Err(_) => NIDVUE_PANIC,
+    }
+}
+
 /// Resolve one conflict: `keep_local`, `keep_remote` or `keep_both`.
 ///
 /// # Safety

@@ -8,6 +8,7 @@ members = [
     "crates/nidvue-cache",
     "crates/nidvue-vfs",
     "crates/nidvue-sync",
+    "crates/nidvue-telemetry",
     "crates/nidvue-mount",
     "crates/nidvue-plugin",
     "crates/nidvue-sdk",
@@ -20,7 +21,7 @@ members = [
 default-members = ["crates/nidvue-cli", "crates/nidvue-sdk", "crates/nidvue-ffi"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.95"
 license = "AGPL-3.0-only"
@@ -30,15 +31,16 @@ homepage = "https://github.com/Nidvue/Drive"
 documentation = "https://docs.rs/nidvue-sdk"
 
 [workspace.dependencies]
-nidvue-core = { path = "crates/nidvue-core", version = "0.1.0" }
-nidvue-jotta = { path = "crates/nidvue-jotta", version = "0.1.0" }
-nidvue-cache = { path = "crates/nidvue-cache", version = "0.1.0" }
-nidvue-vfs = { path = "crates/nidvue-vfs", version = "0.1.0" }
-nidvue-sync = { path = "crates/nidvue-sync", version = "0.1.0" }
-nidvue-mount = { path = "crates/nidvue-mount", version = "0.1.0" }
-nidvue-plugin = { path = "crates/nidvue-plugin", version = "0.1.0" }
-nidvue-sdk = { path = "crates/nidvue-sdk", version = "0.1.0" }
-nidvue-ffi = { path = "crates/nidvue-ffi", version = "0.1.0" }
+nidvue-core = { path = "crates/nidvue-core", version = "0.2.0" }
+nidvue-jotta = { path = "crates/nidvue-jotta", version = "0.2.0" }
+nidvue-cache = { path = "crates/nidvue-cache", version = "0.2.0" }
+nidvue-vfs = { path = "crates/nidvue-vfs", version = "0.2.0" }
+nidvue-sync = { path = "crates/nidvue-sync", version = "0.2.0" }
+nidvue-mount = { path = "crates/nidvue-mount", version = "0.2.0" }
+nidvue-plugin = { path = "crates/nidvue-plugin", version = "0.2.0" }
+nidvue-sdk = { path = "crates/nidvue-sdk", version = "0.2.0" }
+nidvue-telemetry = { path = "crates/nidvue-telemetry", version = "0.2.0" }
+nidvue-ffi = { path = "crates/nidvue-ffi", version = "0.2.0" }
 
 async-trait = "0.1"
 base64 = "0.22"
@@ -48,6 +50,12 @@ clap = { version = "4", features = ["derive", "env"] }
 fuser = "0.18"
 globset = "0.4"
 hex = "0.4"
+keyring = { version = "3.6", default-features = false, features = [
+    "sync-secret-service",
+    "crypto-rust",
+    "apple-native",
+    "windows-native",
+] }
 libc = "0.2"
 md-5 = "0.10"
 notify = "8"

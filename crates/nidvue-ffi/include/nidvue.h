@@ -66,6 +66,12 @@ int32_t nidvue_client_sync_now(NidvueClient *client, char **out, char **err);
 /* Open conflicts as a JSON array into *out. */
 int32_t nidvue_client_conflicts_json(NidvueClient *client, char **out);
 
+/* Transfers seen so far as a JSON array into *out, oldest first. */
+int32_t nidvue_client_transfers_json(NidvueClient *client, char **out);
+
+/* Forget every recorded transfer row. */
+int32_t nidvue_client_clear_transfers(NidvueClient *client);
+
 /* Resolve a conflict: "keep_local", "keep_remote" or "keep_both". */
 int32_t nidvue_client_resolve_conflict(NidvueClient *client, const char *id,
                                        const char *resolution, char **err);

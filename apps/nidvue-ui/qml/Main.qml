@@ -61,7 +61,7 @@ ApplicationWindow {
             }
             ToolButton {
                 text: qsTr("Logs")
-                onClicked: stack.currentIndex = 3
+                onClicked: stack.currentIndex = 4
                 Accessible.name: qsTr("Open the log view")
             }
         }
@@ -101,6 +101,7 @@ ApplicationWindow {
                     model: [
                         { label: qsTr("Dashboard"), icon: "●" },
                         { label: qsTr("Conflicts"), icon: "⚠" },
+                        { label: qsTr("Transfers"), icon: "⇅" },
                         { label: qsTr("Settings"), icon: "⚙" },
                         { label: qsTr("Logs"), icon: "≡" }
                     ]
@@ -131,6 +132,7 @@ ApplicationWindow {
             Layout.fillHeight: true
             Dashboard {}
             Conflicts {}
+            Transfers {}
             Settings {}
             Logs {}
         }
@@ -140,5 +142,6 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+2"; onActivated: stack.currentIndex = 1 }
     Shortcut { sequence: "Ctrl+3"; onActivated: stack.currentIndex = 2 }
     Shortcut { sequence: "Ctrl+4"; onActivated: stack.currentIndex = 3 }
+    Shortcut { sequence: "Ctrl+5"; onActivated: stack.currentIndex = 4 }
     Shortcut { sequence: "Ctrl+R"; onActivated: Bridge.syncNow() }
 }

@@ -7,6 +7,7 @@
 //! a control in the UI. The file is TOML; the hot-reloadable subset is
 //! [`HotConfig`].
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -223,8 +224,10 @@ pub struct LogConfig {
     pub dir: PathBuf,
     /// Keep this many rotated files.
     pub max_files: usize,
-    /// Optional OTLP endpoint.
+    /// Optional OTLP endpoint, e.g. `http://127.0.0.1:4318`.
     pub otel_endpoint: Option<String>,
+    /// Seconds between OTLP exports.
+    pub otel_interval_s: u64,
     /// Optional Prometheus bind address, e.g. `127.0.0.1:9464`.
     pub prometheus_bind: Option<String>,
 }
@@ -237,9 +240,60 @@ impl Default for LogConfig {
             dir: PathBuf::new(),
             max_files: 7,
             otel_endpoint: None,
+            otel_interval_s: 15,
             prometheus_bind: None,
         }
     }
+}
+
+/// Where credentials live.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretBackend {
+    /// Prefer the OS keyring, fall back to the encrypted file and say why.
+    #[default]
+    Auto,
+    /// The encrypted file only; never touches the platform store.
+    File,
+    /// The OS keyring only; fails when it is unavailable instead of downgrading.
+    Keyring,
+}
+
+impl fmt::Display for SecretBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Auto => "auto",
+            Self::File => "file",
+            Self::Keyring => "keyring",
+        })
+    }
+}
+
+impl std::str::FromStr for SecretBackend {
+    type Err = NidvueError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "auto" => Ok(Self::Auto),
+            "file" => Ok(Self::File),
+            "keyring" => Ok(Self::Keyring),
+            other => Err(NidvueError::Config(format!(
+                "secret.backend must be auto, file or keyring, not {other:?}"
+            ))),
+        }
+    }
+}
+
+/// Credential storage configuration.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(default)]
+pub struct SecretConfig {
+    /// `auto` (default), `file` or `keyring`.
+    pub backend: SecretBackend,
 }
 
 /// UI preferences.
@@ -291,6 +345,8 @@ pub struct AppConfig {
     pub network: NetworkConfig,
     /// Logging.
     pub log: LogConfig,
+    /// Credential storage.
+    pub secret: SecretConfig,
     /// UI.
     pub ui: UiConfig,
 }
