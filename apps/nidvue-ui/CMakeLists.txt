@@ -67,13 +67,13 @@ if(UNIX)
     target_link_libraries(nidvue-ui PRIVATE pthread dl m ${FUSE3_LIBRARIES})
 endif()
 
-# The credential store reaches the OS keyring over D-Bus on Linux.
+# The credential store reaches the OS keyring over D-Bus on Linux, and the
+# static Rust library carries that symbol, so the UI must link it too.
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
     pkg_check_modules(DBUS QUIET dbus-1)
     if(DBUS_FOUND)
         target_link_libraries(nidvue-ui PRIVATE ${DBUS_LIBRARIES})
-        target_include_directories(nidvue-ui PRIVATE ${DBUS_INCLUDE_DIRS})
     endif()
 endif()
 
