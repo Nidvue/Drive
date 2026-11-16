@@ -13,6 +13,10 @@ publish = false
 nidvue-cache = { workspace = true }
 nidvue-core = { workspace = true }
 nidvue-sync = { workspace = true }
+nidvue-vfs = { workspace = true }
+nidvue-jotta = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
 
 [[bench]]
 name = "cache_read"
@@ -24,4 +28,12 @@ harness = false
 
 [[bench]]
 name = "reconciler"
+harness = false
+
+[[bench]]
+name = "transfer"
+harness = false
+
+[[bench]]
+name = "initial_sync"
 harness = false

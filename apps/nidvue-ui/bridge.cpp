@@ -37,6 +37,32 @@ QVariantList parseConflicts(const QString &json)
     return out;
 }
 
+/// Copy the transfer array out of a status document.
+QVariantList parseTransfers(const QJsonArray &array)
+{
+    QVariantList out;
+    out.reserve(array.size());
+    for (const auto &value : array) {
+        const auto object = value.toObject();
+        QVariantMap row;
+        row.insert("id", object.value("id").toString());
+        row.insert("path", object.value("path").toString());
+        row.insert("direction", object.value("direction").toString());
+        row.insert("state", object.value("state").toString());
+        const double done = object.value("done").toDouble();
+        const double total = object.value("total").toDouble();
+        row.insert("done", done);
+        row.insert("total", total);
+        row.insert("fraction", total > 0.0 ? qBound(0.0, done / total, 1.0) : 0.0);
+        const auto error = object.value("error");
+        row.insert("error", error.isString() ? error.toString() : QString());
+        row.insert("retryable", object.value("retryable").toBool());
+        row.insert("updatedMs", object.value("updated_ms").toVariant());
+        out.append(row);
+    }
+    return out;
+}
+
 QString takeError(char *err)
 {
     if (!err)
@@ -184,6 +210,14 @@ void Worker::syncNow()
     poll();
 }
 
+void Worker::clearTransfers()
+{
+    if (!m_client)
+        return;
+    nidvue_client_clear_transfers(m_client);
+    poll();
+}
+
 void Worker::resolve(const QString &id, const QString &resolution)
 {
     if (!m_client)
@@ -272,6 +306,11 @@ void Bridge::openMount()
 void Bridge::showMainWindow() { emit showMainRequested(); }
 void Bridge::resolve(const QString &id, const QString &resolution) { emit requestResolve(id, resolution); }
 
+void Bridge::clearTransfers()
+{
+    QMetaObject::invokeMethod(m_worker, "clearTransfers", Qt::QueuedConnection);
+}
+
 void Bridge::clearError()
 {
     m_lastError.clear();
@@ -300,7 +339,14 @@ void Bridge::onStatus(const QString &json)
     }
     const auto cache = object.value("cache").toObject();
     m_cacheBytes = cache.value("bytes").toVariant().toULongLong();
-    m_cacheCapacity = 0;
+    m_cacheCapacity = cache.value("capacity").toVariant().toULongLong();
+    const auto transfers = parseTransfers(object.value("transfers").toArray());
+    const int limit = object.value("transfer_limit").toInt(512);
+    if (transfers != m_transfers || limit != m_transferLimit) {
+        m_transfers = transfers;
+        m_transferLimit = limit;
+        emit transfersChanged();
+    }
     emit statusChanged();
 }
 

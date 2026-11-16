@@ -195,6 +195,7 @@ fn arch() -> Result<(), String> {
         ("jotta", 1),
         ("cache", 1),
         ("plugin", 1),
+        ("telemetry", 1),
         ("vfs", 2),
         ("mount", 3),
         ("sync", 4),
@@ -203,6 +204,7 @@ fn arch() -> Result<(), String> {
         ("cli", 6),
     ];
     let rank = |name: &str| RANKS.iter().find(|(n, _)| *n == name).map(|(_, r)| *r);
+    const HTTP_CRATES: &[&str] = &["jotta", "telemetry"];
     let mut problems = Vec::new();
 
     for (name, mine) in RANKS {
@@ -225,8 +227,10 @@ fn arch() -> Result<(), String> {
         if *name == "core" && deps.iter().any(|d| d.starts_with("nidvue-")) {
             problems.push("nidvue-core depends on another Nidvue crate".to_string());
         }
-        if deps.iter().any(|d| d == "reqwest") && *name != "jotta" {
-            problems.push(format!("nidvue-{name} speaks HTTP; only nidvue-jotta may"));
+        if deps.iter().any(|d| d == "reqwest") && !HTTP_CRATES.contains(name) {
+            problems.push(format!(
+                "nidvue-{name} speaks HTTP; only {HTTP_CRATES:?} may"
+            ));
         }
         if deps.iter().any(|d| d == "fuser") && *name != "mount" {
             problems.push(format!(

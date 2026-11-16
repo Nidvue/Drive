@@ -20,7 +20,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use nidvue_cache::{Cache, CacheUsage, ConflictRow, Index};
 use nidvue_core::config::{AppConfig, SyncPair};
@@ -31,6 +31,7 @@ use nidvue_jotta::client::{JottaClient, JottaConfig, Quota};
 use nidvue_mount::{MountHandle, MountOptions};
 use nidvue_plugin::PluginHost;
 use nidvue_sync::{SyncEngine, SyncReport};
+use nidvue_telemetry::{MetricsCache, OtlpExporter, PrometheusServer};
 use nidvue_vfs::EngineVfs;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -39,7 +40,9 @@ use tokio_util::sync::CancellationToken;
 pub use nidvue_core::config::{CacheConfig, LogConfig, MountConfig, NetworkConfig, SyncConfig};
 pub use nidvue_core::conflict::{Conflict, Resolution};
 pub use nidvue_core::error::NidvueError as Error;
+pub use nidvue_core::metrics::{MetricSample, MetricsSnapshot};
 pub use nidvue_core::path::RemotePath;
+pub use nidvue_core::transfers::{Transfer, TransferRegistry, TransferState};
 pub use nidvue_core::types::{ConflictPolicy, EntryKind, EntryMeta, Version};
 pub use nidvue_jotta::xml::{ListStream, RemoteEntry};
 pub use nidvue_sync::Action;
@@ -69,6 +72,16 @@ pub struct Status {
     pub uptime_s: u64,
     /// Account quota, when the server answered.
     pub quota: Option<QuotaView>,
+    /// Transfers the engine has announced, newest last, bounded.
+    pub transfers: Vec<Transfer>,
+    /// How many rows the transfer list keeps.
+    pub transfer_limit: usize,
+    /// Where credentials live, and why when it is a fallback.
+    pub secret_backend: String,
+    /// The scrape URL, when a Prometheus endpoint is running.
+    pub prometheus_url: Option<String>,
+    /// The collector URL, when an OTLP exporter is running.
+    pub otlp_endpoint: Option<String>,
 }
 
 /// Cache counters in the status view.
@@ -82,6 +95,8 @@ pub struct CacheUsageView {
     pub pinned: u64,
     /// Blobs not yet drained.
     pub dirty: u64,
+    /// Configured capacity in bytes.
+    pub capacity: u64,
 }
 
 impl From<CacheUsage> for CacheUsageView {
@@ -91,6 +106,7 @@ impl From<CacheUsage> for CacheUsageView {
             blobs: u.blobs,
             pinned: u.pinned,
             dirty: u.dirty,
+            capacity: 0,
         }
     }
 }
@@ -124,12 +140,49 @@ struct Inner {
     started: Instant,
     paused: AtomicBool,
     bandwidth_bps: AtomicU64,
+    transfers: TransferRegistry,
+    metrics: MetricsCache,
+    secret_backend: String,
+    prometheus: Option<PrometheusServer>,
+    otlp_endpoint: Option<String>,
 }
 
 /// The Nidvue Drive client.
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<Inner>,
+}
+
+fn start_prometheus(config: &AppConfig, metrics: &MetricsCache) -> Option<PrometheusServer> {
+    let bind = config.log.prometheus_bind.as_deref()?.trim();
+    if bind.is_empty() {
+        return None;
+    }
+    match PrometheusServer::start(bind, metrics.clone()) {
+        Ok(server) => Some(server),
+        Err(e) => {
+            tracing::warn!(%bind, error = %e, "prometheus endpoint not started");
+            None
+        }
+    }
+}
+
+fn start_otlp(config: &AppConfig, metrics: &MetricsCache) -> Option<String> {
+    let endpoint = config.log.otel_endpoint.as_deref()?.trim();
+    if endpoint.is_empty() {
+        return None;
+    }
+    match OtlpExporter::new(endpoint, metrics.clone()) {
+        Ok(exporter) => {
+            let every = Duration::from_secs(config.log.otel_interval_s.max(1));
+            exporter.spawn(every);
+            Some(endpoint.to_string())
+        }
+        Err(e) => {
+            tracing::warn!(%endpoint, error = %e, "otlp exporter not started");
+            None
+        }
+    }
 }
 
 impl Client {
@@ -149,10 +202,10 @@ impl Client {
             &config.network.user_agent,
             std::time::Duration::from_millis(config.network.timeout_ms),
         )?;
-        let store = Arc::new(nidvue_core::secret::EncryptedFileStore::new(
-            config.credentials_file(),
-        ));
-        let auth = Arc::new(AuthManager::new(http.clone(), store));
+        let selection =
+            nidvue_core::secret::open_store(config.secret.backend, config.credentials_file());
+        let secret_backend = selection.describe();
+        let auth = Arc::new(AuthManager::new(http.clone(), selection.store));
         let _ = auth.restore().await?;
         let username = auth
             .username()
@@ -166,7 +219,11 @@ impl Client {
         let (events, _) = broadcast::channel(1024);
         let paused = AtomicBool::new(config.sync.paused);
         let bandwidth_bps = AtomicU64::new(config.sync.bandwidth_limit_bps);
-        Ok(Self {
+        let transfers = TransferRegistry::new();
+        let metrics = MetricsCache::new();
+        let prometheus = start_prometheus(&config, &metrics);
+        let otlp_endpoint = start_otlp(&config, &metrics);
+        let client = Self {
             inner: Arc::new(Inner {
                 paused,
                 bandwidth_bps,
@@ -178,8 +235,153 @@ impl Client {
                 events,
                 cancel: CancellationToken::new(),
                 started: Instant::now(),
+                transfers,
+                metrics,
+                secret_backend,
+                prometheus,
+                otlp_endpoint,
             }),
+        };
+        client.spawn_feeders();
+        Ok(client)
+    }
+
+    fn spawn_feeders(&self) {
+        let mut events = self.inner.events.subscribe();
+        let transfers = self.inner.transfers.clone();
+        tokio::spawn(async move {
+            loop {
+                match events.recv().await {
+                    Ok(envelope) => transfers.record(&envelope.event),
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+        let refresher = self.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(Duration::from_secs(2));
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                ticker.tick().await;
+                if let Ok(snapshot) = refresher.metrics_snapshot().await {
+                    refresher.inner.metrics.store(snapshot);
+                }
+            }
+        });
+    }
+
+    /// The metric snapshot both exporters publish.
+    pub async fn metrics_snapshot(&self) -> Result<MetricsSnapshot> {
+        let stats = self.stats().await?;
+        let status = self.status().await?;
+        let mut samples = vec![
+            MetricSample::new(
+                "nidvue_cache_bytes",
+                "Bytes stored in the blob cache.",
+                stats.cache_bytes as f64,
+            ),
+            MetricSample::new(
+                "nidvue_cache_capacity_bytes",
+                "Configured cache capacity in bytes.",
+                stats.cache_capacity as f64,
+            ),
+            MetricSample::new(
+                "nidvue_cache_blobs",
+                "Blobs in the cache.",
+                status.cache.blobs as f64,
+            ),
+            MetricSample::new(
+                "nidvue_cache_pinned",
+                "Pinned blobs in the cache.",
+                status.cache.pinned as f64,
+            ),
+            MetricSample::new(
+                "nidvue_cache_dirty",
+                "Blobs not yet drained to the remote.",
+                status.cache.dirty as f64,
+            ),
+            MetricSample::new(
+                "nidvue_index_entries",
+                "Entries in the metadata index.",
+                stats.index_entries as f64,
+            ),
+            MetricSample::new(
+                "nidvue_conflicts_open",
+                "Conflicts awaiting a decision.",
+                stats.conflicts_open as f64,
+            ),
+            MetricSample::new(
+                "nidvue_queue_depth",
+                "Transfers waiting to run.",
+                stats.queue_depth as f64,
+            ),
+            MetricSample::new(
+                "nidvue_active_transfers",
+                "Transfers running now.",
+                stats.active_transfers as f64,
+            ),
+            MetricSample::new(
+                "nidvue_uptime_seconds",
+                "Seconds since the client opened.",
+                stats.uptime_s as f64,
+            ),
+            MetricSample::new(
+                "nidvue_logged_in",
+                "1 when a token is present.",
+                if status.logged_in { 1.0 } else { 0.0 },
+            ),
+            MetricSample::new(
+                "nidvue_paused",
+                "1 when the engine is paused.",
+                if status.paused { 1.0 } else { 0.0 },
+            ),
+            MetricSample::new(
+                "nidvue_health",
+                "1 when degraded, 0 when ok.",
+                if stats.health == HealthState::Ok {
+                    0.0
+                } else {
+                    1.0
+                },
+            ),
+        ];
+        if let Some(quota) = status.quota {
+            samples.push(MetricSample::new(
+                "nidvue_quota_used_bytes",
+                "Account bytes used.",
+                quota.usage as f64,
+            ));
+            samples.push(MetricSample::new(
+                "nidvue_quota_limit_bytes",
+                "Account quota in bytes.",
+                quota.quota as f64,
+            ));
+        }
+        Ok(MetricsSnapshot {
+            service: "nidvue-drive".into(),
+            version: nidvue_core::VERSION.into(),
+            account: status.username,
+            samples,
         })
+    }
+
+    /// The live transfer list, oldest first.
+    pub fn transfers(&self) -> Vec<Transfer> {
+        self.inner.transfers.list()
+    }
+
+    /// Publish an event on the bus every subscriber and the transfer list read.
+    ///
+    /// This is the seam a plugin uses to surface its own progress, and the one
+    /// the engine itself uses.
+    pub fn publish(&self, event: Event) {
+        let _ = self.inner.events.send(EventEnvelope::new(event));
+    }
+
+    /// Drop every recorded transfer row.
+    pub fn clear_transfers(&self) {
+        self.inner.transfers.clear();
     }
 
     /// The effective configuration.
@@ -287,8 +489,8 @@ impl Client {
         Ok(StatsSnapshot {
             upload_bps: 0,
             download_bps: 0,
-            queue_depth: 0,
-            active_transfers: 0,
+            queue_depth: self.inner.transfers.queued(),
+            active_transfers: self.inner.transfers.running(),
             cache_bytes: usage.bytes,
             cache_capacity: self.inner.config.cache.max_size_bytes,
             index_entries: entries,
@@ -314,10 +516,18 @@ impl Client {
             conflicts_open: stats.conflicts_open,
             paused: self.paused(),
             bandwidth_limit_bps: self.bandwidth_limit_bps(),
-            cache: usage.into(),
+            cache: CacheUsageView {
+                capacity: self.inner.config.cache.max_size_bytes,
+                ..usage.into()
+            },
             health: stats.health,
             uptime_s: stats.uptime_s,
             quota,
+            transfers: self.inner.transfers.list(),
+            transfer_limit: nidvue_core::transfers::MAX_TRANSFERS,
+            secret_backend: self.inner.secret_backend.clone(),
+            prometheus_url: self.inner.prometheus.as_ref().map(|p| p.url()),
+            otlp_endpoint: self.inner.otlp_endpoint.clone(),
         })
     }
 

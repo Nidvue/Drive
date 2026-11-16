@@ -20,9 +20,11 @@ pub mod error;
 pub mod event;
 pub mod hash;
 pub mod id;
+pub mod metrics;
 pub mod path;
 pub mod secret;
 pub mod time;
+pub mod transfers;
 pub mod types;
 
 pub use error::{NidvueError, Result};
