@@ -40,6 +40,7 @@ the queues' state and not an opinion about it.
 | developer | T-0005 | - | done | - | - |
 | product-manager | T-0001 | - | done | - | - |
 | release-engineer | T-0001 | - | done | - | - |
+| release-engineer | T-0002 | branch-protection | done | P-0001 | 76af248 |
 | tester | T-0001 | - | done | - | - |
 | tester | T-0002 | - | done | - | - |
 
