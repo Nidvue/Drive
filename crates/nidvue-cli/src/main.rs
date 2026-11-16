@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use clap::{Parser, Subcommand};
+use nidvue_cli::config_dot;
 use nidvue_core::config::{AppConfig, SyncPair};
 use nidvue_core::error::NidvueError;
 use nidvue_core::path::RemotePath;
@@ -81,6 +82,31 @@ enum Command {
         #[command(subcommand)]
         action: PluginAction,
     },
+    /// Read and write configuration values by dot path
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigAction {
+    /// Print one value, e.g. cache.max_size_bytes
+    Get {
+        /// Dot path into config.toml
+        key: String,
+    },
+    /// Set one value and save the configuration
+    Set {
+        /// Dot path into config.toml
+        key: String,
+        /// New value, parsed against the type already there
+        value: String,
+    },
+    /// Print every key and its value
+    List,
+    /// Print the configuration file path
+    Path,
 }
 
 #[derive(Subcommand, Debug)]
@@ -419,6 +445,50 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 Ok(())
             }
         },
+        Command::Config { action } => match action {
+            ConfigAction::Path => {
+                println!("{}", AppConfig::path_in(state).display());
+                Ok(())
+            }
+            ConfigAction::Get { key } => {
+                let config = AppConfig::load_or_default(state)?;
+                let value = config_dot::get(&config, key)?;
+                match &value {
+                    serde_json::Value::String(text) => println!("{text}"),
+                    other => println!("{other}"),
+                }
+                Ok(())
+            }
+            ConfigAction::Set { key, value } => {
+                let config = AppConfig::load_or_default(state)?;
+                let updated = config_dot::set(&config, key, value)?;
+                updated.save(state)?;
+                println!("{key} = {value}");
+                Ok(())
+            }
+            ConfigAction::List => {
+                let config = AppConfig::load_or_default(state)?;
+                let leaves = config_dot::list(&config)?;
+                if cli.json {
+                    let map: serde_json::Map<String, serde_json::Value> =
+                        leaves.into_iter().collect();
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::Value::Object(map))
+                            .unwrap_or_default()
+                    );
+                } else {
+                    let width = leaves.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
+                    for (key, value) in leaves {
+                        match value {
+                            serde_json::Value::String(text) => println!("{key:<width$}  {text}"),
+                            other => println!("{key:<width$}  {other}"),
+                        }
+                    }
+                }
+                Ok(())
+            }
+        },
     }
 }
 
@@ -461,6 +531,28 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         false,
         "WinFSP host is not enabled in this build".into(),
     ));
+    let status = client.status().await?;
+    checks.push((
+        "secret".into(),
+        true,
+        format!("credentials: {}", status.secret_backend),
+    ));
+    checks.push(match &status.prometheus_url {
+        Some(url) => ("metrics".into(), true, format!("scrape {url}")),
+        None => (
+            "metrics".into(),
+            true,
+            "log.prometheus_bind is unset; no scrape endpoint".into(),
+        ),
+    });
+    checks.push(match &status.otlp_endpoint {
+        Some(endpoint) => ("otlp".into(), true, format!("export to {endpoint}")),
+        None => (
+            "otlp".into(),
+            true,
+            "log.otel_endpoint is unset; no exporter".into(),
+        ),
+    });
     let usage = client.cache().usage()?;
     checks.push((
         "cache".into(),

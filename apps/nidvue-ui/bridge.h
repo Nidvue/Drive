@@ -33,6 +33,7 @@ public slots:
     void setPaused(bool paused);
     void setBandwidthLimit(qulonglong bytesPerSecond);
     void resolve(const QString &id, const QString &resolution);
+    void clearTransfers();
 
 signals:
     void statusJson(const QString &json);
@@ -65,6 +66,8 @@ class Bridge : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString busyWhat READ busyWhat NOTIFY busyChanged)
     Q_PROPERTY(QVariantList conflicts READ conflicts NOTIFY conflictsChanged)
+    Q_PROPERTY(QVariantList transfers READ transfers NOTIFY transfersChanged)
+    Q_PROPERTY(int transferLimit READ transferLimit CONSTANT)
     Q_PROPERTY(QStringList logs READ logs NOTIFY logsChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
@@ -87,6 +90,8 @@ public:
     bool busy() const { return m_busy; }
     QString busyWhat() const { return m_busyWhat; }
     QVariantList conflicts() const { return m_conflicts; }
+    QVariantList transfers() const { return m_transfers; }
+    int transferLimit() const { return m_transferLimit; }
     QStringList logs() const { return m_logs; }
     QString lastError() const { return m_lastError; }
 
@@ -101,6 +106,7 @@ public:
     Q_INVOKABLE void showMainWindow();
     Q_INVOKABLE void resolve(const QString &id, const QString &resolution);
     Q_INVOKABLE void clearError();
+    Q_INVOKABLE void clearTransfers();
 
 signals:
     void statusChanged();
@@ -110,6 +116,7 @@ signals:
     void showMainRequested();
     void busyChanged();
     void conflictsChanged();
+    void transfersChanged();
     void logsChanged();
     void lastErrorChanged();
     void requestLogin(const QString &token);
@@ -148,6 +155,8 @@ private:
     bool m_busy = false;
     QString m_busyWhat;
     QVariantList m_conflicts;
+    QVariantList m_transfers;
+    int m_transferLimit = 512;
     QStringList m_logs;
     QString m_lastError;
 };

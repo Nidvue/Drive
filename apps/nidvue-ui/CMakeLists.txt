@@ -37,6 +37,7 @@ qt_add_resources(nidvue-ui "qml"
         qml/Main.qml
         qml/Dashboard.qml
         qml/Conflicts.qml
+        qml/Transfers.qml
         qml/Settings.qml
         qml/SettingsPane.qml
         qml/SettingsWindow.qml
@@ -64,6 +65,16 @@ target_link_libraries(nidvue-ui PRIVATE
 
 if(UNIX)
     target_link_libraries(nidvue-ui PRIVATE pthread dl m ${FUSE3_LIBRARIES})
+endif()
+
+# The credential store reaches the OS keyring over D-Bus on Linux.
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(DBUS QUIET dbus-1)
+    if(DBUS_FOUND)
+        target_link_libraries(nidvue-ui PRIVATE ${DBUS_LIBRARIES})
+        target_include_directories(nidvue-ui PRIVATE ${DBUS_INCLUDE_DIRS})
+    endif()
 endif()
 
 install(TARGETS nidvue-ui RUNTIME DESTINATION bin)

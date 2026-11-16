@@ -19,6 +19,7 @@ nidvue-jotta = { workspace = true }
 nidvue-mount = { workspace = true }
 nidvue-plugin = { workspace = true }
 nidvue-sync = { workspace = true }
+nidvue-telemetry = { workspace = true }
 nidvue-vfs = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
