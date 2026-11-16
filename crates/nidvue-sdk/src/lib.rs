@@ -248,7 +248,39 @@ impl Client {
             }),
         };
         client.spawn_feeders();
+        client.spawn_span_export();
         Ok(client)
+    }
+
+    /// Post one OTLP/HTTP JSON span per finished pass, failed transfer and
+    /// error transition. The metrics exporter in `nidvue-telemetry` shares the
+    /// endpoint and posts to `/v1/metrics`; this one posts to `/v1/traces`.
+    fn spawn_span_export(&self) {
+        let Some(endpoint) = self.read_config().log.otel_endpoint.clone() else {
+            return;
+        };
+        if endpoint.trim().is_empty() {
+            return;
+        }
+        let exporter = match nidvue_jotta::otlp::OtlpExporter::new(&endpoint) {
+            Ok(exporter) => exporter,
+            Err(e) => {
+                tracing::warn!(%endpoint, error = %e, "otlp span exporter not started");
+                return;
+            }
+        };
+        let mut events = self.inner.events.subscribe();
+        tokio::spawn(async move {
+            while let Ok(envelope) = events.recv().await {
+                let spans = nidvue_jotta::otlp::spans_from_event(&envelope);
+                if spans.is_empty() {
+                    continue;
+                }
+                if let Err(e) = exporter.send(&spans).await {
+                    tracing::warn!(error = %e, "otlp span export failed");
+                }
+            }
+        });
     }
 
     fn spawn_feeders(&self) {
