@@ -97,3 +97,35 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - evidence: cargo xtask arch @f8d34c9 -> + arch: crate contract holds (11 crates); crates/nidvue-telemetry/Cargo.toml depends on reqwest, nidvue-core does not
 - falsified by: a third crate needs HTTP and cannot reuse either client; then the list is wrong and the decision is revisited
 - consequences: ARCHITECTURE.md section 1 and its rules table changed; docs/licensing.md gains the keyring and telemetry dependency trees
+
+## D-20261116-CEO-5 - The v0.2.0 branch lands first; the UI branch reconciles onto it
+
+- date: 2026-11-16
+- kind: process
+- status: accepted
+- deciders: CEO (ceo)
+- decided by: CEO
+- task: T-0026
+- context: two branches were written in parallel from `0f24d5f` — `feat/ui-engine-completion` (desktop rebuild, pair management, transfer progress, span export) and `feat/v0.2.0-close-deviations` (keyring, telemetry crate, transfer registry, dot-path config, ffi-smoke) — and both touch the CLI, the SDK, the C ABI and the QML.
+- options considered: (a) merge both into one integration branch and land once; (b) land v0.2.0 first, rebase the UI branch onto it and land second; (c) abandon the older UI branch and re-implement its parts.
+- decision: (b). The v0.2.0 branch is green in CI on `40cb8ea` and is the smaller, already-reviewed unit; the UI branch was rebased onto its head, and the duplicates were collapsed into one implementation each: dot-path access in `nidvue_core::config::dot`, one Prometheus/OTLP metrics exporter (`nidvue-telemetry`) beside the span exporter, one configuration lock in the SDK, and the `Transfers` page added to the new navigation.
+- why: one answer per question is the property that keeps the product comprehensible; two config implementations or two metrics servers would have drifted apart within one release, and (c) would have thrown away tested work.
+- evidence: cargo xtask ci @33fa2e4 -> green (fmt, arch, clippy -D warnings, 197 tests, doc, deny, spdx, secrets, dco, plugins, ffi-smoke, Qt build, ui-smoke); git log --oneline @33fa2e4 -> three commits on top of 40cb8ea
+- falsified by: a test that fails on the merged branch and passes on either parent, which would mean the reconciliation lost behaviour.
+- consequences: the older branch (`feat/ui-engine-completion`) is superseded and must be deleted after this one merges; its content is in `33fa2e4`.
+
+## D-20261116-CEO-6 - Nothing lands on main without the approving review, and the CEO cannot grant it
+
+- date: 2026-11-16
+- kind: process
+- status: accepted
+- deciders: CEO (ceo)
+- decided by: CEO
+- task: T-0026
+- context: `main` requires one approving review from a reviewer with write access, `enforce_admins` is on, and the repository has exactly one collaborator (`VisionPZ`), who is also the author of every pull request. GitHub refuses a self-approval, and `gh pr merge --admin` is refused by the same rule.
+- options considered: (a) relax the rule to zero approvals, merge both pull requests, restore the rule; (b) ask the user for a second approval identity; (c) leave the branches pushed and unmerged and report.
+- decision: (c) until the user authorizes (a) or provides (b). Weakening a protection rule to get a merge is a security decision that belongs to the repository owner, not to the lane that wants the merge.
+- why: the gate exists to stop exactly this shortcut; a lane that lowers its own gate is the failure the rule is written against.
+- evidence: gh api repos/Nidvue/Drive/branches/main/protection -> required_approving_pull_request_reviews.required_approving_review_count=1, enforce_admins.enabled=true; gh pr view 13 --json reviewDecision -> REVIEW_REQUIRED; gh pr merge 13 --rebase --admin -> "At least 1 approving review is required by reviewers with write access"; gh api repos/Nidvue/Drive/collaborators -> [VisionPZ: admin]
+- falsified by: a successful merge of a pull request authored and approved by the same account, or a second collaborator appearing.
+- consequences: both branches are pushed and green; `main` stays at `0f24d5f` until the user decides. Recorded as [Risks](Risks.md) R-10.

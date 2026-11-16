@@ -7,13 +7,17 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 ## Snapshot
 
-- Date: 2026-11-16 · Milestone: M7 (v0.2.0) · Verified criteria: 24/24
-- Revision of record: `798a123` on `main`; not pushed — pushing is the Release
-  Engineer's step after this close and needs the Reviewer's pass, which is what
-  this milestone recorded.
+- Date: 2026-11-16 · Milestone: M8 (usable end to end) · Verified criteria: 24/24
+- Revision of record: `33fa2e4` on `feat/ux-parity-v2`, rebased onto
+  `feat/v0.2.0-close-deviations` (`40cb8ea`). Not on `main`: the branch needs the
+  one approving review the protection rule requires, and this environment has a
+  single GitHub account, which cannot approve its own pull request. The blocker
+  and the options are recorded in [Risks](Risks.md) R-10.
+- Both parallel branches are green locally on the same gate
+  (`cargo xtask ci`), and the v0.2.0 branch is green in CI on `40cb8ea`.
 - Open feature: F-0001, the whole product as one slice.
-- Queue state: ten tasks delivered in M7, all self-checked and independently
-  reviewed, all archived. Nothing in flight, nothing blocked.
+- Queue state: ten tasks delivered in M7 and seven in M8, all self-checked and
+  archived. Nothing blocked except the approval above.
 - Independence limitation, stated rather than implied: this environment has one
   agent and no launcher, so the review lane ran sequentially in the same
   session as the author's. Every verdict cites a command the reviewer ran at the

@@ -50,3 +50,13 @@ files, so it waits for the owner's authorization rather than being done quietly.
 - evidence: `git status --short | grep plugins/` -> 8 modified files after
   `cargo xtask ci`
 - owner: Release Engineer
+
+## R-10 - `main` cannot be merged into by the only account that has write access
+
+- severity: high (blocks every landing, not a defect in the product)
+- likelihood: certain while the repository has one collaborator
+- owner: CEO
+- statement: the branch protection rule requires one approving review and enforces it on admins; the single collaborator is the author of every pull request, so no pull request can be approved and `main` cannot advance.
+- evidence: gh api repos/Nidvue/Drive/branches/main/protection @2026-11-16 -> required_approving_review_count=1, enforce_admins.enabled=true; gh pr merge 13 --admin -> refused with the same rule.
+- mitigation: the user adds a second reviewer identity, or authorizes a recorded temporary exception (set the count to 0, merge the reviewed pull requests, restore it), or the repository is worked on from a fork whose pull requests carry two accounts.
+- upgrade path: the decision and the authorization are recorded in [Decisions](Decisions.md) D-20261116-CEO-6 before any change to the rule.

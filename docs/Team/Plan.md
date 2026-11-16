@@ -92,6 +92,28 @@ verified; `teamwork.py loop` reports STOP and `audit` reports zero problems.
 Not landed, and why: the mount backends (deviation 1, 1b, 2) need a platform
 this build environment does not have, the UI frame budget needs a windowed
 session, and the live-account and native-dylib items are deliberate refusals.
+
+## M8 - Usable end to end: settings, pair filters, conflicts (done, `33fa2e4`)
+
+Exit: `cargo xtask ci` green on the merged branch; the Conflict Center resolves a
+conflict from the UI; every configuration value is reachable from the CLI; a pair
+is filtered without editing `config.toml`.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0025 | Dot-path config for the CLI, the SDK and the C ABI, with pair-name segments | developer | P0 | M7 T-0004 | `crates/nidvue-core/src/config.rs` (`config::dot`) | done |
+| T-0026 | `sync add --include/--exclude/--conflict-policy/--paused`, `remove`, `pause`, `resume`, `list --json` | developer | P0 | T-0025 | `crates/nidvue-cli/src/main.rs` | done |
+| T-0027 | Per-pair exclude globs in Settings, log filter, tray notifications | developer | P1 | T-0026 | `apps/nidvue-ui/qml/SettingsPane.qml`, `Logs.qml`, `tray.cpp` | done |
+| T-0028 | Conflict Center resolves: `keep_local`/`keep_remote` parse | developer | P0 | - | `crates/nidvue-core/src/types.rs` | done |
+| T-0029 | One configuration lock in the SDK; no stale `config()` | developer | P0 | T-0025 | `crates/nidvue-sdk/src/lib.rs` | done |
+| T-0030 | CLI integration tests for `config` and `sync` | tester | P1 | T-0026 | `crates/nidvue-cli/tests/cli.rs` | done |
+| T-0031 | Broken-pipe exit instead of a panic | developer | P2 | - | `crates/nidvue-cli/src/main.rs` | done |
+
+Two branches were written in parallel from the same base (`feat/ui-engine-completion`
+and `feat/v0.2.0-close-deviations`); M8 lands second and reconciles them — one
+dot-path implementation, one metrics exporter, one configuration lock, the
+`Transfers` page in the new navigation, and the bench updated for the progress
+callback. The reconciliation commit is `33fa2e4`.
 Every one is recorded with its reason in [`../deviations.md`](../deviations.md).
 
 ## M6 - Team records and close (done)
