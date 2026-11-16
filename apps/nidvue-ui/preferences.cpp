@@ -95,7 +95,9 @@ Preferences::Preferences(QObject *parent)
 
     const auto changed = [this]() { m_recheck->start(); };
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, changed);
+#endif
 
     m_watcher = new QFileSystemWatcher(this);
     watchConfig();
