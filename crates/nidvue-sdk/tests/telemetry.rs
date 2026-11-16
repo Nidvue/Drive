@@ -67,6 +67,48 @@ async fn the_scrape_endpoint_serves_live_values() {
 }
 
 #[tokio::test]
+async fn the_scrape_agrees_with_the_status_view() {
+    let dir = tempfile::tempdir().unwrap();
+    let client = client_with(dir.path(), |c| {
+        c.log.prometheus_bind = Some("127.0.0.1:0".into());
+    })
+    .await;
+    client
+        .index()
+        .upsert_entry(&nidvue_cache::EntryRow {
+            path: "/a".into(),
+            kind: nidvue_core::types::EntryKind::File,
+            size: 1,
+            mtime_ms: 0,
+            hash: None,
+            remote_rev: None,
+            dirty: false,
+        })
+        .unwrap();
+    let status = client.status().await.unwrap();
+    let url = status.prometheus_url.clone().expect("a scrape URL");
+    assert!(
+        wait_for(
+            || scrape(&url).contains(&format!("nidvue_index_entries {}", status.index_entries))
+        )
+        .await,
+        "the endpoint and the status view disagree"
+    );
+    let body = scrape(&url);
+    assert!(
+        body.contains(&format!("nidvue_cache_bytes {}", status.cache.bytes)),
+        "{body}"
+    );
+    assert!(
+        body.contains(&format!(
+            "nidvue_cache_capacity_bytes {}",
+            status.cache.capacity
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
 async fn the_metric_snapshot_tracks_pause_state() {
     let dir = tempfile::tempdir().unwrap();
     let client = client_with(dir.path(), |_| {}).await;
