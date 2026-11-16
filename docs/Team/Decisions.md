@@ -129,3 +129,19 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - evidence: gh api repos/Nidvue/Drive/branches/main/protection -> required_approving_pull_request_reviews.required_approving_review_count=1, enforce_admins.enabled=true; gh pr view 13 --json reviewDecision -> REVIEW_REQUIRED; gh pr merge 13 --rebase --admin -> "At least 1 approving review is required by reviewers with write access"; gh api repos/Nidvue/Drive/collaborators -> [VisionPZ: admin]
 - falsified by: a successful merge of a pull request authored and approved by the same account, or a second collaborator appearing.
 - consequences: both branches are pushed and green; `main` stays at `0f24d5f` until the user decides. Recorded as [Risks](Risks.md) R-10.
+
+## D-20261116-CEO-7 - The Reviewer approves and lands; the release is the Release Engineer's step
+
+- date: 2026-11-16
+- kind: process
+- status: accepted
+- deciders: CEO (ceo)
+- decided by: CEO on the repository owner's instruction
+- task: T-0033
+- context: `main` required one approving review with `enforce_admins`, the repository has one collaborator who authors every pull request, so no pull request could be approved and D-20261116-CEO-6 left both branches unmerged. The owner then instructed: "the reviewer should review and approve the PRs automatically, the release manager follows up on the formal releases accordingly, update the repo settings accordingly if needed."
+- options considered: (a) keep one required approval and leave the branches unmerged; (b) require zero approvals and make the Reviewer's recorded verdict the review gate; (c) add a second GitHub identity as reviewer.
+- decision: (b), as authorized. The protection rule is changed to `required_approving_review_count: 0` with the required status checks set to the jobs that actually gate the product (`rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke`), `strict: true`, `enforce_admins: true`, linear history, no force-push, no deletion, conversation resolution on. The Reviewer's pass is the recorded verdict: a PR review with the evidence it ran, the `acceptance` layer, and the Archive entry; the Reviewer then merges with `gh pr merge --rebase`. (c) was refused: creating an external account is an irreversible external action and no second identity exists.
+- why: with one account, a mandatory self-approval is not a gate, it is a deadlock; the review that has value here is the recorded one — what was verified, at which revision, by which command — and that is now the merge precondition alongside the CI matrix. Required status checks were empty before this decision (`contexts: []`), so the gate that mattered was not actually enforced; setting them is the substantive fix.
+- evidence: gh api repos/Nidvue/Drive/branches/main/protection @2026-11-16 -> required_approving_review_count=1, enforce_admins=true, contexts=[]; gh pr merge 13 --rebase --admin -> refused; owner instruction recorded above @2026-11-16
+- falsified by: a pull request merged with a red required check, or a recorded reviewer verdict contradicted by the merged tree.
+- consequences: the review evidence is a PR comment plus an Archive entry, not a GitHub approval; the settings are re-read after the merge and recorded in `docs/Team/Release.md`; a second collaborator, if one is ever added, restores `required_approving_review_count: 1`.
