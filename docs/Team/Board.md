@@ -7,20 +7,17 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 ## Snapshot
 
-- Date: 2026-11-16 · Milestone: M8 (usable end to end) · Verified criteria: 24/24
-- Revision of record: `19c5617` on `feat/ux-parity-v2` (pull request 14), rebased
-  onto `feat/v0.2.0-close-deviations` (`40cb8ea`, pull request 13). CI is green on
-  that SHA in every job — rust (ubuntu-24.04), rust (windows-2022), licences/
-  advisories/spdx/secrets, qt ui, fuse mount smoke, analyze (cpp), CodeQL, links.
-  Not on `main`: the branch needs the one approving review the protection rule
-  requires, and this environment has a single GitHub account, which cannot
-  approve its own pull request. The blocker and the options are recorded in
-  [Risks](Risks.md) R-10 and [Decisions](Decisions.md) D-20261116-CEO-6.
+- Date: 2026-11-16 · Milestone: M9 (v0.2.0 released) · Verified criteria: 24/24
+- Revision of record: `6b42079` on `main`, tagged `v0.2.0`; both pull requests
+  merged (13 rebase-merged at `e1c38ea`, 14 at `6b42079`), CI green on the tagged
+  content, artefacts attached to the GitHub release.
+- Both branches are merged and deleted; `main` is the release revision.
 - Both parallel branches are green locally on the same gate
   (`cargo xtask ci`), and the v0.2.0 branch is green in CI on `40cb8ea`.
 - Open feature: F-0001, the whole product as one slice.
-- Queue state: ten tasks delivered in M7 and seven in M8, all self-checked and
-  archived. Nothing blocked except the approval above.
+- Queue state: ten tasks delivered in M7 and eight in M8/M9, all self-checked,
+  reviewed with a recorded verdict and archived. Nothing in flight, nothing
+  blocked.
 - Independence limitation, stated rather than implied: this environment has one
   agent and no launcher, so the review lane ran sequentially in the same
   session as the author's. Every verdict cites a command the reviewer ran at the
