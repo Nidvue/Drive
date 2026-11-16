@@ -10,7 +10,23 @@ ColumnLayout {
 
     spacing: Theme.gapLg
 
-    Component.onCompleted: Bridge.refreshPlugins()
+    /// The settings rows the Advanced card renders, filtered by the search box.
+    readonly property var configRows: {
+        var needle = configFilter.text.toLowerCase()
+        if (needle.length === 0)
+            return Bridge.configRows
+        var out = []
+        for (var i = 0; i < Bridge.configRows.length; ++i) {
+            if (Bridge.configRows[i].key.toLowerCase().indexOf(needle) >= 0)
+                out.push(Bridge.configRows[i])
+        }
+        return out
+    }
+
+    Component.onCompleted: {
+        Bridge.refreshPlugins()
+        Bridge.refreshConfig()
+    }
 
     Card {
         Layout.fillWidth: true
@@ -445,6 +461,73 @@ ColumnLayout {
                 text: qsTr("Refresh")
                 onClicked: Bridge.refreshPlugins()
                 Accessible.name: qsTr("Reload the installed plugin list")
+            }
+        }
+    }
+
+    Card {
+        Layout.fillWidth: true
+        title: qsTr("Advanced")
+        subtitle: qsTr("Every setting in config.toml. Pause, bandwidth, cache size and the sync pairs apply at once; the rest applies on the next start.")
+
+        content: ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gapSm
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.gapSm
+
+                Field {
+                    id: configFilter
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Filter settings…")
+                    Accessible.name: qsTr("Filter the settings list")
+                }
+
+                Label {
+                    text: pane.configRows.length === 1
+                          ? qsTr("1 setting")
+                          : qsTr("%1 settings").arg(pane.configRows.length)
+                    color: Theme.textTertiary
+                    font.pixelSize: Theme.fontCaption
+                }
+            }
+
+            ListView {
+                id: configList
+                Layout.fillWidth: true
+                implicitHeight: Math.min(contentHeight, 320)
+                clip: true
+                reuseItems: true
+                model: pane.configRows
+                spacing: 1
+                ScrollBar.vertical: ScrollBar {}
+
+                delegate: RowLayout {
+                    required property var modelData
+                    width: configList.width
+                    spacing: Theme.gapSm
+
+                    Label {
+                        Layout.preferredWidth: 250
+                        text: modelData.key
+                        color: Theme.textSecondary
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontCaption
+                        elide: Text.ElideMiddle
+                    }
+
+                    Field {
+                        Layout.fillWidth: true
+                        text: modelData.value
+                        Accessible.name: qsTr("Value of %1").arg(modelData.key)
+                        onEditingFinished: {
+                            if (text !== modelData.value)
+                                Bridge.setConfigValue(modelData.key, text)
+                        }
+                    }
+                }
             }
         }
     }

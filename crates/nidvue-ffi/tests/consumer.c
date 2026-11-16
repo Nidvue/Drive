@@ -58,6 +58,50 @@ int main(int argc, char **argv)
 
     check("clear_transfers returns 0", nidvue_client_clear_transfers(client) == NIDVUE_OK);
 
+    char *config = NULL;
+    check("config_list_json returns 0",
+          nidvue_client_config_list_json(client, &config, &err) == NIDVUE_OK);
+    check("config_list_json carries the cache cap",
+          config != NULL && strstr(config, "cache.max_size_bytes") != NULL);
+    check("config_list_json carries the pair filters",
+          config != NULL && strstr(config, "sync.pairs") != NULL);
+    nidvue_string_free(config);
+
+    char *cap = NULL;
+    check("config_get returns 0",
+          nidvue_client_config_get(client, "cache.max_size_bytes", &cap, &err) == NIDVUE_OK);
+    check("config_get is a number", cap != NULL && cap[0] != '\0' && cap[0] != '"');
+    nidvue_string_free(cap);
+
+    check("config_set writes a value",
+          nidvue_client_config_set(client, "cache.max_size_bytes", "1048576", &err) == NIDVUE_OK);
+    char *after = NULL;
+    check("config_set round-trips",
+          nidvue_client_config_get(client, "cache.max_size_bytes", &after, &err) == NIDVUE_OK
+              && after != NULL && strcmp(after, "1048576") == 0);
+    nidvue_string_free(after);
+    check("config_set refuses an unknown key",
+          nidvue_client_config_set(client, "no.such.key", "1", &err) == NIDVUE_ERR);
+    if (err != NULL) {
+        nidvue_string_free(err);
+        err = NULL;
+    }
+
+    char *peeked = NULL;
+    check("config_peek returns 0",
+          nidvue_config_peek(argv[1], "ui.start_minimised", &peeked, &err) == NIDVUE_OK);
+    check("config_peek reads a bool", peeked != NULL && strcmp(peeked, "false") == 0);
+    nidvue_string_free(peeked);
+
+    check("config_set writes the startup preference",
+          nidvue_client_config_set(client, "ui.start_minimised", "true", &err) == NIDVUE_OK);
+    char *wanted = NULL;
+    check("config_peek reads back what was written",
+          nidvue_config_peek(argv[1], "ui.start_minimised", &wanted, &err) == NIDVUE_OK
+              && wanted != NULL && strcmp(wanted, "true") == 0);
+    nidvue_string_free(wanted);
+
+
     char *conflicts = NULL;
     check("conflicts_json returns 0", nidvue_client_conflicts_json(client, &conflicts) == NIDVUE_OK);
     nidvue_string_free(conflicts);

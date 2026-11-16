@@ -95,6 +95,14 @@ int32_t nidvue_client_sync_pair_set_filters(NidvueClient *client, const char *na
                                             const char *include, const char *exclude,
                                             char **out, char **err);
 
+/* Every configuration leaf as a flat JSON object of dot path -> value. */
+int32_t nidvue_client_config_list_json(NidvueClient *client, char **out,
+                                       char **err);
+
+/* Read one value straight from config.toml without opening the engine. */
+int32_t nidvue_config_peek(const char *state_dir, const char *key, char **out,
+                           char **err);
+
 /* Read one configuration value by dotted key into *out as JSON. */
 int32_t nidvue_client_config_get(NidvueClient *client, const char *key,
                                  char **out, char **err);
