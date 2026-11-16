@@ -78,6 +78,8 @@ pub struct Status {
     pub transfer_limit: usize,
     /// Where credentials live, and why when it is a fallback.
     pub secret_backend: String,
+    /// True when the requested credential store cannot work.
+    pub secret_degraded: bool,
     /// The scrape URL, when a Prometheus endpoint is running.
     pub prometheus_url: Option<String>,
     /// The collector URL, when an OTLP exporter is running.
@@ -143,6 +145,7 @@ struct Inner {
     transfers: TransferRegistry,
     metrics: MetricsCache,
     secret_backend: String,
+    secret_degraded: bool,
     prometheus: Option<PrometheusServer>,
     otlp_endpoint: Option<String>,
 }
@@ -205,6 +208,7 @@ impl Client {
         let selection =
             nidvue_core::secret::open_store(config.secret.backend, config.credentials_file());
         let secret_backend = selection.describe();
+        let secret_degraded = selection.degraded;
         let auth = Arc::new(AuthManager::new(http.clone(), selection.store));
         let _ = auth.restore().await?;
         let username = auth
@@ -238,6 +242,7 @@ impl Client {
                 transfers,
                 metrics,
                 secret_backend,
+                secret_degraded,
                 prometheus,
                 otlp_endpoint,
             }),
@@ -526,6 +531,7 @@ impl Client {
             transfers: self.inner.transfers.list(),
             transfer_limit: nidvue_core::transfers::MAX_TRANSFERS,
             secret_backend: self.inner.secret_backend.clone(),
+            secret_degraded: self.inner.secret_degraded,
             prometheus_url: self.inner.prometheus.as_ref().map(|p| p.url()),
             otlp_endpoint: self.inner.otlp_endpoint.clone(),
         })

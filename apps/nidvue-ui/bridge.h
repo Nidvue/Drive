@@ -68,6 +68,7 @@ class Bridge : public QObject {
     Q_PROPERTY(QVariantList conflicts READ conflicts NOTIFY conflictsChanged)
     Q_PROPERTY(QVariantList transfers READ transfers NOTIFY transfersChanged)
     Q_PROPERTY(int transferLimit READ transferLimit CONSTANT)
+    Q_PROPERTY(int liveTransfers READ liveTransfers NOTIFY transfersChanged)
     Q_PROPERTY(QStringList logs READ logs NOTIFY logsChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
@@ -92,6 +93,7 @@ public:
     QVariantList conflicts() const { return m_conflicts; }
     QVariantList transfers() const { return m_transfers; }
     int transferLimit() const { return m_transferLimit; }
+    int liveTransfers() const { return m_liveTransfers; }
     QStringList logs() const { return m_logs; }
     QString lastError() const { return m_lastError; }
 
@@ -157,6 +159,7 @@ private:
     QVariantList m_conflicts;
     QVariantList m_transfers;
     int m_transferLimit = 512;
+    int m_liveTransfers = 0;
     QStringList m_logs;
     QString m_lastError;
 };
