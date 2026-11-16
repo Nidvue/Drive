@@ -61,14 +61,49 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - Last drill: `bash packaging/linux.sh` at `35ba7a1` on 2026-11-15 — tarball and
   `SHA256SUMS` produced, `sha256sum -c` green.
 
+## Released versions
+
+| version | tag | revision | artefacts | evidence |
+|---|---|---|---|---|
+| 0.2.0 | `v0.2.0` | `6b42079` | `nidvue-drive-0.2.0-linux-amd64.tar.gz`, `SHA256SUMS` (GitHub release) | `cargo xtask ci` green at the tagged revision; CI run 43879186747 green (rust ubuntu + windows, licences/advisories/spdx/secrets, qt ui, fuse mount smoke); packaged binaries smoke-tested from the extracted tarball: `nidvue-cli --version` -> `nidvue-cli 0.2.0`, `config get cache.max_size_bytes` -> `21474836480`, UI `--smoke-windows` -> exit 0 |
+| 0.1.0 | `v0.1.0` | `0f24d5f` | none republished | tagged retroactively at the 0.2.0 release because the docs referenced `v0.1.0` and no tag existed; the commit is the last one whose `Cargo.toml` says 0.1.0 |
+
+`dpkg-deb` is absent from this build environment, so the `.deb` recipe in
+`packaging/linux.sh` skipped and only the relocatable tarball shipped; the recipe
+is unchanged and runs where `dpkg-deb` exists.
+
+## Repository integrity (re-read after the 0.2.0 release)
+
+Read back from the host, not from a file in the tree:
+
+```sh
+gh api repos/Nidvue/Drive/branches/main/protection
+```
+
+| setting | value | why |
+|---|---|---|
+| required status checks | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | the five jobs that gate the product; they were **empty** before 2026-11-16, so nothing was actually enforced |
+| strict | true | a branch must be rebased on the current `main` before it merges |
+| required approvals | 0 | the repository has one collaborator who authors every pull request, so a required approval is a deadlock rather than a gate; the review that applies is the recorded verdict plus these checks ([Decisions](Decisions.md) D-20261116-CEO-7) |
+| enforce admins | true | the owner cannot bypass the checks either |
+| force pushes / deletions | false / false | history is append-only |
+| linear history | true | rebase-merge only |
+| conversation resolution | true | a review finding cannot be left unanswered |
+
+Restoring `required_approving_review_count: 1` is the correct change the day a
+second collaborator exists.
+
 ## Observability
 
 - Metrics: `nidvue-cli --json status` (health, index entries, cache bytes,
   conflicts, queue depth) and `nidvue-cli doctor --bench` for the budgets.
 - Logs: structured, redacted, to the state directory; no telemetry is sent
   anywhere ([`../../SECURITY.md`](../../SECURITY.md)).
-- Traces: `log.otel_endpoint` is a documented config field with no exporter wired
-  ([deviations](../deviations.md) item 4).
+- Traces: `log.otel_endpoint` exports OTLP/HTTP JSON metrics to `/v1/metrics`
+  every `log.otel_interval_s` seconds and one span per finished pass, failed
+  transfer and error-health transition to `/v1/traces`; `log.prometheus_bind`
+  serves `/metrics` and `/healthz`. A collector that is down is a logged warning,
+  never a sync failure.
 - Alerts: none — there is no server to alert on. The tray icon is the user-facing
   health signal.
 
