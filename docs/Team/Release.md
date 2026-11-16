@@ -52,7 +52,7 @@ gh api repos/Nidvue/Drive/branches/main/protection
 | required status checks (strict) | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | green on the merged revision, and the branch must be up to date with `main` |
 | required approvals | 0 - see the constraint below | one forge identity cannot approve its own pull request |
 | dismiss stale approvals | yes | a new push invalidates the earlier approval |
-| approval of the last push | required | the pusher cannot approve the tip it just pushed |
+| approval of the last push | off - see the constraint below | measured: it blocks every pull request while one identity exists |
 | code-owner review | off until a second identity exists | `.github/CODEOWNERS` names the reviewer on every path |
 | force-push, deletion | refused | a rewrite or a deletion of `main` is a red line |
 | linear history | required | no merge commits on `main` |
@@ -69,10 +69,14 @@ python3 scripts/teamwork.py pr merge --pr <id> --by reviewer-1
 `pr merge` refuses a role that is not the Reviewer and refuses the PR's own author;
 the review verdict, the merge and the merge commit are ledger records.
 
-**The one gap and its switch.** `required_approving_review_count` stays `0`
-because the repository has exactly one forge identity (`VisionPZ`, the organisation
-owner). GitHub forbids approving your own pull request, so a count of `1` would
-make every pull request unmergeable. The moment a second identity exists - a
+**The one gap and its switch.** `required_approving_review_count` stays `0` and
+`require_last_push_approval` stays off, because the repository has exactly one
+forge identity (`VisionPZ`, the organisation owner). GitHub forbids approving your
+own pull request, so a count of `1` would make every pull request unmergeable; and
+`require_last_push_approval` alone blocks without any approval being possible -
+measured on pull request 20, which reported `mergeStateStatus: BLOCKED` with every
+required check green until that flag was turned off, and `CLEAN` immediately
+after. The moment a second identity exists - a
 `reviewers` team with a second member, or a bot account - set the count to `1` and
 turn on `require_code_owner_reviews`; `.github/CODEOWNERS` already names the
 reviewer, so nothing else changes. Creating that second account is an external,
