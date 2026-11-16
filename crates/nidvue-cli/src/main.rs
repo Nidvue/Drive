@@ -509,7 +509,29 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         writable,
         format!("{} is writable", state.display()),
     ));
-    let client = Client::open(state).await?;
+    let selection =
+        nidvue_core::secret::open_store(config.secret.backend, config.credentials_file());
+    checks.push((
+        "secret".into(),
+        !selection.degraded,
+        format!("credentials: {}", selection.describe()),
+    ));
+    if selection.degraded {
+        checks.push((
+            "engine".into(),
+            false,
+            "not opened: the requested credential store is unusable".into(),
+        ));
+        return report(checks, Vec::new(), json);
+    }
+    drop(selection);
+    let client = match Client::open(state).await {
+        Ok(client) => client,
+        Err(e) => {
+            checks.push(("engine".into(), false, e.to_string()));
+            return report(checks, Vec::new(), json);
+        }
+    };
     checks.push((
         "login".into(),
         client.is_logged_in().await,
@@ -532,11 +554,6 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         "WinFSP host is not enabled in this build".into(),
     ));
     let status = client.status().await?;
-    checks.push((
-        "secret".into(),
-        true,
-        format!("credentials: {}", status.secret_backend),
-    ));
     checks.push(match &status.prometheus_url {
         Some(url) => ("metrics".into(), true, format!("scrape {url}")),
         None => (
@@ -565,6 +582,12 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         bench_lines = run_bench(&client)?;
     }
 
+    report(checks, bench_lines, json)
+}
+
+type Checks = Vec<(String, bool, String)>;
+
+fn report(checks: Checks, bench_lines: Vec<String>, json: bool) -> Result<(), NidvueError> {
     if json {
         let out = serde_json::json!({
             "checks": checks.iter().map(|(name, ok, detail)| serde_json::json!({

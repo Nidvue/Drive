@@ -342,9 +342,16 @@ void Bridge::onStatus(const QString &json)
     m_cacheCapacity = cache.value("capacity").toVariant().toULongLong();
     const auto transfers = parseTransfers(object.value("transfers").toArray());
     const int limit = object.value("transfer_limit").toInt(512);
-    if (transfers != m_transfers || limit != m_transferLimit) {
+    int live = 0;
+    for (const auto &row : transfers) {
+        const auto state = row.toMap().value("state").toString();
+        if (state == QStringLiteral("queued") || state == QStringLiteral("running"))
+            ++live;
+    }
+    if (transfers != m_transfers || limit != m_transferLimit || live != m_liveTransfers) {
         m_transfers = transfers;
         m_transferLimit = limit;
+        m_liveTransfers = live;
         emit transfersChanged();
     }
     emit statusChanged();

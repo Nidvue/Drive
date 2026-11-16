@@ -34,7 +34,8 @@ Item {
                         { title: qsTr("Health"), value: Bridge.health, detail: Bridge.loggedIn ? qsTr("account connected") : qsTr("not logged in") },
                         { title: qsTr("Indexed"), value: Bridge.indexEntries.toLocaleString(), detail: qsTr("metadata entries") },
                         { title: qsTr("Cache"), value: human(Bridge.cacheBytes), detail: qsTr("served without the network") },
-                        { title: qsTr("Conflicts"), value: Bridge.conflictsOpen, detail: qsTr("awaiting a decision") }
+                        { title: qsTr("Conflicts"), value: Bridge.conflictsOpen, detail: qsTr("awaiting a decision") },
+                        { title: qsTr("Transfers"), value: Bridge.liveTransfers, detail: qsTr("%1 recorded, newest kept").arg(Bridge.transfers.length) }
                     ]
                     delegate: Rectangle {
                         Layout.fillWidth: true
