@@ -109,6 +109,25 @@ is filtered without editing `config.toml`.
 | T-0030 | CLI integration tests for `config` and `sync` | tester | P1 | T-0026 | `crates/nidvue-cli/tests/cli.rs` | done |
 | T-0031 | Broken-pipe exit instead of a panic | developer | P2 | - | `crates/nidvue-cli/src/main.rs` | done |
 
+## M10 - v0.2.1: every setting from the window, a live cache cap (done, `7d1c7ad`)
+
+Exit: the Advanced card lists every config leaf and the smoke test fails when it
+receives none; lowering the cache cap evicts before the call returns; the app
+honours `ui.start_minimised` and `ui.theme` before the first frame.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0036 | Advanced settings card over the flat config map | developer | P0 | M8 T-0025 | `apps/nidvue-ui/qml/SettingsPane.qml`, `nidvue_client_config_list_json` | done |
+| T-0037 | Live cache cap (`AtomicU64` + `set_capacity`) applied by the SDK | developer | P0 | - | `crates/nidvue-cache/src/lib.rs`, `crates/nidvue-sdk/src/lib.rs` | done |
+| T-0038 | `nidvue_config_peek`; honour `ui.start_minimised` and `ui.theme` | developer | P1 | T-0036 | `crates/nidvue-ffi/src/lib.rs`, `apps/nidvue-ui/main.cpp` | done |
+| T-0039 | `ui-smoke` fails when the settings editor receives no rows | tester | P1 | T-0036 | `xtask/src/main.rs`, `apps/nidvue-ui/main.cpp` | done |
+| T-0040 | An unreadable secret store degrades instead of aborting | developer | P0 | - | `crates/nidvue-jotta/src/auth.rs` | done |
+| T-0041 | Release 0.2.1: version, tag, artefacts, release notes | release-engineer | P2 | T-0036..T-0040 | `Cargo.toml`, `CHANGELOG.md`, GitHub release | done |
+
+Not closed, and why: the mount backends need a platform this environment does not
+have; the UI frame budget needs a windowed session; `ui.language` needs shipped
+translations. Each keeps its reason in [deviations](../../docs/deviations.md).
+
 Two branches were written in parallel from the same base (`feat/ui-engine-completion`
 and `feat/v0.2.0-close-deviations`); M8 lands second and reconciles them — one
 dot-path implementation, one metrics exporter, one configuration lock, the

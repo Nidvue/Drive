@@ -65,6 +65,7 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 | version | tag | revision | artefacts | evidence |
 |---|---|---|---|---|
+| 0.2.1 | `v0.2.1` | `7d1c7ad` | `nidvue-drive-0.2.1-linux-amd64.tar.gz`, `SHA256SUMS` (GitHub release) | `cargo xtask ci` green at the tagged revision (231 tests); CI run 43902102553 green on `main` at the tagged revision; `ui-smoke` -> `48 settings rows`; packaged binaries smoke-tested: `nidvue-cli --version` -> 0.2.1, `config set/get cache.max_size_bytes` -> 1048576, UI `--smoke-windows` -> exit 0 |
 | 0.2.0 | `v0.2.0` | `6b42079` | `nidvue-drive-0.2.0-linux-amd64.tar.gz`, `SHA256SUMS` (GitHub release) | `cargo xtask ci` green at the tagged revision; CI run 43879186747 green (rust ubuntu + windows, licences/advisories/spdx/secrets, qt ui, fuse mount smoke); packaged binaries smoke-tested from the extracted tarball: `nidvue-cli --version` -> `nidvue-cli 0.2.0`, `config get cache.max_size_bytes` -> `21474836480`, UI `--smoke-windows` -> exit 0 |
 | 0.1.0 | `v0.1.0` | `0f24d5f` | none republished | tagged retroactively at the 0.2.0 release because the docs referenced `v0.1.0` and no tag existed; the commit is the last one whose `Cargo.toml` says 0.1.0 |
 

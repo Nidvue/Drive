@@ -310,3 +310,55 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: cargo test -p nidvue-cli --test cli @33fa2e4 -> 3 passed; the suite fails when `config set` stops writing the file (checked by reading the assertion bodies, not by mutation)
 - findings history: -
 - branch / merge: feat/ux-parity-v2 / pending
+
+## T-0036 · The whole configuration is editable in the window  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (recorded verdict on pull request 16)
+- task / issue: -
+- area: ui
+- self-check: [pass] Re-read the change: the card renders `Bridge.configRows`, which comes from `nidvue_client_config_list_json` (the flat `dot.path -> value` map the CLI's `config list --json` prints), filtered by a search box; each row writes through `Bridge.setConfigValue` -> `nidvue_client_config_set`, so the validation that refuses a zero cache in the CLI refuses it here too. Empty case: no engine -> no rows, and the card shows nothing rather than a stale list; a rejected value leaves the row's text and the file as they were. Scope: one card, one FFI read, one FFI write; no other page touched. | test: cargo xtask ui-smoke @7d1c7ad -> "+ ui smoke: engine initialised, 48 settings rows, no QML errors" | artifacts: apps/nidvue-ui/qml/SettingsPane.qml, crates/nidvue-ffi/src/lib.rs | replay: cargo xtask ui && cargo xtask ui-smoke
+- author evidence: cargo xtask ffi-smoke @7d1c7ad -> the C consumer asserts config list carries `cache.max_size_bytes` and `sync.pairs`
+- reviewer evidence: cargo xtask ui-smoke @7d1c7ad -> 48 rows, no QML errors; cargo xtask ffi-smoke -> config list/get/set/refusal/peek all pass
+- findings history: the first smoke test only proved the window instantiated, which a broken data path would also pass; the reviewer required the row count to be asserted
+- branch / merge: feat/settings-and-live-cache / 7d1c7ad
+
+## T-0037 · The cache cap applies without a restart  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (recorded verdict on pull request 16)
+- task / issue: -
+- area: cache
+- self-check: [pass] Re-read the change: `Cache` keeps the cap in an `AtomicU64`; `set_capacity` refuses zero, stores the value and evicts to the new low watermark before returning; `put`, `put_file`, `evict_to_capacity` and `effective_capacity` read the atomic, and `ensure_room` takes the cap as a parameter so a write obeys the live value rather than the one the cache opened with. The SDK applies it from `apply_live` on every config write, so the CLI, the Settings slider and the Advanced card reach the same path. Concurrent writes serialise on the atomic; a zero is refused and changes nothing. | test: cargo test -p nidvue-cache -p nidvue-sdk @7d1c7ad -> 23 + 6 passed, 0 failed | artifacts: crates/nidvue-cache/src/lib.rs, crates/nidvue-sdk/src/lib.rs | replay: cargo test -p nidvue-cache the_capacity_is_live
+- author evidence: cargo test -p nidvue-cache the_capacity_is_live_and_evicts_when_lowered @7d1c7ad -> 1 passed (usage drops to <= the new cap, the next write obeys it)
+- reviewer evidence: cargo test -p nidvue-sdk the_cache_cap_applies_without_a_restart @7d1c7ad -> 1 passed (config_set, set_cache_limit_bytes and a reopen all agree)
+- findings history: -
+- branch / merge: feat/settings-and-live-cache / 7d1c7ad
+
+## T-0038 · `ui.start_minimised` and `ui.theme` are honoured  (developer)
+- date: 2026-11-16
+- priority: P1
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (recorded verdict on pull request 16)
+- task / issue: -
+- area: ui
+- self-check: [pass] Re-read the change: `nidvue_config_peek` loads `config.toml` without opening the engine, and `main()` reads `ui.theme` and `ui.start_minimised` before `engine.load()`, so neither a theme flash nor a visible-then-hidden window is possible. A theme chosen in the window still wins over the configured default; `start_minimised` is ANDed with `QSystemTrayIcon::isSystemTrayAvailable()` so a desktop without a tray cannot start invisible. A missing file, an unknown key or a malformed value all fall back to the previous behaviour. | test: cargo xtask ffi-smoke @7d1c7ad -> peek reads false, then reads back true after a write | artifacts: crates/nidvue-ffi/src/lib.rs, apps/nidvue-ui/main.cpp, apps/nidvue-ui/preferences.cpp | replay: cargo xtask ffi-smoke
+- author evidence: cargo xtask ffi-smoke @7d1c7ad -> "config_peek reads a bool" and "config_peek reads back what was written" pass
+- reviewer evidence: grep -n 'isSystemTrayAvailable' apps/nidvue-ui/main.cpp @7d1c7ad -> the tray guard is on the same line as the config read; the tray-gated branch cannot be exercised offscreen, recorded as a limitation in the verdict
+- findings history: -
+- branch / merge: feat/settings-and-live-cache / 7d1c7ad
+
+## T-0040 · A keyring that cannot answer no longer stops the client  (developer)
+- date: 2026-11-16
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1 (recorded verdict on pull request 16)
+- task / issue: -
+- area: auth
+- self-check: [pass] Re-read the change: `AuthManager::restore` treats a store read error as "no token yet" and logs the reason, so a platform keyring that answers the probe and then fails a read (observed as `DBus error: Client public key size is invalid`) degrades to "not logged in" instead of aborting `Client::open`. A corrupt payload is still an error — that is a real inconsistency worth surfacing. `logout` and `login` are unchanged. | test: cargo test -p nidvue-jotta @7d1c7ad -> 31 passed, 0 failed | artifacts: crates/nidvue-jotta/src/auth.rs | replay: cargo test -p nidvue-jotta an_unreadable_store_does_not_stop_the_client
+- author evidence: cargo test -p nidvue-jotta an_unreadable_store_does_not_stop_the_client @7d1c7ad -> 1 passed
+- reviewer evidence: the failure was intermittent (one of two full-suite runs); the new test pins the behaviour with a store that always errors, so it no longer depends on the environment's D-Bus session
+- findings history: -
+- branch / merge: feat/settings-and-live-cache / 7d1c7ad
