@@ -1,0 +1,10 @@
+# The Reviewer is the only approver.
+#
+# Every path is owned by the reviewer identity, so a pull request requests that
+# review automatically and, with "Require review from Code Owners" switched on,
+# only a code-owner approval satisfies the gate. The identity is the org owner
+# because this repository has exactly one forge account today; the moment a
+# `reviewers` team exists, replace the line with `* @Nidvue/reviewers` and turn
+# the code-owner requirement on in the branch protection (docs/Team/Release.md,
+# "Branch protection").
+*       @VisionPZ

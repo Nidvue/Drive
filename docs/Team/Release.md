@@ -37,6 +37,47 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 `cargo xtask ci` runs all of the above except the CI-hosted CodeQL job.
 
+## Branch protection
+
+`main` is protected on the forge and the Reviewer is the only approver. The
+settings below are read back from the API, never assumed:
+
+```sh
+gh api repos/Nidvue/Drive/branches/main/protection
+```
+
+| setting | value | why |
+|---|---|---|
+| pull request required | yes | no direct push to `main`; every change is a pull request |
+| required status checks (strict) | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | green on the merged revision, and the branch must be up to date with `main` |
+| required approvals | 0 - see the constraint below | one forge identity cannot approve its own pull request |
+| dismiss stale approvals | yes | a new push invalidates the earlier approval |
+| approval of the last push | required | the pusher cannot approve the tip it just pushed |
+| code-owner review | off until a second identity exists | `.github/CODEOWNERS` names the reviewer on every path |
+| force-push, deletion | refused | a rewrite or a deletion of `main` is a red line |
+| linear history | required | no merge commits on `main` |
+| conversation resolution | required | a review thread must be answered before the merge |
+| enforce for admins | yes | the owner has no bypass |
+
+**Who may merge.** Only the Reviewer, and never the author of the change. The
+engine enforces that rule, not the forge:
+
+```sh
+python3 scripts/teamwork.py pr merge --pr <id> --by reviewer-1
+```
+
+`pr merge` refuses a role that is not the Reviewer and refuses the PR's own author;
+the review verdict, the merge and the merge commit are ledger records.
+
+**The one gap and its switch.** `required_approving_review_count` stays `0`
+because the repository has exactly one forge identity (`VisionPZ`, the organisation
+owner). GitHub forbids approving your own pull request, so a count of `1` would
+make every pull request unmergeable. The moment a second identity exists - a
+`reviewers` team with a second member, or a bot account - set the count to `1` and
+turn on `require_code_owner_reviews`; `.github/CODEOWNERS` already names the
+reviewer, so nothing else changes. Creating that second account is an external,
+irreversible step and needs the owner's authorization.
+
 ## Deploy
 
 - There is no server and no migration: the product is a client a user installs.
