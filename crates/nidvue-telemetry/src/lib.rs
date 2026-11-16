@@ -23,7 +23,7 @@
 //! ```
 
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
@@ -160,7 +160,9 @@ fn handle_connection(mut stream: TcpStream, cache: &MetricsCache) -> std::io::Re
             .to_string(),
     };
     stream.write_all(response.as_bytes())?;
-    stream.flush()
+    stream.flush()?;
+    let _ = stream.shutdown(Shutdown::Write);
+    Ok(())
 }
 
 /// Posts OTLP/HTTP JSON to `<endpoint>/v1/metrics`.
