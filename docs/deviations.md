@@ -1,6 +1,6 @@
 # Deviations from the brief
 
-Related: [Project](Team/Project.md) · [Architecture](Team/Architecture.md) · [Risks](Team/Risks.md) · [Release](Team/Release.md) · [Research](Team/Research.md) · [Costs](Team/Costs.md) · [Design](Team/Design.md) · [configuration](configuration.md) · [performance](performance.md) · [jotta-api](jotta-api.md) · [packaging](packaging.md)
+Related: [Project](Team/Project.md) · [Plan](Team/Plan.md) · [Architecture](Team/Architecture.md) · [Risks](Team/Risks.md) · [Release](Team/Release.md) · [Research](Team/Research.md) · [Costs](Team/Costs.md) · [Design](Team/Design.md) · [configuration](configuration.md) · [performance](performance.md) · [jotta-api](jotta-api.md) · [packaging](packaging.md)
 
 Every requirement that is not fully met is listed here with the reason and the
 upgrade path. An empty row is not allowed: "works" without evidence is not a

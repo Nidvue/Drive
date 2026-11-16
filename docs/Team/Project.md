@@ -10,7 +10,7 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 Nidvue Drive is the Nidvue desktop client for Jottacloud: one Rust engine that
 does two-way sync and serves a mountable filesystem from a size-limited,
 content-addressed cache, exposed through a stable SDK, a WASM plugin host, a
-headless CLI and a Qt 6 desktop application. "Finished" for `v0.1.0` means every
+headless CLI and a Qt 6 desktop application. "Finished" for `v0.2.0` means every
 criterion below is verified by an executed command at a recorded revision, and
 every requirement that is not met is written down with its reason in
 [`../deviations.md`](../deviations.md).
@@ -105,9 +105,14 @@ every requirement that is not met is written down with its reason in
 | AC-DOCS | README, ARCHITECTURE, ADRs, deviations match merged code | `teamwork.py links` |
 | AC-PACKAGE | AppImage/deb, dmg, MSI recipes with mount helper permissions | `bash packaging/linux.sh` |
 | AC-INVARIANTS | the seven correctness invariants are executable | `cargo test -p nidvue-invariants` |
+| AC-KEYRING | OS keyring when available, encrypted file with a reported reason otherwise | `cargo test -p nidvue-core --all-features secret` |
+| AC-METRICS | `log.prometheus_bind` serves values that match the status view | `cargo test -p nidvue-sdk --test telemetry` |
+| AC-OTEL | `log.otel_endpoint` receives OTLP/HTTP JSON on every tick | `cargo test -p nidvue-telemetry` |
+| AC-CONFIG | every configuration key is readable and writable by dot path | `cargo test -p nidvue-cli` |
+| AC-TRANSFERS | transfers in status, over the C ABI and in a virtualised list | `cargo xtask ffi-smoke` |
 
-All nineteen are `verified` in `Criteria.md` with the command and revision that
-proved them; the accepted results are in [Archive](Archive.md).
+All twenty-four are `verified` in `Criteria.md` with the command and revision
+that proved them; the accepted results are in [Archive](Archive.md).
 
 ## Scope
 

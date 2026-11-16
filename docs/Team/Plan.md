@@ -71,7 +71,30 @@ Exit: `cargo xtask ci` green; every criterion verified; main protected.
 | T-0022 | CI matrix, CodeQL, cargo-deny, SPDX, secret scan, DCO | release-engineer | P0 | release-engineer:T-0021 | `.github/workflows/` | done |
 | T-0023 | Protected `main`, rebase-only PRs, required checks | ceo | P0 | release-engineer:T-0022 | [Decisions](Decisions.md) D-20261115-CEO | done |
 
-## M6 - Team records and close (this milestone)
+## M7 - v0.2.0: close the deviations that can be closed (done, `798a123`)
+
+Exit: `cargo xtask ci` green with `ffi-smoke` in the gate; the five new criteria
+verified; `teamwork.py loop` reports STOP and `audit` reports zero problems.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0001 | OS keyring `SecretStore` with a recorded fallback | developer | P0 | - | `crates/nidvue-core/src/secret.rs`, `secret.backend` | done |
+| T-0002 | Prometheus `/metrics` and `/healthz` on `log.prometheus_bind` | developer | P0 | - | `crates/nidvue-telemetry` | done |
+| T-0003 | OTLP/HTTP JSON exporter on `log.otel_endpoint` | developer | P0 | T-0002 | `crates/nidvue-telemetry` | done |
+| T-0004 | `config get|set|list|path` with full key coverage | developer | P1 | - | `crates/nidvue-cli/src/lib.rs` | done |
+| T-0005 | Transfer registry, `Status.transfers`, C ABI, `Transfers.qml` | developer | P0 | - | `crates/nidvue-core/src/transfers.rs`, `apps/nidvue-ui/qml/Transfers.qml` | done |
+| T-0006 | Cold-read and sustained-transfer budgets measured | tester | P1 | T-0005 | `benches/benches/transfer.rs` | done |
+| T-0007 | 100k-path initial sync measured | tester | P1 | - | `benches/benches/initial_sync.rs` | done |
+| T-0008 | C consumer and the CLI-to-engine config seam | tester | P1 | T-0004 | `cargo xtask ffi-smoke`, `crates/nidvue-cli/tests/config.rs` | done |
+| T-0009 | v0.2.0 version, changelog, release drill | release-engineer | P2 | - | `Cargo.toml`, `CHANGELOG.md` | done |
+| T-0010 | Deviations, ARCHITECTURE, README, configuration | product-manager | P2 | - | `docs/` | done |
+
+Not landed, and why: the mount backends (deviation 1, 1b, 2) need a platform
+this build environment does not have, the UI frame budget needs a windowed
+session, and the live-account and native-dylib items are deliberate refusals.
+Every one is recorded with its reason in [`../deviations.md`](../deviations.md).
+
+## M6 - Team records and close (done)
 
 Exit: `teamwork.py loop` reports STOP and `teamwork.py audit` reports zero problems.
 
