@@ -29,9 +29,14 @@ struct FakeRemote {
     files: Mutex<BTreeMap<String, (Vec<u8>, i64)>>,
     dirs: Mutex<BTreeSet<String>>,
     fail_upload: AtomicBool,
+    uploads: Mutex<usize>,
 }
 
 impl FakeRemote {
+    fn upload_count(&self) -> usize {
+        *self.uploads.lock().unwrap()
+    }
+
     fn put(&self, path: &str, bytes: &[u8]) {
         self.files
             .lock()
@@ -164,6 +169,7 @@ impl Remote for FakeRemote {
         if self.fail_upload.load(Ordering::SeqCst) {
             return Err(NidvueError::Network("upload disabled for this test".into()));
         }
+        *self.uploads.lock().unwrap() += 1;
         let bytes = std::fs::read(local).map_err(|e| NidvueError::io(local, e))?;
         let key = path.as_str().trim_start_matches('/').to_string();
         // One write is one version: the timestamp this call reports must be the
@@ -511,4 +517,86 @@ fn walk(root: &Path) -> Vec<PathBuf> {
         }
     }
     out
+}
+
+#[tokio::test]
+async fn a_rename_moves_the_remote_file_instead_of_uploading_it_again() {
+    let h = harness();
+    let pair = pair(h.local.path());
+    write_local(
+        h.local.path(),
+        "old.txt",
+        b"contents that are expensive to upload",
+    );
+    h.engine.sync_pair(&pair).await.expect("first pass");
+    let before = h.remote.upload_count();
+    assert_eq!(before, 1, "the first pass uploads once");
+
+    // A rename: the old name disappears, the new one appears with the same
+    // content and the same mtime.
+    std::fs::rename(
+        h.local.path().join("old.txt"),
+        h.local.path().join("new.txt"),
+    )
+    .expect("rename");
+    h.engine.sync_pair(&pair).await.expect("rename pass");
+
+    assert_eq!(
+        h.remote.upload_count(),
+        before,
+        "a rename must not upload the content again"
+    );
+    assert!(
+        h.remote.files.lock().unwrap().contains_key("Docs/new.txt"),
+        "the remote carries the new name"
+    );
+    assert!(
+        !h.remote.files.lock().unwrap().contains_key("Docs/old.txt"),
+        "the old name is gone on the remote"
+    );
+    assert!(h.local.path().join("new.txt").exists());
+}
+
+#[tokio::test]
+async fn a_pass_that_would_delete_too_much_is_refused() {
+    let mut h = harness();
+    let pair = pair(h.local.path());
+    for i in 0..5 {
+        write_local(h.local.path(), &format!("f{i}.txt"), b"x");
+    }
+    h.engine.sync_pair(&pair).await.expect("first pass");
+    // Losing the whole folder locally looks like five deletions to the engine.
+    for i in 0..5 {
+        std::fs::remove_file(h.local.path().join(format!("f{i}.txt"))).expect("remove");
+    }
+    h.engine.reconfigure(SyncConfig {
+        bulk_delete_threshold: 2,
+        ..SyncConfig::default()
+    });
+    let error = h
+        .engine
+        .sync_pair(&pair)
+        .await
+        .expect_err("five deletions over a threshold of two must be refused")
+        .to_string();
+    assert!(
+        error.contains("bulk_delete_threshold"),
+        "the refusal must name the setting: {error}"
+    );
+    assert_eq!(
+        h.remote.files.lock().unwrap().len(),
+        5,
+        "nothing was deleted while the pass was refused"
+    );
+
+    // Raising the threshold lets the same pass through.
+    h.engine.reconfigure(SyncConfig {
+        bulk_delete_threshold: 10,
+        ..SyncConfig::default()
+    });
+    h.engine.sync_pair(&pair).await.expect("second pass");
+    assert!(
+        h.remote.files.lock().unwrap().is_empty(),
+        "deletions applied"
+    );
 }

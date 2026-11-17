@@ -141,7 +141,7 @@ fn main() {
 
     let baselines = BTreeMap::new();
     let start = Instant::now();
-    let actions = plan(&local, &remote, &baselines);
+    let actions = plan(&local, &remote, &baselines, 0);
     let plan_time = start.elapsed();
     println!(
         "first plan against the parsed remote: {plan_time:?} ({:.2} µs/path, {} actions)",

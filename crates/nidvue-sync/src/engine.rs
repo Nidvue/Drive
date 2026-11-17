@@ -133,6 +133,17 @@ impl SyncEngine {
         });
         let remote_root = RemotePath::parse(&pair.remote)?;
         let filter = PathFilter::new(&pair.include, &pair.exclude)?;
+        // A pair can name a folder that does not exist yet — that is the normal
+        // first run of `sync add`. Create it instead of failing the pass with a
+        // 404 from the listing.
+        match self.remote.remote_stat(&remote_root).await {
+            Ok(_) => {}
+            Err(NidvueError::NotFound(_)) => {
+                self.remote.remote_mkdir(&remote_root).await?;
+                info!(pair = %pair.name, path = %remote_root, "created the remote folder");
+            }
+            Err(e) => return Err(e),
+        }
 
         let local_root = pair.local.clone();
         let base = remote_root.clone();
@@ -151,13 +162,56 @@ impl SyncEngine {
             .map(|b| (b.path.clone(), b))
             .collect();
 
-        let actions = plan(&local, &remote, &baselines);
+        let mut actions = plan(
+            &local,
+            &remote,
+            &baselines,
+            self.cfg.rename_window_ms as i64,
+        );
+        // The pair's own root is never a sync subject: a pass must not delete the
+        // folder it syncs into, and an empty local folder lists no entries of its
+        // own while the baseline does record the root.
+        actions.retain(|action| {
+            action.path() != &remote_root
+                || !matches!(
+                    action,
+                    Action::DeleteLocal { .. } | Action::DeleteRemote { .. }
+                )
+        });
+        // A pass that would delete a lot at once is more likely a mistake — an
+        // unmounted folder, a moved directory, a mistyped pair — than a real
+        // intent. Refuse it and name the setting, instead of doing it and
+        // apologising afterwards.
+        let threshold = self.cfg.bulk_delete_threshold;
+        if threshold > 0 {
+            let deletions = actions
+                .iter()
+                .filter(|a| matches!(a, Action::DeleteRemote { .. } | Action::DeleteLocal { .. }))
+                .count() as u64;
+            if deletions > threshold {
+                return Err(NidvueError::Config(format!(
+                    "{} would delete {deletions} paths (bulk_delete_threshold is {threshold}): \
+                     raise sync.bulk_delete_threshold or run the pass again once you are sure",
+                    pair.name
+                )));
+            }
+        }
         let mut report = SyncReport {
             pair: pair.name.clone(),
             scanned: local.len() as u64,
             planned: actions.len() as u64,
             ..Default::default()
         };
+        debug!(
+            pair = %pair.name,
+            local = local.len(),
+            remote = remote.len(),
+            baselines = baselines.len(),
+            "planned a pass"
+        );
+        for action in &actions {
+            debug!(pair = %pair.name, path = %action.path(), action = ?action, "planned");
+        }
         let policy = pair.conflict_policy.unwrap_or(self.cfg.conflict_policy);
 
         for action in actions {
@@ -272,7 +326,12 @@ impl SyncEngine {
                 });
                 if let Some(parent) = path.parent() {
                     if !parent.is_root() {
-                        self.remote.remote_mkdir(&parent).await?;
+                        // A folder that already exists is the normal case for the
+                        // second file in a directory.
+                        match self.remote.remote_mkdir(&parent).await {
+                            Ok(()) | Err(NidvueError::AlreadyExists(_)) => {}
+                            Err(e) => return Err(e),
+                        }
                     }
                 }
                 let entry = self
@@ -355,6 +414,38 @@ impl SyncEngine {
                 self.trash(&path, &local_path)?;
                 self.index.clear_baseline(path.as_str())?;
                 self.index.delete_entry(path.as_str())?;
+                self.index.journal_mark(id, "commit")?;
+                Ok(())
+            }
+            Action::Move { from, to, version } => {
+                // Rename on the remote, then move the local file, so a large file
+                // is never re-uploaded for a rename.
+                let id = self.index.journal_append(
+                    corr.as_str(),
+                    from.as_str(),
+                    "rename_remote",
+                    version.hash.as_ref().map(|h| h.as_str()),
+                    Some(version.size),
+                    None,
+                )?;
+                self.remote.remote_rename(from, to).await?;
+                let local_from = local_for(local_root, remote_root, from);
+                let local_to = local_for(local_root, remote_root, to);
+                if local_from.exists() {
+                    if let Some(parent) = local_to.parent() {
+                        std::fs::create_dir_all(parent).map_err(|e| NidvueError::io(parent, e))?;
+                    }
+                    std::fs::rename(&local_from, &local_to)
+                        .map_err(|e| NidvueError::io(&local_from, e))?;
+                }
+                self.index.clear_baseline(from.as_str())?;
+                self.index.set_baseline(
+                    to.as_str(),
+                    EntryKind::File,
+                    version,
+                    version,
+                    now_ms(),
+                )?;
                 self.index.journal_mark(id, "commit")?;
                 Ok(())
             }
@@ -639,8 +730,21 @@ pub async fn scan_remote(
         let path = join(root, &folder.path);
         out.insert(path, (EntryKind::Dir, Version::new(0, 0, None)));
     }
+    debug!(
+        root = %root,
+        folders = listing.folders.len(),
+        files = listing.files.len(),
+        "remote listing"
+    );
     for file in &listing.files {
-        let path = join(root, &file.name);
+        debug!(path = %file.path, name = %file.name, size = file.size, "remote file");
+        // `path` is the folder the file sits in and `name` is the file name, both
+        // relative to the device root. Joining only the name put every nested
+        // file at the pair root.
+        let path = join(
+            root,
+            &format!("{}/{}", file.path.trim_end_matches('/'), file.name),
+        );
         out.insert(
             path,
             (
@@ -670,15 +774,21 @@ fn join(base: &RemotePath, relative: &str) -> RemotePath {
     if rel.is_empty() {
         return base.clone();
     }
-    // liststream paths are already relative to the mountpoint root; a path that
-    // already includes the base must not be doubled.
-    let candidate = if rel.starts_with(base.as_str().trim_start_matches('/')) {
+    // A `liststream` path is relative to the device root, so a path that already
+    // carries the base is the whole path and must not be prefixed again; anything
+    // else is relative to the folder that was listed.
+    let base_rel = base.as_str().trim_start_matches('/');
+    let under_base = rel == base_rel || rel.starts_with(&format!("{base_rel}/"));
+    let candidate = if under_base {
         format!("/{rel}")
     } else {
         format!("{}/{}", base.as_str().trim_end_matches('/'), rel)
     };
     RemotePath::parse(&candidate).unwrap_or_else(|_| base.clone())
 }
+
+/// A live filesystem watcher. Drop it to stop watching.
+pub type Watcher = notify::RecommendedWatcher;
 
 /// Watch a local directory and call `on_change` after a debounce window.
 ///
@@ -687,7 +797,7 @@ pub fn spawn_watcher(
     root: PathBuf,
     debounce: Duration,
     on_change: impl Fn() + Send + 'static,
-) -> Result<notify::RecommendedWatcher> {
+) -> Result<Watcher> {
     use notify::{RecursiveMode, Watcher};
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
     let mut watcher = notify::recommended_watcher(

@@ -166,6 +166,7 @@ struct Inner {
     secret_degraded: bool,
     prometheus: Option<PrometheusServer>,
     otlp_endpoint: Option<String>,
+    sync_loop_started: std::sync::atomic::AtomicBool,
 }
 
 /// The Nidvue Drive client.
@@ -263,6 +264,7 @@ impl Client {
                 secret_degraded,
                 prometheus,
                 otlp_endpoint,
+                sync_loop_started: std::sync::atomic::AtomicBool::new(false),
             }),
         };
         client.spawn_feeders();
@@ -296,6 +298,170 @@ impl Client {
                 }
                 if let Err(e) = exporter.send(&spans).await {
                     tracing::warn!(error = %e, "otlp span export failed");
+                }
+            }
+        });
+    }
+
+    /// Start the continuous sync supervisor.
+    ///
+    /// Off until a front door asks for it: `nidvue-cli sync watch` and the desktop
+    /// app call this, while a one-shot command like `sync run` must not sync every
+    /// pair behind the user's back. Calling it twice starts one supervisor.
+    pub fn start_sync_loop(&self) {
+        if self
+            .inner
+            .sync_loop_started
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        self.spawn_sync_loop();
+    }
+
+    /// The continuous sync supervisor: one watcher per unpaused pair, an
+    /// adaptive remote poll, and the full-scan safety net.
+    ///
+    /// Without this the engine only synced when someone ran `sync run` or pressed
+    /// "Sync now", while `poll_interval_ms`, `max_poll_interval_ms`,
+    /// `full_scan_interval_ms`, `debounce_ms` and `rename_window_ms` sat in the
+    /// configuration doing nothing. Each pair gets its own watcher; a local event
+    /// runs a pass, and a pass also runs when the adaptive poll is due, backing
+    /// off on empty passes and resetting on a change.
+    fn spawn_sync_loop(&self) {
+        use std::collections::HashMap;
+        let client = self.clone();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        tokio::spawn(async move {
+            let mut watchers: HashMap<String, nidvue_sync::Watcher> = HashMap::new();
+            let mut last_pass: HashMap<String, Instant> = HashMap::new();
+            let mut interval: HashMap<String, Duration> = HashMap::new();
+            let mut pending: Vec<String> = Vec::new();
+            let cancel = client.inner.cancel.clone();
+            loop {
+                let cfg = client.read_config().sync.clone();
+                let debounce = Duration::from_millis(cfg.debounce_ms.max(50));
+                // Watch the pairs that exist; forget the ones that do not.
+                let names: Vec<String> = cfg
+                    .pairs
+                    .iter()
+                    .filter(|p| !p.paused)
+                    .map(|p| p.name.clone())
+                    .collect();
+                watchers.retain(|name, _| names.contains(name));
+                for pair in cfg.pairs.iter().filter(|p| !p.paused) {
+                    if watchers.contains_key(&pair.name) {
+                        continue;
+                    }
+                    let name = pair.name.clone();
+                    let sender = tx.clone();
+                    match nidvue_sync::spawn_watcher(pair.local.clone(), debounce, move || {
+                        let _ = sender.send(name.clone());
+                    }) {
+                        Ok(watcher) => {
+                            watchers.insert(pair.name.clone(), watcher);
+                        }
+                        Err(e) => tracing::warn!(
+                            pair = %pair.name,
+                            path = %pair.local.display(),
+                            error = %e,
+                            "no local watcher: the pair syncs on the poll only"
+                        ),
+                    }
+                }
+
+                // A pass runs when a local event arrived, when the adaptive poll
+                // is due, or when the full-scan safety net has elapsed.
+                let now = Instant::now();
+                let mut due: Vec<String> = Vec::new();
+                for pair in cfg.pairs.iter().filter(|p| !p.paused) {
+                    let since = last_pass
+                        .get(&pair.name)
+                        .map(|t| now.saturating_duration_since(*t))
+                        .unwrap_or(Duration::from_secs(u64::MAX / 2));
+                    let every = interval
+                        .get(&pair.name)
+                        .copied()
+                        .unwrap_or(Duration::from_millis(cfg.poll_interval_ms.max(500)));
+                    let full = Duration::from_millis(cfg.full_scan_interval_ms);
+                    let local = pending.contains(&pair.name);
+                    if local || since >= every || (cfg.full_scan_interval_ms > 0 && since >= full) {
+                        due.push(pair.name.clone());
+                    }
+                }
+                pending.clear();
+
+                for name in due {
+                    if client
+                        .inner
+                        .paused
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        break;
+                    }
+                    let Some(pair) = client
+                        .read_config()
+                        .sync
+                        .pairs
+                        .iter()
+                        .find(|p| p.name == name)
+                        .cloned()
+                    else {
+                        continue;
+                    };
+                    let started = Instant::now();
+                    let report = client.sync_pair_now(&name).await;
+                    last_pass.insert(name.clone(), Instant::now());
+                    match report {
+                        Ok(report) => {
+                            let idle = report.applied == 0 && report.conflicts == 0;
+                            let base = Duration::from_millis(cfg.poll_interval_ms.max(500));
+                            let max = Duration::from_millis(cfg.max_poll_interval_ms.max(500));
+                            let next = if idle {
+                                interval
+                                    .get(&name)
+                                    .copied()
+                                    .unwrap_or(base)
+                                    .saturating_mul(2)
+                                    .min(max)
+                            } else {
+                                base
+                            };
+                            interval.insert(name, next);
+                            tracing::debug!(
+                                pair = %pair.name,
+                                scanned = report.scanned,
+                                applied = report.applied,
+                                elapsed_ms = started.elapsed().as_millis() as u64,
+                                "sync pass"
+                            );
+                        }
+                        Err(e) => {
+                            // A failed pass backs off like an empty one: the
+                            // network is the usual reason and hammering it helps
+                            // nobody.
+                            let max = Duration::from_millis(cfg.max_poll_interval_ms.max(500));
+                            let next = interval
+                                .get(&name)
+                                .copied()
+                                .unwrap_or(Duration::from_millis(cfg.poll_interval_ms.max(500)))
+                                .saturating_mul(2)
+                                .min(max);
+                            interval.insert(name, next);
+                            tracing::warn!(pair = %pair.name, error = %e, "sync pass failed");
+                        }
+                    }
+                }
+
+                tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => break,
+                    Some(name) = rx.recv() => {
+                        if !pending.contains(&name) {
+                            pending.push(name);
+                        }
+                    }
+                    _ = tokio::time::sleep(Duration::from_millis(250)) => {}
                 }
             }
         });
@@ -498,6 +664,26 @@ impl Client {
     /// Exchange a Personal Login Token and persist the result.
     pub async fn login(&self, login_token: &str) -> Result<String> {
         self.inner.auth.login(login_token).await
+    }
+
+    /// One remote folder, exactly as the server reports it.
+    ///
+    /// The sync engine plans against this listing; exposing it is how a pair is
+    /// debugged without guessing, and it is what `nidvue-cli remote ls` prints.
+    pub async fn list_remote(
+        &self,
+        path: &nidvue_core::path::RemotePath,
+    ) -> Result<nidvue_jotta::xml::ListStream> {
+        self.inner.jotta.list_stream(path).await
+    }
+
+    /// Delete one remote path. `permanent` skips the server's trash.
+    pub async fn delete_remote(
+        &self,
+        path: &nidvue_core::path::RemotePath,
+        permanent: bool,
+    ) -> Result<()> {
+        self.inner.jotta.delete(path, permanent).await
     }
 
     /// Log in with the account password instead of a Personal Login Token.
@@ -897,6 +1083,13 @@ mod tests {
     #[tokio::test]
     async fn opens_a_state_directory_and_reports_status() {
         let dir = tempfile::tempdir().unwrap();
+        // The keyring is per user, not per state directory: a file store keeps this
+        // test independent of whether the developer is logged in.
+        std::fs::write(
+            dir.path().join("config.toml"),
+            "[secret]\nbackend = \"file\"\n",
+        )
+        .unwrap();
         let client = Client::open(dir.path()).await.unwrap();
         assert!(!client.is_logged_in().await);
         let status = client.status().await.unwrap();

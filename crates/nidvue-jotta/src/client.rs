@@ -72,9 +72,31 @@ impl JottaConfig {
         }
     }
 
+    /// The encoded path below the mountpoint.
+    ///
+    /// A remote path may be written the way a user reads it (`/Archive/Documents`)
+    /// or relative to the mountpoint (`/Documents`); both address the same URL, and
+    /// neither may carry the mountpoint twice.
+    fn mountpoint_relative(&self, path: &RemotePath) -> String {
+        let encoded = path.encoded();
+        let with_slash = format!("/{}/", self.mountpoint);
+        if let Some(rest) = encoded.strip_prefix(&with_slash) {
+            return rest.to_string();
+        }
+        let bare = format!("/{}", self.mountpoint);
+        if encoded == bare {
+            return String::new();
+        }
+        encoded.trim_start_matches('/').to_string()
+    }
+
     /// The JFS URL for a remote path.
     pub fn jfs_url(&self, path: &RemotePath) -> String {
-        let suffix = path.as_str().trim_start_matches('/');
+        // Remote paths are written the way a user reads them (`/Archive/Documents`),
+        // and the mountpoint is part of the URL, so a path that already starts with
+        // it must not be prefixed again — that is how `/Archive/Archive/...` gets
+        // created on a real account.
+        let suffix = self.mountpoint_relative(path);
         if suffix.is_empty() {
             format!(
                 "{}/{}/{}/{}",
@@ -82,19 +104,24 @@ impl JottaConfig {
             )
         } else {
             format!(
-                "{}/{}/{}/{}{}",
-                self.base_url,
-                self.username,
-                self.device,
-                self.mountpoint,
-                path.encoded()
+                "{}/{}/{}/{}/{}",
+                self.base_url, self.username, self.device, self.mountpoint, suffix
             )
         }
     }
 
     /// The absolute path the Allocate API expects in its JSON body.
     pub fn allocate_path(&self, path: &RemotePath) -> String {
-        format!("/jfs/{}/{}{}", self.device, self.mountpoint, path.encoded())
+        // `/jfs/<device>/<mountpoint>/<path below the mountpoint>`. The mountpoint
+        // was missing its separator and the path carried it a second time, so an
+        // upload allocated `/jfs/JottaArchive/Archive/...` and the server answered
+        // 409 for every file.
+        format!(
+            "/jfs/{}/{}/{}",
+            self.device,
+            self.mountpoint,
+            self.mountpoint_relative(path)
+        )
     }
 }
 
@@ -230,7 +257,14 @@ impl JottaClient {
     /// List a directory tree with `mode=liststream`.
     pub async fn list_stream(&self, path: &RemotePath) -> Result<ListStream> {
         let url = format!("{}?mode=liststream", self.cfg.jfs_url(path));
-        let response = self.send(Method::GET, &url, Body::None).await?;
+        let response = self
+            .send(Method::GET, &url, Body::None)
+            .await
+            .map_err(|e| match e {
+                // The body of a JFS 404 is markup; the caller needs the path.
+                NidvueError::NotFound(_) => NidvueError::NotFound(path.to_string()),
+                other => other,
+            })?;
         let stream = response.bytes_stream().map_err(std::io::Error::other);
         let async_read = StreamReader::new(stream);
         let parsed = tokio::task::spawn_blocking(move || {
@@ -295,11 +329,16 @@ impl JottaClient {
 
     /// Delete a path. Without `permanent` it goes to the Jottacloud trash.
     pub async fn delete(&self, path: &RemotePath, permanent: bool) -> Result<()> {
-        let flag = if permanent { "rm" } else { "dl" };
-        let url = format!("{}?{flag}=true", self.cfg.jfs_url(path));
-        match self.send(Method::POST, &url, Body::None).await {
+        // The API deletes with `DELETE`; a folder is not deleted by the file
+        // flag (`POST ?rm=true` answers 404 for a directory on a live account).
+        let (method, url) = if permanent {
+            (Method::DELETE, self.cfg.jfs_url(path))
+        } else {
+            (Method::POST, format!("{}?rm=true", self.cfg.jfs_url(path)))
+        };
+        match self.send(method, &url, Body::None).await {
             Ok(_) => Ok(()),
-            Err(NidvueError::NotFound(_)) => Ok(()),
+            Err(NidvueError::NotFound(_)) => Err(NidvueError::NotFound(path.to_string())),
             Err(e) => Err(e),
         }
     }
@@ -417,7 +456,23 @@ impl JottaClient {
             "path": self.cfg.allocate_path(remote),
         });
         let url = format!("{}/allocate", self.cfg.allocate_url);
-        let response = self.send(Method::POST, &url, Body::Json(allocate)).await?;
+        let response = match self
+            .send(Method::POST, &url, Body::Json(allocate.clone()))
+            .await
+        {
+            Ok(response) => response,
+            Err(NidvueError::AlreadyExists(_)) => {
+                // Allocate refuses a path that already exists, and deleting the
+                // old version first was measured to lose it when the retry did not
+                // land: a sync pass reported success and the file was gone from the
+                // account. So this is reported, not worked around. See
+                // `docs/deviations.md` item 15.
+                return Err(NidvueError::AlreadyExists(format!(
+                    "{remote}: the server will not allocate a path that exists;                      remove it first (`nidvue-cli remote rm`) or sync it under a new name"
+                )));
+            }
+            Err(e) => return Err(e),
+        };
         let allocated: AllocateResponse = response
             .json()
             .await
@@ -641,6 +696,48 @@ fn retry_after(response: &Response) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_mountpoint_is_never_doubled_in_a_url() {
+        let cfg = JottaConfig {
+            base_url: "https://jfs.example/jfs".into(),
+            allocate_url: "https://api.example/files/v1".into(),
+            device: "Jotta".into(),
+            mountpoint: "Archive".into(),
+            username: "alice".into(),
+            user_agent: "test".into(),
+            timeout: std::time::Duration::from_secs(5),
+            requests_per_second: 1000.0,
+            burst: 100,
+            min_concurrency: 1,
+            max_concurrency: 4,
+        };
+        let path = |p: &str| RemotePath::parse(p).unwrap();
+        // A path written the way a user reads it, and the same path written
+        // relative to the mountpoint, must address the same URL.
+        assert_eq!(
+            cfg.jfs_url(&path("/Archive/Documents/a.txt")),
+            "https://jfs.example/jfs/alice/Jotta/Archive/Documents/a.txt"
+        );
+        assert_eq!(
+            cfg.jfs_url(&path("/Documents/a.txt")),
+            "https://jfs.example/jfs/alice/Jotta/Archive/Documents/a.txt"
+        );
+        assert_eq!(
+            cfg.jfs_url(&path("/")),
+            "https://jfs.example/jfs/alice/Jotta/Archive"
+        );
+        // The allocate path had a missing separator and a doubled mountpoint, so
+        // every upload to a real account answered 409.
+        assert_eq!(
+            cfg.allocate_path(&path("/Archive/Documents/a.txt")),
+            "/jfs/Jotta/Archive/Documents/a.txt"
+        );
+        assert_eq!(
+            cfg.allocate_path(&path("/Documents/a.txt")),
+            "/jfs/Jotta/Archive/Documents/a.txt"
+        );
+    }
 
     #[test]
     fn urls_are_built_from_the_configuration() {

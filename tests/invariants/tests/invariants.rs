@@ -116,7 +116,7 @@ fn invariant_4_conflicts_keep_both_versions() {
     remote_map.insert(path.clone(), (EntryKind::File, remote.clone()));
     let mut baselines = std::collections::BTreeMap::new();
     baselines.insert(path.clone(), baseline);
-    let actions = plan(&local_map, &remote_map, &baselines);
+    let actions = plan(&local_map, &remote_map, &baselines, 0);
     let conflict = actions
         .iter()
         .find_map(|a| match a {

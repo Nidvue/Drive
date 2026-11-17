@@ -450,6 +450,26 @@ impl AppConfig {
         if self.sync.workers == 0 {
             return Err(NidvueError::Config("sync.workers must be > 0".into()));
         }
+        // Two pairs on one remote folder share a baseline keyed by remote path,
+        // so the pair that does not have a file locally deletes it remotely —
+        // measured on a live account. One remote folder belongs to one pair.
+        for (index, pair) in self.sync.pairs.iter().enumerate() {
+            let remote = pair.remote.trim_end_matches('/');
+            for other in self.sync.pairs.iter().skip(index + 1) {
+                let other_remote = other.remote.trim_end_matches('/');
+                let nested = |a: &str, b: &str| {
+                    a == b || a.starts_with(&format!("{b}/")) || b.starts_with(&format!("{a}/"))
+                };
+                if nested(remote, other_remote) {
+                    return Err(NidvueError::Config(format!(
+                        "sync pairs {:?} and {:?} share the remote folder {remote}: one remote \
+                         folder belongs to one pair, or the pair that does not have a file \
+                         locally deletes it remotely",
+                        pair.name, other.name
+                    )));
+                }
+            }
+        }
         if self.sync.poll_interval_ms == 0 {
             return Err(NidvueError::Config(
                 "sync.poll_interval_ms must be > 0".into(),
@@ -647,6 +667,36 @@ fn collect_leaves(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn two_pairs_may_not_share_a_remote_folder() {
+        let mut cfg = AppConfig::default();
+        let pair = |name: &str, local: &str, remote: &str| SyncPair {
+            name: name.into(),
+            local: std::path::PathBuf::from(local),
+            remote: remote.into(),
+            paused: false,
+            include: Vec::new(),
+            exclude: Vec::new(),
+            conflict_policy: None,
+        };
+        cfg.sync.pairs = vec![
+            pair("a", "/tmp/a", "/Archive/Documents"),
+            pair("b", "/tmp/b", "/Archive/Documents"),
+        ];
+        let error = cfg.validate().unwrap_err().to_string();
+        assert!(error.contains("share the remote folder"), "{error}");
+
+        cfg.sync.pairs[1].remote = "/Archive/Documents/nested".into();
+        let error = cfg.validate().unwrap_err().to_string();
+        assert!(
+            error.contains("share the remote folder"),
+            "a nested folder too: {error}"
+        );
+
+        cfg.sync.pairs[1].remote = "/Archive/Other".into();
+        cfg.validate().expect("two disjoint folders are fine");
+    }
 
     #[test]
     fn defaults_validate_and_round_trip() {
