@@ -9,19 +9,30 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 - Date: 2026-11-17 · Milestone: M11 (v0.3.0, Linux only) · Verified criteria: 6/6
   for this slice (AC-1 … AC-6).
-- Revision of record: `82df36f` on `main` — the merge of
-  `developer/t-0001-drop-macos-and-windows-from-every-active`; the gate
-  (`cargo xtask ci`) is green at `ca361b9`, the branch head that was merged.
+- Revision of record: `877145e` on `main` (the UI frame-budget merge). The gate
+  `cargo xtask ci` is green at `9bfd576`, the head that was merged: 38 test
+  binaries, ffi smoke, ui smoke, ui frames (p99 0.295 ms against a 16 ms budget)
+  and dco with its record-commit exemption printed.
 - Not tagged and not pushed: the tag and the push are the CEO's and the Release
-  Engineer's separate steps, and no CI run exists on this revision yet.
+  Engineer's steps, and no CI run exists on this revision yet.
 - macOS and Windows are **dropped, not deferred**: their adapters, packaging
   recipes, CI legs and keyring backends left the tree and are recoverable from
   tag `v0.2.1` ([Decisions](Decisions.md) D-20261117-CEO).
+- `ui.language` is read: a German catalog of all 187 strings ships, installed
+  before the first frame, and the smoke proves a translated window title.
+  `ui.theme` is honoured for the first time - it never was, because the peeked
+  value arrived quoted.
+- The UI frame budget is measured and gated (`cargo xtask ui-frames`).
 - Open feature: F-0001, the whole product as one slice.
-- Queue state: five tasks in M11, all self-checked, reviewed with a recorded
+- Queue state: nine tasks in M11, all self-checked, reviewed with a recorded
   verdict and archived. Nothing in flight, nothing blocked. One review failed
   (developer T-0001, finding F1) and passed as a delta at the fixed head.
 - `loop` reports STOP and the ledger chain is intact.
+- Two engine defects stay open as blockers because they live in the tool, not in
+  this repository: `A-0001` (the engine's own record commits carry no
+  `Signed-off-by`, so `xtask dco` exempts them by subject and path, visibly) and
+  `A-0002` (`teamwork.py clean --team-wide` deletes the artifact logs a test
+  record cites).
 - Independence limitation, stated rather than implied: this environment has one
   agent and no launcher, so the review lane ran sequentially in the same
   session as the author's. Every verdict cites a command the reviewer ran at the
