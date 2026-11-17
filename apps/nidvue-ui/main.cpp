@@ -117,6 +117,8 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("Bridge"), &bridge);
     engine.rootContext()->setContextProperty(QStringLiteral("startMinimised"), startMinimised);
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("trayAvailable"), QSystemTrayIcon::isSystemTrayAvailable());
     qmlRegisterSingletonInstance("Nidvue.Preferences", 1, 0, "Preferences", &preferences);
     TrayController tray(&bridge, &engine);
     engine.rootContext()->setContextProperty(QStringLiteral("Tray"), &tray);
@@ -194,6 +196,13 @@ int main(int argc, char *argv[])
                 autostart = autostart
                             || root->findChild<QObject *>(QStringLiteral("startAtLogin")) != nullptr;
             qInfo("smoke: autostart toggle=%d", autostart ? 1 : 0);
+            bool noTrayNotice = false;
+            for (QObject *root : engine.rootObjects())
+                noTrayNotice = noTrayNotice
+                               || root->findChild<QObject *>(QStringLiteral("noTrayNotice"))
+                                      != nullptr;
+            qInfo("smoke: tray available=%d notice=%d", QSystemTrayIcon::isSystemTrayAvailable() ? 1 : 0,
+                  noTrayNotice ? 1 : 0);
             // A translated window title proves the catalog reaches QML strings,
             // not just the translator object.
             const auto windows = QGuiApplication::allWindows();

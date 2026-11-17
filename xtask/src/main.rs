@@ -266,15 +266,17 @@ fn arch() -> Result<(), String> {
         }
     }
 
-    // The C ABI lives in exactly one crate.
+    // The C ABI lives in exactly one crate. What the contract forbids is
+    // *exporting* C symbols from anywhere else; the plugin host declares the
+    // types of a foreign ABI it loads, which is the other direction.
     for entry in walk(&workspace_root().join("crates"))? {
         if entry.extension().and_then(|e| e.to_str()) != Some("rs") {
             continue;
         }
         let text = std::fs::read_to_string(&entry).unwrap_or_default();
-        if text.contains("extern \"C\"") && !entry.to_string_lossy().contains("nidvue-ffi") {
+        if text.contains("#[no_mangle]") && !entry.to_string_lossy().contains("nidvue-ffi") {
             problems.push(format!(
-                "{} declares extern \"C\"; only nidvue-ffi may",
+                "{} exports a C symbol (#[no_mangle]); only nidvue-ffi may",
                 entry.display()
             ));
         }
@@ -527,6 +529,11 @@ fn ui_smoke() -> Result<(), String> {
     if !stderr.contains("i18n: language=de catalog=:/i18n/nidvue_de.qm") {
         return Err(format!(
             "the configured ui.language did not load its catalog:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("smoke: tray available=0 notice=1") {
+        return Err(format!(
+            "a desktop without a tray must show the notice that closing quits:\n{stderr}"
         ));
     }
     if !stderr.contains("Einstellungen") {

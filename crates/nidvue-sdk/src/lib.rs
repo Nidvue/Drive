@@ -500,6 +500,23 @@ impl Client {
         self.inner.auth.login(login_token).await
     }
 
+    /// Log in with the account password instead of a Personal Login Token.
+    ///
+    /// The password is a [`nidvue_core::secret::SecretString`], used for one OIDC
+    /// password grant and dropped; it is never stored. `well_known` is the
+    /// account's discovery URL.
+    pub async fn login_with_password(
+        &self,
+        well_known: &str,
+        username: &str,
+        password: nidvue_core::secret::SecretString,
+    ) -> Result<String> {
+        self.inner
+            .auth
+            .login_with_password(well_known, username, password)
+            .await
+    }
+
     /// Forget the stored token.
     pub async fn logout(&self) -> Result<()> {
         self.inner.auth.logout().await
@@ -807,7 +824,7 @@ impl Client {
 
     /// Load the plugins installed below `<state>/plugins`.
     pub fn plugins(&self) -> Result<PluginHost> {
-        let mut host = PluginHost::new()?;
+        let mut host = PluginHost::new()?.with_native(self.read_config().plugin.allow_native);
         let dir = self.read_config().state_dir.join("plugins");
         if dir.is_dir() {
             for (path, result) in host.load_all(&dir) {

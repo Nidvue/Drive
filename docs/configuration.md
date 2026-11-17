@@ -99,6 +99,17 @@ downgrading.
 `--read-only`, `--bench`, `--include`, `--exclude`, `--conflict-policy`,
 `--paused`).
 
+## Plugins
+
+| Key | Default | Meaning |
+|---|---|---|
+| `plugin.allow_native` | false | trust native plugins (dylibs loaded into the engine's process); the manifest must declare AGPL-3.0-only |
+
+A WASM plugin needs no setting: it runs sandboxed with the capabilities its
+manifest declares. Native code is different — it runs with the engine's own
+privileges — so it is off until you turn it on. See
+[plugin-guide](plugin-guide.md).
+
 ## Language
 
 | Key | Default | Meaning |

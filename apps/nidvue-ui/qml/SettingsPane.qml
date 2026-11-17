@@ -96,6 +96,16 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
+            Label {
+                objectName: "trayState"
+                visible: !trayAvailable
+                text: qsTr("This desktop has no system tray, so the app cannot stay in the background: closing the window quits it.")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontCaption
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
             ToggleRow {
                 objectName: "startAtLogin"
                 Layout.fillWidth: true

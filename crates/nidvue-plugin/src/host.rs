@@ -29,7 +29,7 @@ use wasmtime::{
     TypedFunc,
 };
 
-use crate::manifest::{Capabilities, PluginManifest};
+use crate::manifest::{Capabilities, PluginManifest, API_VERSION};
 
 /// Per-call state visible to host functions.
 struct HostState {
@@ -39,16 +39,23 @@ struct HostState {
     logs: Vec<String>,
 }
 
+enum Backend {
+    Wasm {
+        store: Store<HostState>,
+        memory: Memory,
+        alloc: TypedFunc<u32, u32>,
+        call: TypedFunc<(u32, u32, u32), u64>,
+    },
+    Native(NativePlugin),
+}
+
 /// One loaded plugin.
 pub struct LoadedPlugin {
     /// Its validated manifest.
     pub manifest: PluginManifest,
     /// The directory it was loaded from.
     pub dir: PathBuf,
-    store: Store<HostState>,
-    memory: Memory,
-    alloc: TypedFunc<u32, u32>,
-    call: TypedFunc<(u32, u32, u32), u64>,
+    backend: Backend,
 }
 
 impl LoadedPlugin {
@@ -68,34 +75,49 @@ impl LoadedPlugin {
                 message: format!("unknown hook {hook:?}"),
             })? as u32;
 
+        if let Backend::Native(native) = &self.backend {
+            // A native plugin runs in this process: the fuel and wall-clock
+            // limits below are wasmtime's and do not apply, which is why loading
+            // one needs `plugin.allow_native`.
+            return native.call_hook(&self.manifest.id, hook, payload);
+        }
+
         let limits = self.manifest.limits.clamp();
-        self.store
+        let id = self.manifest.id.clone();
+        let Backend::Wasm {
+            store,
+            memory,
+            alloc,
+            call,
+        } = &mut self.backend
+        else {
+            unreachable!("the native backend returned above")
+        };
+        store
             .set_fuel(limits.fuel)
             .map_err(|e| NidvueError::Plugin {
-                plugin: self.manifest.id.clone(),
+                plugin: id.clone(),
                 message: format!("fuel: {e}"),
             })?;
         // Wall-clock limit: the host ticks the engine epoch every
         // `epoch_tick_ms`; the deadline is the number of ticks allowed.
         let ticks = limits.wall_ms.div_ceil(10).max(1);
-        self.store.set_epoch_deadline(ticks);
+        store.set_epoch_deadline(ticks);
 
-        let ptr = self
-            .alloc
-            .call(&mut self.store, payload.len() as u32)
-            .map_err(|e| self.trap("alloc", e))?;
-        self.memory
-            .write(&mut self.store, ptr as usize, payload.as_bytes())
-            .map_err(|e| self.memory_error("write", e))?;
+        let ptr = alloc
+            .call(&mut *store, payload.len() as u32)
+            .map_err(|e| trap(&id, "alloc", e))?;
+        memory
+            .write(&mut *store, ptr as usize, payload.as_bytes())
+            .map_err(|e| memory_error(&id, "write", e))?;
 
         let started = Instant::now();
-        let packed = self
-            .call
-            .call(&mut self.store, (hook_id, ptr, payload.len() as u32))
-            .map_err(|e| self.trap("call", e))?;
+        let packed = call
+            .call(&mut *store, (hook_id, ptr, payload.len() as u32))
+            .map_err(|e| trap(&id, "call", e))?;
         if started.elapsed() > Duration::from_millis(limits.wall_ms) {
             return Err(NidvueError::Plugin {
-                plugin: self.manifest.id.clone(),
+                plugin: id,
                 message: format!("wall-clock limit {} ms exceeded", limits.wall_ms),
             });
         }
@@ -103,41 +125,169 @@ impl LoadedPlugin {
         let out_len = (packed & 0xffff_ffff) as usize;
         if out_len > 16 * 1024 * 1024 {
             return Err(NidvueError::Plugin {
-                plugin: self.manifest.id.clone(),
+                plugin: id,
                 message: format!("response of {out_len} bytes is over the 16 MiB limit"),
             });
         }
         let mut buf = vec![0u8; out_len];
-        self.memory
-            .read(&self.store, out_ptr, &mut buf)
-            .map_err(|e| self.memory_error("read", e))?;
+        memory
+            .read(&*store, out_ptr, &mut buf)
+            .map_err(|e| memory_error(&id, "read", e))?;
         String::from_utf8(buf).map_err(|e| NidvueError::Plugin {
-            plugin: self.manifest.id.clone(),
+            plugin: id,
             message: format!("response is not UTF-8: {e}"),
         })
     }
+}
 
-    fn memory_error(&self, stage: &str, error: wasmtime::MemoryAccessError) -> NidvueError {
-        NidvueError::Plugin {
-            plugin: self.manifest.id.clone(),
-            message: format!("memory {stage} failed: {error}"),
-        }
+fn memory_error(plugin: &str, stage: &str, error: wasmtime::MemoryAccessError) -> NidvueError {
+    NidvueError::Plugin {
+        plugin: plugin.to_string(),
+        message: format!("memory {stage} failed: {error}"),
+    }
+}
+
+fn trap(plugin: &str, stage: &str, error: wasmtime::Error) -> NidvueError {
+    let text = error.to_string();
+    let kind = match error.downcast_ref::<wasmtime::Trap>() {
+        Some(wasmtime::Trap::OutOfFuel) => "fuel limit exhausted",
+        Some(wasmtime::Trap::Interrupt) => "wall-clock limit exceeded",
+        _ if text.contains("fuel") => "fuel limit exhausted",
+        _ if text.contains("interrupt") => "wall-clock limit exceeded",
+        _ => "trap",
+    };
+    warn!(plugin, stage, kind, error = %text, "plugin failed");
+    NidvueError::Plugin {
+        plugin: plugin.to_string(),
+        message: format!("{kind} in {stage}: {text}"),
+    }
+}
+
+/// A native plugin: a dylib loaded into this process.
+///
+/// A native plugin is a derivative work of an AGPL-3.0 program, so the host
+/// refuses one whose manifest does not declare AGPL-3.0, and it is only loaded
+/// when the configuration explicitly trusts native code (`plugin.allow_native`).
+/// The ABI is versioned and small on purpose; `docs/plugin-guide.md` documents it.
+struct NativePlugin {
+    /// Keeps the library mapped for the life of the plugin.
+    _library: libloading::Library,
+    call: unsafe extern "C" fn(
+        *const std::os::raw::c_char,
+        *const std::os::raw::c_char,
+        *mut *mut std::os::raw::c_char,
+    ) -> i32,
+    free: unsafe extern "C" fn(*mut std::os::raw::c_char),
+}
+
+impl NativePlugin {
+    /// The ABI version a native plugin must implement.
+    const ABI_VERSION: u32 = 1;
+
+    fn load(dir: &Path, id: &str) -> Result<Self> {
+        let path = if dir.join("plugin.so").exists() {
+            dir.join("plugin.so")
+        } else {
+            dir.join("plugin.dll")
+        };
+        // SAFETY: the library is kept alive for as long as the symbols are used,
+        // and every symbol is looked up before anything is called.
+        let library =
+            unsafe { libloading::Library::new(&path) }.map_err(|e| NidvueError::Plugin {
+                plugin: id.to_string(),
+                message: format!("{}: {e}", path.display()),
+            })?;
+        let (call, free) = unsafe {
+            let version: libloading::Symbol<unsafe extern "C" fn() -> u32> = library
+                .get(b"nidvue_plugin_abi_version")
+                .map_err(|e| NidvueError::Plugin {
+                    plugin: id.to_string(),
+                    message: format!("nidvue_plugin_abi_version: {e}"),
+                })?;
+            let abi = version();
+            if abi != Self::ABI_VERSION {
+                return Err(NidvueError::Plugin {
+                    plugin: id.to_string(),
+                    message: format!(
+                        "native ABI {abi} is not the {version} this build speaks",
+                        version = Self::ABI_VERSION
+                    ),
+                });
+            }
+            let init: libloading::Symbol<unsafe extern "C" fn(*const std::os::raw::c_char) -> i32> =
+                library
+                    .get(b"nidvue_plugin_init")
+                    .map_err(|e| NidvueError::Plugin {
+                        plugin: id.to_string(),
+                        message: format!("nidvue_plugin_init: {e}"),
+                    })?;
+            let config = std::ffi::CString::new(format!("{{\"id\":\"{id}\"}}")).unwrap_or_default();
+            let started = init(config.as_ptr());
+            if started != 0 {
+                return Err(NidvueError::Plugin {
+                    plugin: id.to_string(),
+                    message: format!("init returned {started}"),
+                });
+            }
+            let call_sym = library
+                .get::<unsafe extern "C" fn(
+                    *const std::os::raw::c_char,
+                    *const std::os::raw::c_char,
+                    *mut *mut std::os::raw::c_char,
+                ) -> i32>(b"nidvue_plugin_call")
+                .map_err(|e| NidvueError::Plugin {
+                    plugin: id.to_string(),
+                    message: format!("nidvue_plugin_call: {e}"),
+                })?;
+            let free_sym = library
+                .get::<unsafe extern "C" fn(*mut std::os::raw::c_char)>(b"nidvue_plugin_free")
+                .map_err(|e| NidvueError::Plugin {
+                    plugin: id.to_string(),
+                    message: format!("nidvue_plugin_free: {e}"),
+                })?;
+            // Copy the entry points out and end the borrow, so the library can
+            // be moved into the handle that keeps it mapped.
+            (*call_sym, *free_sym)
+        };
+        Ok(Self {
+            _library: library,
+            call,
+            free,
+        })
     }
 
-    fn trap(&self, stage: &str, error: wasmtime::Error) -> NidvueError {
-        let text = error.to_string();
-        let kind = match error.downcast_ref::<wasmtime::Trap>() {
-            Some(wasmtime::Trap::OutOfFuel) => "fuel limit exhausted",
-            Some(wasmtime::Trap::Interrupt) => "wall-clock limit exceeded",
-            _ if text.contains("fuel") => "fuel limit exhausted",
-            _ if text.contains("interrupt") => "wall-clock limit exceeded",
-            _ => "trap",
-        };
-        warn!(plugin = %self.manifest.id, stage, kind, error = %text, "plugin failed");
-        NidvueError::Plugin {
-            plugin: self.manifest.id.clone(),
-            message: format!("{kind} in {stage}: {text}"),
+    fn call_hook(&self, id: &str, hook: &str, payload: &str) -> Result<String> {
+        let hook = std::ffi::CString::new(hook).map_err(|e| NidvueError::Plugin {
+            plugin: id.to_string(),
+            message: format!("hook name: {e}"),
+        })?;
+        let payload = std::ffi::CString::new(payload).map_err(|e| NidvueError::Plugin {
+            plugin: id.to_string(),
+            message: format!("payload: {e}"),
+        })?;
+        let mut out: *mut std::os::raw::c_char = std::ptr::null_mut();
+        // SAFETY: both arguments are NUL-terminated and outlive the call; the
+        // plugin writes one pointer into `out`, which it allocated and which is
+        // handed back to its own free function below.
+        let status = unsafe { (self.call)(hook.as_ptr(), payload.as_ptr(), &mut out) };
+        if status != 0 {
+            return Err(NidvueError::Plugin {
+                plugin: id.to_string(),
+                message: format!("native call returned {status}"),
+            });
         }
+        if out.is_null() {
+            return Err(NidvueError::Plugin {
+                plugin: id.to_string(),
+                message: "native call returned no response".into(),
+            });
+        }
+        // SAFETY: the plugin contract is a NUL-terminated string it allocated.
+        let text = unsafe { std::ffi::CStr::from_ptr(out) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe { (self.free)(out) };
+        Ok(text)
     }
 }
 
@@ -146,6 +296,7 @@ pub struct PluginHost {
     engine: Engine,
     plugins: Vec<LoadedPlugin>,
     stop: Arc<AtomicBool>,
+    allow_native: bool,
 }
 
 impl PluginHost {
@@ -181,6 +332,7 @@ impl PluginHost {
             engine,
             plugins: Vec::new(),
             stop,
+            allow_native: false,
         })
     }
 
@@ -204,13 +356,7 @@ impl PluginHost {
             });
         }
         if manifest.is_native(dir) {
-            // A native dylib is only permitted when explicitly trusted and
-            // AGPL-3.0; this build has no trusted-dylib host, so refuse rather
-            // than pretend.
-            return Err(NidvueError::Plugin {
-                plugin: manifest.id,
-                message: "native plugins are not enabled in this build".into(),
-            });
+            return self.load_native(manifest, dir);
         }
         let wasm = manifest.wasm_path(dir);
         if !wasm.exists() {
@@ -362,12 +508,67 @@ impl PluginHost {
         self.plugins.push(LoadedPlugin {
             manifest,
             dir: dir.to_path_buf(),
-            store,
-            memory,
-            alloc,
-            call,
+            backend: Backend::Wasm {
+                store,
+                memory,
+                alloc,
+                call,
+            },
         });
         info!(plugin = %id, "plugin loaded");
+        Ok(id)
+    }
+
+    /// Trust native plugins (dylibs loaded into this process).
+    ///
+    /// Off by default, and set from `plugin.allow_native`. A native plugin runs
+    /// with the engine's own privileges, so this is a deliberate opt-in.
+    #[must_use]
+    pub fn with_native(mut self, allow: bool) -> Self {
+        self.allow_native = allow;
+        self
+    }
+
+    /// True when native plugins are trusted in this host.
+    pub fn allows_native(&self) -> bool {
+        self.allow_native
+    }
+
+    fn load_native(&mut self, manifest: PluginManifest, dir: &Path) -> Result<String> {
+        if !self.allow_native {
+            return Err(NidvueError::Plugin {
+                plugin: manifest.id,
+                message: "native plugins need plugin.allow_native = true".into(),
+            });
+        }
+        if manifest.api_version != API_VERSION {
+            return Err(NidvueError::Plugin {
+                plugin: manifest.id,
+                message: format!("api_version {} is not {API_VERSION}", manifest.api_version),
+            });
+        }
+        // A dylib linked into an AGPL-3.0 process is a derivative work, so the
+        // manifest has to say so. This is a licence gate, not a hint.
+        if !manifest.license.eq_ignore_ascii_case("AGPL-3.0-only")
+            && !manifest.license.eq_ignore_ascii_case("AGPL-3.0")
+        {
+            return Err(NidvueError::Plugin {
+                plugin: manifest.id,
+                message: format!(
+                    "native plugin declares {:?}: it must be AGPL-3.0-only because it is \
+                     linked into this process",
+                    manifest.license
+                ),
+            });
+        }
+        let native = NativePlugin::load(dir, &manifest.id)?;
+        let id = manifest.id.clone();
+        self.plugins.push(LoadedPlugin {
+            manifest,
+            dir: dir.to_path_buf(),
+            backend: Backend::Native(native),
+        });
+        info!(plugin = %id, "native plugin loaded");
         Ok(id)
     }
 
