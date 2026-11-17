@@ -36,3 +36,28 @@ nidvue-state/
 
 # build output
 dist/
+
+# --- teamwork: scratch and editor noise ---
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*~
+# --- teamwork: secrets ---
+.env.local
+.env.*.local
+*.key
+# --- teamwork: caches / build output (keep them on disk, just uncommitted) ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+build/
+target/
+.venv/
+venv/
+coverage/
+.coverage
