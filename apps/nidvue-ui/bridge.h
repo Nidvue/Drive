@@ -88,6 +88,7 @@ class Bridge : public QObject {
     Q_PROPERTY(int transferLimit READ transferLimit CONSTANT)
     Q_PROPERTY(int liveTransfers READ liveTransfers NOTIFY transfersChanged)
     Q_PROPERTY(bool startAtLogin READ startAtLogin NOTIFY startAtLoginChanged)
+    Q_PROPERTY(QString language READ language NOTIFY configChanged)
     Q_PROPERTY(QStringList logs READ logs NOTIFY logsChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
@@ -118,6 +119,7 @@ public:
     int transferLimit() const { return m_transferLimit; }
     int liveTransfers() const { return m_liveTransfers; }
     bool startAtLogin() const { return m_startAtLogin; }
+    QString language() const { return m_language; }
     QStringList logs() const { return m_logs; }
     QString lastError() const { return m_lastError; }
 
@@ -139,6 +141,7 @@ public:
     Q_INVOKABLE void refreshConfig();
     Q_INVOKABLE void setConfigValue(const QString &key, const QString &value);
     Q_INVOKABLE void setStartAtLogin(bool enabled);
+    Q_INVOKABLE void setLanguage(const QString &language);
     Q_INVOKABLE void openMount();
     Q_INVOKABLE void showMainWindow();
     Q_INVOKABLE void resolve(const QString &id, const QString &resolution);
@@ -217,6 +220,7 @@ private:
     QString m_mountpoint;
     bool m_busy = false;
     bool m_startAtLogin = false;
+    QString m_language = QStringLiteral("en");
     QString m_busyWhat;
     QVariantList m_conflicts;
     QVariantList m_syncPairs;

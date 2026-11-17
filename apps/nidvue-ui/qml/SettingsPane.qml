@@ -67,6 +67,35 @@ ColumnLayout {
                 Layout.fillWidth: true
             }
 
+            SegmentedChoice {
+                options: [
+                    {
+                        value: "system",
+                        label: qsTr("System")
+                    },
+                    {
+                        value: "en",
+                        label: qsTr("English")
+                    },
+                    {
+                        value: "de",
+                        label: qsTr("Deutsch")
+                    }
+                ]
+                current: Bridge.language
+                onSelected: function (value) {
+                    Bridge.setLanguage(value)
+                }
+            }
+
+            Label {
+                text: qsTr("A language change applies the next time the window opens.")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontCaption
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
             ToggleRow {
                 objectName: "startAtLogin"
                 Layout.fillWidth: true

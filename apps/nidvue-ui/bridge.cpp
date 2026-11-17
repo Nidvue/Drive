@@ -608,6 +608,11 @@ void Bridge::setConfigValue(const QString &key, const QString &value)
     emit requestSetConfigValue(key, value);
 }
 
+void Bridge::setLanguage(const QString &language)
+{
+    setConfigValue(QStringLiteral("ui.language"), language);
+}
+
 void Bridge::setStartAtLogin(bool enabled)
 {
     const QByteArray exec = QCoreApplication::applicationFilePath().toUtf8();
@@ -745,6 +750,9 @@ void Bridge::onConfig(const QString &json)
         rows.append(row);
     }
     m_configRows = rows;
+    m_language = object.value(QStringLiteral("ui.language")).toString();
+    if (m_language.isEmpty())
+        m_language = QStringLiteral("system");
     emit configChanged();
 }
 
