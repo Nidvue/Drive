@@ -491,4 +491,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at 3f2626b: the live evidence is the strongest kind here - nix-shell --run 'cargo xtask ci' -> green; the reviewer re-ran cargo test -p nidvue-jotta --lib -> 34 passed including the URL table that pins the doubling fix, cargo test -p nidvue-sync -> 17 lib + 12 engine tests including the rename folding and the bulk-delete refusal, and cargo test -p nidvue-core --lib config -> 18 passed with the shared-remote guard; the deviations record the two open live defects (15 replace-existing, 16 folder delete) with the measurement instead of a workaround, and the fix that lost a file was reverted rather than kept | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-sync.log:cf724f7a02ebe874:133493 | baseline: no sync loop, no move detection, no bulk-delete guard, and uploads answered 409 on every path | replay: nix-shell --run 'cargo xtask ci'
 - findings history: 
-- branch / merge: developer/t-0013-land-the-sync-features-and-fix-what-the / pending
+- branch / merge: developer/t-0013-land-the-sync-features-and-fix-what-the / 7ea0f56
