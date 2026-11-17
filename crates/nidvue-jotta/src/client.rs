@@ -239,6 +239,16 @@ impl JottaClient {
         })
         .await
         .map_err(|e| NidvueError::Internal(format!("listing task: {e}")))??;
+        if parsed.folder_gap() > 0 {
+            // The trailer counts the subtree, so a folder gap is normal on a
+            // folder with descendants. Recorded, not refused.
+            debug!(
+                path = %path,
+                sent = parsed.folders.len(),
+                trailer = parsed.stats.map(|s| s.folders).unwrap_or(0),
+                "listing reports fewer folders than the trailer"
+            );
+        }
         if parsed.is_partial() {
             // A partial listing must never be read as a set of deletions.
             return Err(NidvueError::Server {
