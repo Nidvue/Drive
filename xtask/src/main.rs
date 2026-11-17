@@ -39,6 +39,7 @@ fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
         "dco" => dco(rest.first().map(String::as_str)),
         "ui" => ui(),
         "ui-smoke" => ui_smoke(),
+        "ui-frames" => ui_frames(),
         "ffi-smoke" => ffi_smoke(),
         "plugins" => plugins(),
         "bench" => bench(),
@@ -70,6 +71,7 @@ fn help() {
          dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
          ui        configure and build the Qt/QML application
          ui-smoke  launch the built UI headlessly and assert it initialises
+         ui-frames measure the cost of one rendered frame against the 16 ms budget
          ffi-smoke build a C consumer against include/nidvue.h and run it
          plugins   build the two example WASM plugins\n\
          bench     run the performance suite\n\
@@ -149,6 +151,7 @@ fn ci(skip_ui: bool) -> Result<(), String> {
     } else {
         ui()?;
         ui_smoke()?;
+        ui_frames()?;
     }
     println!("\nxtask ci: green");
     Ok(())
@@ -542,6 +545,64 @@ fn ui_smoke() -> Result<(), String> {
         return Err("the UI did not initialise the engine state directory".into());
     }
     println!("+ ui smoke: engine initialised, {rows} settings rows, no QML errors");
+    Ok(())
+}
+
+/// The UI frame budget from `docs/performance.md`: one frame, rendered, inside
+/// 16 ms so a 60 Hz display is never held up by the window.
+fn ui_frames() -> Result<(), String> {
+    const BUDGET_MS: f64 = 16.0;
+    let root = workspace_root();
+    let binary = root.join("apps/nidvue-ui/build/nidvue-ui");
+    if !binary.exists() {
+        return Err(format!(
+            "{} is missing; run `cargo xtask ui` first",
+            binary.display()
+        ));
+    }
+    let state = std::env::temp_dir().join(format!("nidvue-ui-frames-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&state);
+    std::fs::create_dir_all(&state).map_err(|e| format!("state dir: {e}"))?;
+    std::fs::write(
+        state.join("config.toml"),
+        "[ui]\ntheme = \"dark\"\nlanguage = \"de\"\n",
+    )
+    .map_err(|e| format!("config.toml: {e}"))?;
+    let output = Command::new(&binary)
+        .arg("--measure-frames")
+        .arg("300")
+        .env("QT_QPA_PLATFORM", "offscreen")
+        .env("QT_ASSUME_STDERR_HAS_CONSOLE", "1")
+        .env("NIDVUE_STATE", &state)
+        .env("XDG_CONFIG_HOME", state.join("config"))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("launch ui: {e}"))?;
+    let _ = std::fs::remove_dir_all(&state);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let line = stderr
+        .lines()
+        .find(|line| line.contains("frames:"))
+        .ok_or_else(|| format!("the UI reported no frames:\n{stderr}"))?;
+    if !line.contains("painted=1") {
+        return Err(format!(
+            "the UI rendered nothing, so the number is not a frame: {line}"
+        ));
+    }
+    let field = |name: &str| -> Result<f64, String> {
+        line.split_whitespace()
+            .find_map(|part| part.strip_prefix(name))
+            .and_then(|value| value.trim_end_matches("ms").parse::<f64>().ok())
+            .ok_or_else(|| format!("{name} missing from {line}"))
+    };
+    let p99 = field("p99=")?;
+    if p99 > BUDGET_MS {
+        return Err(format!(
+            "frame budget missed: p99 {p99:.3} ms > {BUDGET_MS:.0} ms ({line})"
+        ));
+    }
+    println!("+ ui frames: {line} (budget {BUDGET_MS:.0} ms)");
     Ok(())
 }
 
