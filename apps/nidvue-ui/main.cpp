@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -21,6 +22,9 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QVector>
+
+#include <algorithm>
 
 #include "bridge.h"
 #include "nidvue.h"
@@ -135,6 +139,44 @@ int main(int argc, char *argv[])
             window->requestActivate();
         });
     }
+    // `--measure-frames N` renders the live window N times and prints the cost
+    // of one frame. `grabWindow` forces the scene graph to paint into an image,
+    // which is the only way to measure a frame headlessly: the offscreen
+    // platform's render loop fires the frame signals without rasterising
+    // anything, so a signal-timed run reports microseconds and means nothing.
+    // The rasteriser is Qt's software backend, so this is a conservative upper
+    // bound on the CPU side of a frame; the GPU path on a real screen still needs
+    // a windowed session.
+    if (app.arguments().contains(QStringLiteral("--measure-frames"))) {
+        const int index = app.arguments().indexOf(QStringLiteral("--measure-frames"));
+        const int wanted = app.arguments().value(index + 1).toInt();
+        const int frames = wanted > 0 ? wanted : 300;
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        window->show();
+        QTimer::singleShot(500, &app, [window, frames]() {
+            QVector<qint64> costs;
+            costs.reserve(frames);
+            QElapsedTimer clock;
+            QImage frame;
+            for (int i = 0; i < frames; ++i) {
+                clock.start();
+                frame = window->grabWindow();
+                costs.append(clock.nsecsElapsed());
+            }
+            const auto ms = [](qint64 ns) { return double(ns) / 1e6; };
+            const auto percentile = [&ms](QVector<qint64> values, qsizetype p) {
+                std::sort(values.begin(), values.end());
+                return ms(values.at(values.size() * p / 100));
+            };
+            const qint64 worst = *std::max_element(costs.begin(), costs.end());
+            const bool painted = !frame.isNull() && frame.width() > 0;
+            qInfo("frames: n=%lld size=%dx%d painted=%d cost p50=%.3f p99=%.3f max=%.3f ms",
+                  static_cast<long long>(costs.size()), frame.width(), frame.height(),
+                  painted ? 1 : 0, percentile(costs, 50), percentile(costs, 99), ms(worst));
+            QCoreApplication::quit();
+        });
+    }
+
     // `--smoke-windows` opens the tray popup and the detailed settings window
     // once, so a headless CI run proves they instantiate without QML errors, and
     // reports how many settings rows arrived from the engine.

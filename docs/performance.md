@@ -49,8 +49,30 @@ claimed here:
 
 | Budget | Target (p50) | Why it is open |
 |---|---|---|
-| UI frame | ≤ 16 ms, no frame blocked by engine work | needs a windowed session on a real display; `ui-smoke` only proves the QML engine starts headless |
 | Eviction while active | ≤ 5 % CPU | needs a sustained sync against a full cache, which needs the link above |
+
+### UI frame
+
+| What | Budget | Measured | Command |
+|---|---|---|---|
+| One rendered frame of the dashboard, 1040×560 | ≤ 16 ms p99 | p50 0.039 ms · p99 0.303 ms · max 0.682 ms | `cargo xtask ui-frames` |
+
+Measured by rendering the live window 300 times and timing each render
+(`QQuickWindow::grabWindow`, Qt's software rasteriser, offscreen platform). It is
+in the gate: `cargo xtask ui-frames` fails when p99 passes 16 ms or when the
+render produced no image. Two limits are stated rather than implied: the
+rasteriser is the software one, so this is an upper bound and not a GPU
+measurement, and it measures the cost of a frame, not a display's refresh. A
+frame cannot be blocked by engine work by construction: every engine call runs on
+the worker thread (`apps/nidvue-ui/bridge.h`), and the UI thread only reads the
+values the worker published.
+
+An earlier attempt timed `QQuickWindow::afterRendering` under the offscreen
+platform and reported 5 µs per frame. It was wrong: that platform fires the frame
+signals without rasterising, and scaling the surface 16× did not move the number.
+`grabWindow` forces the paint, and its cost does scale with the surface (0.034 ms
+at 1040×560 against 8.897 ms at 4160×2240), which is what makes the figure a
+measurement rather than an artefact.
 
 ## Method
 

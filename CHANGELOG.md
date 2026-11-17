@@ -46,6 +46,12 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   the developer's own `QSettings`, which is why a configured theme could not be
   observed.
 
+### Added
+- `cargo xtask ui-frames` measures the cost of one rendered frame and is part of
+  the gate: 1040×560 renders in p50 0.039 ms / p99 0.303 ms / max 0.682 ms against
+  the 16 ms budget (software rasteriser, offscreen). The budget was previously
+  listed as unmeasurable without a windowed session.
+
 ### Fixed
 - `ui.theme` was never honoured: `nidvue_config_peek` answers with the JSON form
   of a value, so the app compared `"dark"` against `dark` and always started in
