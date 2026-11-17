@@ -69,12 +69,31 @@ pub struct ListStream {
 }
 
 impl ListStream {
-    /// True when the trailer disagrees with what was parsed: the listing is
-    /// partial and must not be treated as an authoritative snapshot.
+    /// True when the trailer says files are missing: the listing is partial and
+    /// must not be treated as an authoritative snapshot.
+    ///
+    /// Only the FILE count is compared. Measured against a live account: the root
+    /// listing sent 149 `<file>` entries with `stats files="149"`, and 4 `<folder>`
+    /// entries with `stats folders="53"` - the folder figure is the subtree total,
+    /// not the number of entries in this response, so comparing it refused every
+    /// root listing and the mount served an empty directory. Files are never
+    /// nested, so a file-count disagreement still means a truncated transfer; a
+    /// folder-count gap is reported by [`ListStream::folder_gap`] instead.
     pub fn is_partial(&self) -> bool {
         match self.stats {
-            Some(s) => s.files != self.files.len() as u64 || s.folders != self.folders.len() as u64,
+            Some(s) => s.files != self.files.len() as u64,
             None => false,
+        }
+    }
+
+    /// How many folders the trailer claims beyond the entries in this response.
+    ///
+    /// Zero when the trailer is absent or agrees. A positive value is expected on
+    /// a folder that has descendants, because the server reports the subtree.
+    pub fn folder_gap(&self) -> u64 {
+        match self.stats {
+            Some(s) => s.folders.saturating_sub(self.folders.len() as u64),
+            None => 0,
         }
     }
 }
@@ -533,6 +552,44 @@ mod tests {
   </files>
   <stats folders="2" files="2"/>
 </folder>"#;
+
+    #[test]
+    fn a_subtree_folder_count_is_not_a_partial_listing() {
+        // Measured against a live account: the root listing sent 4 <folder>
+        // entries and 149 <file> entries, with <stats folders="53" files="149"/> -
+        // the folder figure is the subtree total. Comparing it refused every root
+        // listing, so the mount served an empty directory.
+        const LIVE_ROOT: &str = r#"<filedirlist>
+  <files>
+    <folder><path>Archive</path></folder>
+    <folder><path>Shared</path></folder>
+    <file><path>a.txt</path><filename>a.txt</filename><size>1</size></file>
+  </files>
+  <stats folders="53" files="1"/>
+</filedirlist>"#;
+        let s = parse_list_stream(LIVE_ROOT).unwrap();
+        assert_eq!(s.folders.len(), 2, "{:?}", s.folders);
+        assert_eq!(s.files.len(), 1);
+        assert!(
+            !s.is_partial(),
+            "a subtree folder count is not a truncated file list"
+        );
+        assert_eq!(s.folder_gap(), 51);
+    }
+
+    #[test]
+    fn a_truncated_file_list_is_still_partial() {
+        const SHORT: &str = r#"<folder>
+  <files><file path="a" filename="a" size="1"/></files>
+  <stats folders="0" files="2"/>
+</folder>"#;
+        let s = parse_list_stream(SHORT).unwrap();
+        assert!(
+            s.is_partial(),
+            "a missing file must still refuse the snapshot"
+        );
+        assert_eq!(s.folder_gap(), 0);
+    }
 
     #[test]
     fn parses_liststream() {
