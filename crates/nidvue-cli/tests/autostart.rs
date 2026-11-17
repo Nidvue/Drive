@@ -43,7 +43,11 @@ fn the_login_entry_is_written_read_back_and_removed() {
     let state = dir.path().join("state");
     std::fs::create_dir_all(&config_home).unwrap();
 
-    let status = json(&run(&config_home, &state, &["--json", "autostart", "status"]));
+    let status = json(&run(
+        &config_home,
+        &state,
+        &["--json", "autostart", "status"],
+    ));
     assert_eq!(status["enabled"], false);
     assert_eq!(status["exec"], serde_json::Value::Null);
     assert!(!entry_path(&config_home).exists());
@@ -58,7 +62,11 @@ fn the_login_entry_is_written_read_back_and_removed() {
     assert!(text.contains("Type=Application\n"), "{text}");
     assert!(text.contains("Exec=/usr/bin/nidvue-ui\n"), "{text}");
 
-    let status = json(&run(&config_home, &state, &["--json", "autostart", "status"]));
+    let status = json(&run(
+        &config_home,
+        &state,
+        &["--json", "autostart", "status"],
+    ));
     assert_eq!(status["enabled"], true);
     assert_eq!(status["exec"], "/usr/bin/nidvue-ui");
     assert_eq!(

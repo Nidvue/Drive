@@ -3,7 +3,7 @@
 Owner: Release Engineer. The canonical answer to "how does this get built, shipped,
 verified and reverted". Keep it executable: every command here must run as written.
 
-Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Architecture](Architecture.md) · [Decisions](Decisions.md) · [Research](Research.md) · [Design](Design.md) · [Risks](Risks.md) · [Costs](Costs.md) · [Release](Release.md) · [Archive](Archive.md) · [Features](Features.md) · [Evolution](Evolution.md)
+Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Architecture](Architecture.md) · [Decisions](Decisions.md) · [Research](Research.md) · [Design](Design.md) · [Risks](Risks.md) · [Costs](Costs.md) · [Release](Release.md) · [Archive](Archive.md) · [Features](Features.md) · [Evolution](Evolution.md) · [deviations](../deviations.md) · [packaging](../packaging.md)
 
 ## Build
 
@@ -14,7 +14,6 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 | build | `cargo build --release` | engine, CLI and the C ABI library |
 | UI build | `cargo xtask ui` | `apps/nidvue-ui/build/nidvue-ui` |
 | package | `bash packaging/linux.sh` | `dist/nidvue-drive_<version>_<arch>.tar.gz`, `dist/SHA256SUMS` |
-| macOS / Windows | `packaging/macos.sh`, `packaging/windows.ps1` | `.app`/`.dmg`, MSI/zip — recipe present, see [deviations](../deviations.md) 1 and 2 |
 | provenance | `sha256sum -c dist/SHA256SUMS` | every artefact matches |
 
 ## CI gates
@@ -49,7 +48,7 @@ gh api repos/Nidvue/Drive/branches/main/protection
 | setting | value | why |
 |---|---|---|
 | pull request required | yes | no direct push to `main`; every change is a pull request |
-| required status checks (strict) | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | green on the merged revision, and the branch must be up to date with `main` |
+| required status checks (strict) | `rust (ubuntu-24.04)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | green on the merged revision, and the branch must be up to date with `main` |
 | required approvals | 0 - see the constraint below | one forge identity cannot approve its own pull request |
 | dismiss stale approvals | yes | a new push invalidates the earlier approval |
 | approval of the last push | off - see the constraint below | measured: it blocks every pull request while one identity exists |
@@ -128,7 +127,7 @@ gh api repos/Nidvue/Drive/branches/main/protection
 
 | setting | value | why |
 |---|---|---|
-| required status checks | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | the five jobs that gate the product; they were **empty** before 2026-11-16, so nothing was actually enforced |
+| required status checks | `rust (ubuntu-24.04)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | the four jobs that gate the product; `rust (windows-2022)` left the list in `v0.3.0` with the platform |
 | strict | true | a branch must be rebased on the current `main` before it merges |
 | required approvals | 0 | the repository has one collaborator who authors every pull request, so a required approval is a deadlock rather than a gate; the review that applies is the recorded verdict plus these checks ([Decisions](Decisions.md) D-20261116-CEO-7) |
 | enforce admins | true | the owner cannot bypass the checks either |

@@ -21,7 +21,7 @@ members = [
 default-members = ["crates/nidvue-cli", "crates/nidvue-sdk", "crates/nidvue-ffi"]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.95"
 license = "AGPL-3.0-only"
@@ -29,16 +29,16 @@ authors = ["Nidvue"]
 repository = "https://github.com/Nidvue/Drive"
 
 [workspace.dependencies]
-nidvue-core = { path = "crates/nidvue-core", version = "0.2.1" }
-nidvue-jotta = { path = "crates/nidvue-jotta", version = "0.2.1" }
-nidvue-cache = { path = "crates/nidvue-cache", version = "0.2.1" }
-nidvue-vfs = { path = "crates/nidvue-vfs", version = "0.2.1" }
-nidvue-sync = { path = "crates/nidvue-sync", version = "0.2.1" }
-nidvue-mount = { path = "crates/nidvue-mount", version = "0.2.1" }
-nidvue-plugin = { path = "crates/nidvue-plugin", version = "0.2.1" }
-nidvue-sdk = { path = "crates/nidvue-sdk", version = "0.2.1" }
-nidvue-telemetry = { path = "crates/nidvue-telemetry", version = "0.2.1" }
-nidvue-ffi = { path = "crates/nidvue-ffi", version = "0.2.1" }
+nidvue-core = { path = "crates/nidvue-core", version = "0.3.0" }
+nidvue-jotta = { path = "crates/nidvue-jotta", version = "0.3.0" }
+nidvue-cache = { path = "crates/nidvue-cache", version = "0.3.0" }
+nidvue-vfs = { path = "crates/nidvue-vfs", version = "0.3.0" }
+nidvue-sync = { path = "crates/nidvue-sync", version = "0.3.0" }
+nidvue-mount = { path = "crates/nidvue-mount", version = "0.3.0" }
+nidvue-plugin = { path = "crates/nidvue-plugin", version = "0.3.0" }
+nidvue-sdk = { path = "crates/nidvue-sdk", version = "0.3.0" }
+nidvue-telemetry = { path = "crates/nidvue-telemetry", version = "0.3.0" }
+nidvue-ffi = { path = "crates/nidvue-ffi", version = "0.3.0" }
 
 async-trait = "0.1"
 base64 = "0.22"

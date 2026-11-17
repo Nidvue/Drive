@@ -86,8 +86,8 @@ Each `[[sync.pairs]]` entry has `name`, `local`, `remote`, `paused`,
 |---|---|---|
 | `secret.backend` | `auto` | `auto`, `file` or `keyring` |
 
-`auto` probes the OS keyring (Secret Service on Linux, the Security framework on
-macOS, the Credential Manager on Windows) with a throwaway entry. When the probe
+`auto` probes the OS keyring (Secret Service, the only backend the supported
+platform has) with a throwaway entry. When the probe
 answers, tokens live in the keyring. When it does not — a headless session, a
 container, no D-Bus — the encrypted file store takes over and `doctor` prints
 the platform's own reason. `file` never probes; `keyring` fails instead of
@@ -98,6 +98,14 @@ downgrading.
 `nidvue-cli` exposes `--state`, `--json`, and per-command flags (`--token-stdin`,
 `--read-only`, `--bench`, `--include`, `--exclude`, `--conflict-policy`,
 `--paused`).
+
+## Login entry
+
+Starting the app at login is not a configuration key: the XDG autostart file is
+the state. `nidvue-cli autostart status|enable|disable` writes or removes
+`$XDG_CONFIG_HOME/autostart/nidvue-drive.desktop`, and the Settings window's
+**Start at login** toggle writes the same file through the C ABI. See
+[packaging](packaging.md).
 
 Every key above is also reachable by dot path, which is what closes the long
 tail without a flag per key:

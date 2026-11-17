@@ -34,8 +34,8 @@ future is the promise to re-measure; a date in the past is debt.
 
 | id | issue | re-measure by | status |
 |---|---|---|---|
-| K-1 | macOS mount backend returns `Unsupported`; no macOS CI runner is available to this organisation | 2026-12-15 | open |
-| K-2 | Windows mount backend returns `Unsupported`; WinFSP bindings are the remaining work | 2026-12-15 | open |
+| K-1 | macOS mount backend returns `Unsupported`; no macOS CI runner is available to this organisation | 2026-12-15 | superseded in `v0.3.0`: macOS is out of scope |
+| K-2 | Windows mount backend returns `Unsupported`; WinFSP bindings are the remaining work | 2026-12-15 | superseded in `v0.3.0`: Windows is out of scope |
 | K-3 | credentials rest in an encrypted file, not the OS keyring | 2026-12-15 | open |
 | K-4 | cold read, sustained transfer and UI frame budgets are unmeasured; they need a real link and a windowed session | 2026-12-15 | open |
 | K-5 | no OTLP exporter and no Prometheus endpoint; both are config fields only | 2026-12-15 | open |

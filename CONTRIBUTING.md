@@ -34,7 +34,7 @@ cargo xtask ci
 ```
 
 must be green before a pull request is opened, and CI runs the same command on
-Linux, macOS and Windows. It covers:
+Linux, the only supported platform in this release. It covers:
 
 | Step | What it enforces |
 |---|---|
@@ -87,7 +87,7 @@ the history on `main` is linear and every commit keeps its DCO sign-off. A pull
 request must be up to date with `main` before it merges; rebase your branch
 rather than merging `main` into it. Head branches are deleted on merge.
 
-Required on `main`: a pull request, a green `ci` run (rust on Linux and Windows,
+Required on `main`: a pull request, a green `ci` run (rust on Linux,
 licences/advisories/SPDX/secrets, the Qt build and smoke test, the FUSE mount
 test), resolved conversations, no force-push, no branch deletion. The Release
 Engineer owns these settings and re-reads them from the host API

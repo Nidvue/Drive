@@ -13,7 +13,7 @@ from measured artefacts. Add a CFO when the project acquires a real budget line.
 | driver | unit | rate | volume | monthly | note |
 |---|---|---|---|---|---|
 | hosting | — | 0 | 0 | 0 | no service is hosted; the client is the product |
-| CI minutes | GitHub Actions minutes | included for a public repository | every push and pull request, Linux + Windows matrix | 0 | assumed included; the assumption is in [Risks](Risks.md) R-5 |
+| CI minutes | GitHub Actions minutes | included for a public repository | every push and pull request, one Linux runner | 0 | assumed included; the assumption is in [Risks](Risks.md) R-5 |
 | build machine | developer workstation | sunk | 1 | 0 | 49 GB of `target/` on the reference machine |
 | team tokens | model calls per lane | provider rate | measured, not assumed | — | `teamwork.py harness budget` reports the always-on context; `throughput` reports the surface bytes |
 
@@ -22,8 +22,8 @@ from measured artefacts. Add a CFO when the project acquires a real budget line.
 - Approved: zero recurring spend. There is no paid infrastructure, no vendor
   subscription and no hosted component.
 - Hard caps and behaviour at cap: CI minutes are the only metered resource; the
-  matrix drops a job before it drops a gate (`docs/deviations.md` item 1b removed
-  the macOS job for availability, not cost).
+  matrix drops a job before it drops a gate. `v0.3.0` removed the Windows leg
+  with the platform, so one runner covers the product.
 - Current burn: 0.
 
 ## Unit economics

@@ -51,7 +51,8 @@ every requirement that is not met is written down with its reason in
 ### Rewritten brief
 
 1. Objective: one engine that syncs and mounts Jottacloud, shipped as a Rust
-   workspace with a Qt UI, verified by `cargo xtask ci` on Linux and Windows.
+   workspace with a Qt UI, verified by `cargo xtask ci` on Linux — the only
+   supported platform since `v0.3.0`.
 2. Deliverables: `crates/nidvue-{core,jotta,cache,vfs,sync,mount,plugin,sdk,ffi,cli}`,
    `apps/nidvue-ui`, `plugins/example-*`, `benches/`, `tests/invariants`,
    `packaging/`, `xtask/`, `docs/`.
@@ -66,8 +67,7 @@ every requirement that is not met is written down with its reason in
    `Engine` facade the CLI and UI share. Owner: Architect.
 6. Lanes: jotta/auth, cache, vfs+mount, sync, plugin, sdk/ffi/cli, ui, docs.
 7. Unknowns and assumptions: the API is undocumented and unsupported (isolated
-   in one crate); macOS runners are unavailable to this organisation; a real
-   account is not available to CI.
+   in one crate); a real account is not available to CI.
 8. Evidence plan: every criterion names a command; `Tests.md` maps the layers to
    their owning role; `Archive.md` holds the accepted result per criterion.
 
@@ -103,7 +103,7 @@ every requirement that is not met is written down with its reason in
 | AC-PERF | p50 budgets measured, misses recorded with numbers | `cargo bench -p nidvue-benches` |
 | AC-TESTS | unit + proptest + fake-Jotta + crash recovery pass | `cargo test --workspace` |
 | AC-DOCS | README, ARCHITECTURE, ADRs, deviations match merged code | `teamwork.py links` |
-| AC-PACKAGE | AppImage/deb, dmg, MSI recipes with mount helper permissions | `bash packaging/linux.sh` |
+| AC-PACKAGE | AppImage/deb recipe with the mount helper permissions | `bash packaging/linux.sh` |
 | AC-INVARIANTS | the seven correctness invariants are executable | `cargo test -p nidvue-invariants` |
 | AC-KEYRING | OS keyring when available, encrypted file with a reported reason otherwise | `cargo test -p nidvue-core --all-features secret` |
 | AC-METRICS | `log.prometheus_bind` serves values that match the status view | `cargo test -p nidvue-sdk --test telemetry` |
@@ -135,14 +135,14 @@ that proved them; the accepted results are in [Archive](Archive.md).
 | Cached `readdir` page, 1000 entries | ≤ 2 ms p50 | `cargo bench -p nidvue-benches` (measured 290 µs) |
 | Three-way plan cost | flat per path | `cargo bench` (1.44 µs/path at 100k paths) |
 | Workspace test suite | 0 failures | `cargo test --workspace` (156 passed) |
-| `cargo xtask ci` | green | CI + local, both OSes |
+| `cargo xtask ci` | green | CI + local, Linux |
 
 ## Assumptions and open questions
 
 | # | Item | Owner | Status | Resolution |
 |---|---|---|---|---|
 | 1 | The Jottacloud API is undocumented and unsupported | Architect | accepted | isolated in `nidvue-jotta`; a breaking change is one crate |
-| 2 | macOS runners are unavailable to this organisation | Release Engineer | accepted | macOS job omitted; recipe and adapter contract exist ([deviations](../deviations.md) 1b) |
+| 2 | macOS and Windows support is out of scope | Release Engineer | closed `v0.3.0` | the user dropped both platforms; adapters, recipes and CI legs removed, recoverable from `v0.2.1` ([deviations](../deviations.md)) |
 | 3 | No live account in CI | Tester | accepted | a fake Jotta server in `crates/nidvue-jotta/tests` |
 | 4 | Keyring integration deferred | Architect | open | `SecretStore` seam; see [Risks](Risks.md) R-3 |
 

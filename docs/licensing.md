@@ -20,9 +20,7 @@ failure.
 | Qt Charts / Virtual Keyboard / Data Visualization / Graphs | GPL-3.0-only | **not used** | avoided so the UI stays LGPL-compatible |
 | libfuse3 | LGPL-2.1-or-later | **dynamic** (Linux) | notice; library unmodified |
 | libdbus-1 | AFL-2.1 or GPL-2.0-or-later | **dynamic** (Linux) | notice; library unmodified; reached only by the keyring backend |
-| WinFSP | GPL-3.0 with FLOSS exception | separate install, dynamic | permitted for this FLOSS project; attributed in `NOTICE` and in the MSI |
-| macFUSE SDK | BSD-3-Clause | dynamic | attribution in `NOTICE` |
-| Linux kernel FUSE, WinFSP service, macOS system extension | GPL-2.0 / GPL-3.0 / APSL | kernel interfaces | not linked into this project |
+| Linux kernel FUSE | GPL-2.0 | kernel interface | not linked into this project |
 
 ## Rust dependencies
 

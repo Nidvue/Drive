@@ -152,6 +152,26 @@ ledger rather than claimed in a queue.
 | W-4 | Ledger export committed with the record set | ceo | P1 | W-1 | `docs/Team/AuditManifest.json` | done |
 | W-5 | Stale remote branches of merged pull requests deleted | release-engineer | P2 | - | `origin` | done |
 
+## M11 - v0.3.0: Linux only, and start at login (in flight)
+
+Exit: `cargo xtask ci` green on the merged revision; the tree names no macOS or
+Windows build target; `nidvue-cli autostart enable` writes the XDG entry and the
+Settings window toggles it.
+
+The user's instruction was "focusing on linux host only right now, temporarily
+drop the support to windows and macos for now". Both platforms were permanently
+open deviations (no macOS runner, no WinFSP backend in `fuser`), so removing
+them is a subtraction, not a deferral: the adapters, recipes, CI legs and
+keyring backends are gone and recoverable from tag `v0.2.1`.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0001 | Drop macOS and Windows from every active surface | developer | P0 | - | `crates/nidvue-mount`, `Cargo.toml`, `deny.toml`, `.github/workflows/`, `packaging/`, `NOTICE` | selfcheck |
+| T-0002 | Land XDG autostart end to end: core, C ABI, CLI, Settings toggle | developer | P0 | - | `crates/nidvue-core/src/autostart.rs`, `crates/nidvue-ffi`, `crates/nidvue-cli`, `apps/nidvue-ui` | selfcheck |
+| T-0003 | Keyring probe raced itself; serialise it and key it per call | developer | P0 | - | `crates/nidvue-core/src/secret.rs` | selfcheck |
+| T-0001 | Autostart integration test through the CLI | tester | P1 | developer:T-0002 | `crates/nidvue-cli/tests/autostart.rs` | selfcheck |
+| T-0001 | Linux-only docs, CHANGELOG and 0.3.0 records | ceo | P2 | developer:T-0001, developer:T-0002, tester:T-0001 | `docs/`, `CHANGELOG.md`, `README.md`, `ARCHITECTURE.md`, `NOTICE` | doing |
+
 ## Parallel rules
 
 - Freeze interfaces first, then run dev / test / design lanes concurrently.
