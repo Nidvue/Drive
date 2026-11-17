@@ -33,16 +33,11 @@ the queues' state and not an opinion about it.
 
 | role | id | area | state | pr | merged revision |
 |---|---|---|---|---|---|
-| developer | T-0001 | - | done | - | - |
-| developer | T-0002 | - | done | - | - |
-| developer | T-0003 | - | done | - | - |
-| developer | T-0004 | - | done | - | - |
-| developer | T-0005 | - | done | - | - |
-| product-manager | T-0001 | - | done | - | - |
-| release-engineer | T-0001 | - | done | - | - |
-| release-engineer | T-0002 | branch-protection | done | P-0001 | 76af248 |
-| tester | T-0001 | - | done | - | - |
-| tester | T-0002 | - | done | - | - |
+| ceo | T-0001 | - | review | P-0001 | - |
+| developer | T-0001 | - | done | P-0001 | 82df36f |
+| developer | T-0002 | - | review | P-0002 | - |
+| developer | T-0003 | - | review | P-0003 | - |
+| tester | T-0001 | - | review | P-0001 | - |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
 the PR record, not from this table.
@@ -64,6 +59,10 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
+| ceo | T-0001 · Linux-only docs, CHANGELOG and 0.3.0 records | P2 | review | - |
+| developer | T-0002 · Land XDG autostart end to end: core module, C ABI, CLI subcommand, Settings toggle | P0 | review | - |
+| developer | T-0003 · Keyring probe key is shared, so concurrent probes fail each other and the suite is red | P0 | review | - |
+| tester | T-0001 · Integration test for the autostart CLI and the file it writes, on Linux | P1 | review | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
 exact state; this table only says which lanes are open.
