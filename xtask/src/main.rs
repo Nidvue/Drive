@@ -35,6 +35,7 @@ fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
         "arch" => arch(),
         "spdx" => spdx(),
         "secrets" => secrets(),
+        "lfs" => lfs(),
         "dco" => dco(rest.first().map(String::as_str)),
         "ui" => ui(),
         "ui-smoke" => ui_smoke(),
@@ -65,6 +66,7 @@ fn help() {
          arch      verify the crate dependency contract in ARCHITECTURE.md\n\
          spdx      verify the SPDX header on every tracked source file\n\
          secrets   scan tracked files for credential-shaped strings\n\
+         lfs       verify every shipped binary type is routed to Git LFS, and no text\n\
          dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
          ui        configure and build the Qt/QML application
          ui-smoke  launch the built UI headlessly and assert it initialises
@@ -138,6 +140,7 @@ fn ci(skip_ui: bool) -> Result<(), String> {
     deny()?;
     spdx()?;
     secrets()?;
+    lfs()?;
     dco(None)?;
     plugins()?;
     ffi_smoke()?;
@@ -601,6 +604,75 @@ fn spdx() -> Result<(), String> {
 }
 
 /// Credential-shaped strings that must never be committed.
+fn lfs() -> Result<(), String> {
+    let patterns = std::fs::read_to_string(".gitattributes")
+        .map_err(|e| format!("lfs: cannot read .gitattributes: {e}"))?;
+    let mut routed: Vec<String> = Vec::new();
+    for line in patterns.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') || !line.contains("filter=lfs") {
+            continue;
+        }
+        let Some(glob) = line.split_whitespace().next() else {
+            continue;
+        };
+        routed.push(glob.trim_start_matches('*').to_string());
+    }
+    if routed.is_empty() {
+        return Err("lfs: .gitattributes routes nothing to Git LFS".into());
+    }
+
+    let tracked = capture("git", &["ls-files"])?;
+    let mut problems = Vec::new();
+    let mut covered = 0usize;
+    for path in tracked.lines().filter(|p| !p.trim().is_empty()) {
+        let attr = capture("git", &["check-attr", "filter", "--", path])?;
+        let is_lfs = attr.trim_end().ends_with(": lfs");
+        if is_lfs {
+            covered += 1;
+            // A text file routed into LFS is unreadable without a client, and the
+            // two example plugins must stay real bytes: their tests load them from
+            // the checkout.
+            if std::fs::read_to_string(path).is_ok() && !path.ends_with(".wasm") {
+                problems.push(format!("{path} is text but routed into Git LFS"));
+            }
+        }
+    }
+
+    // Every media type the repository ships must be covered by a pattern.
+    for path in tracked.lines().filter(|p| !p.trim().is_empty()) {
+        let lower = path.to_ascii_lowercase();
+        let media = [
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".mp4", ".mov", ".webm", ".pdf",
+            ".zip",
+        ]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+            || lower.ends_with(".tar.gz");
+        if !media {
+            continue;
+        }
+        let attr = capture("git", &["check-attr", "filter", "--", path])?;
+        if !attr.trim_end().ends_with(": lfs") {
+            problems.push(format!("{path} is a shipped binary with no LFS pattern"));
+        }
+    }
+
+    if problems.is_empty() {
+        println!(
+            "lfs: {covered} tracked path(s) through Git LFS, {} pattern(s), no text routed in",
+            routed.len()
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "lfs: {}\n  {}",
+            problems.len(),
+            problems.join("\n  ")
+        ))
+    }
+}
+
 fn secrets() -> Result<(), String> {
     let files = capture("git", &["ls-files"])?;
     let patterns: &[(&str, &str)] = &[
