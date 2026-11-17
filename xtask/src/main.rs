@@ -765,17 +765,29 @@ fn dco(range: Option<&str>) -> Result<(), String> {
     };
 
     let mut bad = Vec::new();
+    let mut records = 0usize;
     for sha in shas.lines().map(str::to_string) {
         let body = capture("git", &["log", "-1", "--format=%B", &sha])?;
         if body.starts_with("Merge ") {
             continue;
         }
-        if !body.contains("Signed-off-by:") {
-            bad.push(sha);
+        if body.contains("Signed-off-by:") {
+            continue;
         }
+        if is_generated_record(&sha, body.lines().next().unwrap_or_default())? {
+            records += 1;
+            continue;
+        }
+        bad.push(sha);
+    }
+    if !records.eq(&0) {
+        println!(
+            "dco: {records} generated record commit(s) carry no trailer: the teamwork engine \
+             writes docs/Team records itself and signs none of them (A-0001)"
+        );
     }
     if bad.is_empty() {
-        println!("dco: every commit carries a Signed-off-by trailer");
+        println!("dco: every authored commit carries a Signed-off-by trailer");
         Ok(())
     } else {
         Err(format!(
@@ -785,9 +797,62 @@ fn dco(range: Option<&str>) -> Result<(), String> {
     }
 }
 
+/// The subject the teamwork engine writes when it renders a project record.
+fn record_subject(subject: &str) -> bool {
+    subject.starts_with("chore(records):")
+}
+
+/// True when every path a commit touched is a committed project record.
+fn record_paths(paths: &[&str]) -> bool {
+    !paths.is_empty() && paths.iter().all(|p| p.starts_with("docs/Team/"))
+}
+
+/// A commit the teamwork engine generated: its subject and nothing outside the
+/// committed project records.
+///
+/// The engine renders `docs/Team/Archive.md` and `docs/Team/Board.md` after every
+/// verdict and commits them on its own identity without a trailer, so a sign-off
+/// check over `origin/main..HEAD` fails on bookkeeping nobody authored. The
+/// exemption is deliberately narrow - an exact subject prefix *and* every path
+/// under `docs/Team/` - so a contributor cannot dodge the check by naming a
+/// commit `chore(records):` while changing code.
+fn is_generated_record(sha: &str, subject: &str) -> Result<bool, String> {
+    if !record_subject(subject) {
+        return Ok(false);
+    }
+    let listing = capture("git", &["show", "--name-only", "--format=", sha])?;
+    let touched: Vec<&str> = listing
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    Ok(record_paths(&touched))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_records_commit_that_touches_records_is_exempt() {
+        assert!(record_subject(
+            "chore(records): re-render docs/Team/Board.md at the merge"
+        ));
+        assert!(!record_subject("chore(merge): merge of developer/t-1"));
+        assert!(!record_subject("feat(ui): a feature"));
+        assert!(record_paths(&["docs/Team/Board.md"]));
+        assert!(record_paths(&[
+            "docs/Team/Board.md",
+            "docs/Team/Archive.md",
+            "docs/Team/AuditManifest.json"
+        ]));
+        assert!(!record_paths(&[
+            "docs/Team/Board.md",
+            "crates/nidvue-core/src/lib.rs"
+        ]));
+        assert!(!record_paths(&[]));
+        assert!(!is_generated_record("HEAD", "feat(ui): a feature").unwrap());
+    }
 
     #[test]
     fn a_key_shaped_body_is_a_hit_and_a_bare_prefix_is_not() {
