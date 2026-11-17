@@ -453,3 +453,16 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: review at d51eac8: the paragraph names the autostart entry, ui.language with the German catalog, ui.theme now honoured, and the gated frame budget with its command; each number matches docs/performance.md (p99 0.259 ms at 9bfd576) and the gate log, and teamwork.py links -> 0 issues; nothing else in the README changed | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-final.log:7e9d9d27b212f5a1:129708 | baseline: the Status paragraph listed only two of the four things 0.3.0 added | replay: python3 teamwork.py links
 - findings history: 
 - branch / merge: ceo/t-0002-say-in-the-readme-what-0-3-0-actually-sh / 3ae4ac2
+
+## T-0003 · Record the push, the merge revision and the release in the team records  (ceo)
+- date: 2026-11-17
+- priority: P1
+- owner: ceo role (work by: CEO)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: every claim is read back from the forge or the gate log after the action, never from memory. Empty/duplicate/second-call: the board paragraph replaces the 'not pushed' bullet instead of adding a second status, and the rendered table now lists the two in-flight tasks. Contract surface: records only. Scope: three committed records plus the board render. | test: gh pr view 23 --json state,mergeCommit -> MERGED at 355fed345014d2a6671db9974726bd50f65628d6; gh api repos/Nidvue/Drive/branches/main/protection -> linear true, admins true, strict true, 4 checks, force false, delete false; teamwork.py preflight ceo T-0003 -> pass, 8 checks 0 failed; teamwork.py links -> 0 issues | preflight: PF-a599548c99c1 @d99a0d5abf4f (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at d99a0d5: gh pr view 23 --json state,mergeCommit -> MERGED at 355fed3; gh api repos/Nidvue/Drive/branches/main/protection -> required_linear_history true, enforce_admins true, strict true, the four required checks, allow_force_pushes false, allow_deletions false (read back after the merge, so the bypass the decision records was closed); the board names 355fed3 and the CI jobs that passed on bd8ca01; Release.md says the forge dco job calls cargo xtask dco; teamwork.py preflight -> 8 checks, 0 failed; teamwork.py links -> 0 issues | baseline: the board said not pushed and named a local revision | replay: gh pr view 23 --json state,mergeCommit && gh api repos/Nidvue/Drive/branches/main/protection
+- findings history: 
+- branch / merge: ceo/t-0003-record-the-push-the-merge-revision-and-t / f4f576d

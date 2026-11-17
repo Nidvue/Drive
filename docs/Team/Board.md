@@ -9,12 +9,13 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 - Date: 2026-11-17 · Milestone: M11 (v0.3.0, Linux only) · Verified criteria: 6/6
   for this slice (AC-1 … AC-6).
-- Revision of record: `877145e` on `main` (the UI frame-budget merge). The gate
-  `cargo xtask ci` is green at `9bfd576`, the head that was merged: 38 test
-  binaries, ffi smoke, ui smoke, ui frames (p99 0.295 ms against a 16 ms budget)
-  and dco with its record-commit exemption printed.
-- Not tagged and not pushed: the tag and the push are the CEO's and the Release
-  Engineer's steps, and no CI run exists on this revision yet.
+- Revision of record: `355fed3` on `main`, the merge of pull request 23. The
+  branch head `bd8ca01` is what CI verified: `rust (ubuntu-24.04)`,
+  `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` and `links`
+  all green, plus the local gate (`cargo xtask ci`: 38 test binaries, ffi smoke,
+  ui smoke, ui frames, dco with its record-commit exemption printed).
+- Pushed: `main` carries the reviewed revision with every SHA the ledger cites
+  still reachable (decision D-20261117-CEO-3).
 - macOS and Windows are **dropped, not deferred**: their adapters, packaging
   recipes, CI legs and keyring backends left the tree and are recoverable from
   tag `v0.2.1` ([Decisions](Decisions.md) D-20261117-CEO).
@@ -49,6 +50,7 @@ the queues' state and not an opinion about it.
 |---|---|---|---|---|---|
 | ceo | T-0001 | - | done | P-0001 | 82df36f |
 | ceo | T-0002 | - | done | P-0008 | 3ae4ac2 |
+| ceo | T-0003 | - | done | P-0009 | f4f576d |
 | developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
@@ -56,6 +58,7 @@ the queues' state and not an opinion about it.
 | developer | T-0005 | - | done | P-0006 | 8f78cb2 |
 | developer | T-0006 | - | done | P-0007 | 877145e |
 | developer | T-0007 | - | done | P-0005 | 926cbbb |
+| developer | T-0008 | - | doing | - | - |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
@@ -78,6 +81,7 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
+| developer | T-0008 · CI cannot find lrelease, and its dco step duplicates the xtask check without the exemption | P0 | doing | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
 exact state; this table only says which lanes are open.
