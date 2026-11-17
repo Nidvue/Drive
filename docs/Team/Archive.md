@@ -401,3 +401,16 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: review at 3b61a1f: cargo run -p xtask -- secrets -> no credential-shaped strings in tracked files (was FAIL: docs/Team/Archive.md: OpenAI-style key); cargo test -p xtask -> 1 passed, and the test proves both directions (a real-shaped sk-/ghp_ key is a hit, the xtask-ci.log path and a bare 'sk-' are not); the other six patterns keep body 0, so their behaviour is unchanged; the body lengths (20/20/20/12) are shorter than any real key, so the gate is not weakened | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/xtask-ci-final.log:b0c1ad9f46e2f8f3:132017 | baseline: the gate was red at 9ff06dd on a false positive | replay: cargo run -p xtask -- secrets && cargo test -p xtask
 - findings history: 
 - branch / merge: developer/t-0004-the-secret-scan-reads-any-sk-as-an-opena / a9fe4ba
+
+## T-0007 · The DCO step fails on the engine's own record commits, so every branch inherits a red gate  (developer)
+- date: 2026-11-17
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the exemption is two conditions ANDed - an exact subject prefix and every touched path under docs/Team/ - so a commit that names itself chore(records) but changes code is not exempt (unit test). Empty/duplicate/second-call: an empty path list is not exempt; a merge commit is skipped by the existing --no-merges; a signed record commit is skipped by the trailer check before the exemption is consulted. Contract surface: xtask only; the dco command's exit codes are unchanged and it still prints every offending SHA for a real miss. Concurrency and shared writes: none. Scope: xtask, the Release.md rule and the decision record; no product code. | test: cargo test -p xtask @056f758 -> 2 passed; cargo run -p xtask -- dco @056f758 -> 10 generated record commit(s) exempted, every authored commit carries a Signed-off-by trailer; nix-shell --run 'cargo xtask ci' @056f758 -> xtask ci: green | preflight: PF-a66934e73856 @056f758b79c6 (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at 056f758: cargo test -p xtask -> 2 passed, and the test proves the exemption cannot be abused (a chore(records) subject with a code path is not exempt, an empty path list is not exempt); cargo run -p xtask -- dco -> 10 generated record commits exempted and every authored commit signed, printed on every run; nix-shell --run 'cargo xtask ci' -> xtask ci: green including ffi smoke and ui smoke; Release.md states the exemption and its two conditions, so a reader cannot mistake it for a blanket waiver | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-dco.log:3d3625d6863d313c:129823 | baseline: dco was red on 13 unsigned engine commits at 64e0b0b, blocking every branch's gate | replay: cargo run -p xtask -- dco && nix-shell --run 'cargo xtask ci'
+- findings history: 
+- branch / merge: developer/t-0007-the-dco-step-fails-on-the-engine-s-own-r / pending
