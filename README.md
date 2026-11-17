@@ -45,9 +45,12 @@ Jottacloud is a trademark of its owner. Licensed **AGPL-3.0-only**.
 `v0.3.0` — third pre-release, **Linux only**. The engine, cache, sync planner,
 journal, FUSE3 mount, WASM plugin host, CLI, SDK and Qt UI are implemented and
 tested. `v0.3.0` lands the XDG autostart entry ("start at login", from the CLI
-and from Settings) and removes the macOS and Windows surfaces: their mount
-adapters, packaging recipes, CI legs and keyring backends are gone rather than
-shipped as stubs, and are recoverable from tag `v0.2.1`.
+and from Settings), reads `ui.language` and ships a German catalog (the window is
+translated from its first frame, and `ui.theme` is honoured for the first time),
+measures the UI frame budget in the gate (`cargo xtask ui-frames`: p99 0.26 ms
+against 16 ms), and removes the macOS and Windows surfaces: their mount adapters,
+packaging recipes, CI legs and keyring backends are gone rather than shipped as
+stubs, and are recoverable from tag `v0.2.1`.
 
 The FUSE mount is exercised against a real mount in CI. What is not done is
 listed honestly in [`docs/deviations.md`](docs/deviations.md) — with numbers,
