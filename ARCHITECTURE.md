@@ -64,7 +64,7 @@ Rules, enforced by review and by the dependency list of each `Cargo.toml`:
 | only `mount` touches the kernel | the VFS semantics are platform-independent |
 | `sync` never mentions Qt | the engine is usable headless, from the CLI, from a test |
 | the UI performs no I/O | every byte arrives through the FFI bridge as typed state |
-| `ffi` is the only crate with `extern "C"` | one ABI surface, one place to audit for panics |
+| `ffi` is the only crate that exports C symbols (`#[no_mangle]`) | one ABI surface, one place to audit for panics; `plugin` *declares* the type of a foreign ABI it loads, which is the other direction and is checked separately |
 
 ## 2. Modes
 

@@ -502,8 +502,9 @@ impl Client {
 
     /// Log in with the account password instead of a Personal Login Token.
     ///
-    /// The password is a [`SecretString`], used for one OIDC password grant and
-    /// dropped; it is never stored. `well_known` is the account's discovery URL.
+    /// The password is a [`nidvue_core::secret::SecretString`], used for one OIDC
+    /// password grant and dropped; it is never stored. `well_known` is the
+    /// account's discovery URL.
     pub async fn login_with_password(
         &self,
         well_known: &str,
