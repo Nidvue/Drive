@@ -7,18 +7,21 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 ## Snapshot
 
-- Date: 2026-11-16 · Milestone: M10 (v0.2.1 released) · Verified criteria: 24/24
-- Revision of record: `7d1c7ad` on `main`, tagged `v0.2.1`; pull request 16
-  rebase-merged, CI green on `main` at the tagged revision, artefacts attached to
-  the GitHub release.
-- `v0.2.0` was `6b42079`; pull requests 13 and 14 merged there.
-- Both branches are merged and deleted; `main` is the release revision.
-- Both parallel branches are green locally on the same gate
-  (`cargo xtask ci`), and the v0.2.0 branch is green in CI on `40cb8ea`.
+- Date: 2026-11-17 · Milestone: M11 (v0.3.0, Linux only) · Verified criteria: 6/6
+  for this slice (AC-1 … AC-6).
+- Revision of record: `82df36f` on `main` — the merge of
+  `developer/t-0001-drop-macos-and-windows-from-every-active`; the gate
+  (`cargo xtask ci`) is green at `ca361b9`, the branch head that was merged.
+- Not tagged and not pushed: the tag and the push are the CEO's and the Release
+  Engineer's separate steps, and no CI run exists on this revision yet.
+- macOS and Windows are **dropped, not deferred**: their adapters, packaging
+  recipes, CI legs and keyring backends left the tree and are recoverable from
+  tag `v0.2.1` ([Decisions](Decisions.md) D-20261117-CEO).
 - Open feature: F-0001, the whole product as one slice.
-- Queue state: ten tasks in M7, eight in M8/M9 and one in M10, all self-checked,
-  reviewed with a recorded verdict and archived. Nothing in flight, nothing
-  blocked.
+- Queue state: five tasks in M11, all self-checked, reviewed with a recorded
+  verdict and archived. Nothing in flight, nothing blocked. One review failed
+  (developer T-0001, finding F1) and passed as a delta at the fixed head.
+- `loop` reports STOP and the ledger chain is intact.
 - Independence limitation, stated rather than implied: this environment has one
   agent and no launcher, so the review lane ran sequentially in the same
   session as the author's. Every verdict cites a command the reviewer ran at the
@@ -33,19 +36,19 @@ the queues' state and not an opinion about it.
 
 | role | id | area | state | pr | merged revision |
 |---|---|---|---|---|---|
-| ceo | T-0001 | - | done | P-0001 | - |
+| ceo | T-0001 | - | done | P-0001 | 82df36f |
 | developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
-| tester | T-0001 | - | done | P-0001 | - |
+| tester | T-0001 | - | done | P-0001 | 82df36f |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
 the PR record, not from this table.
 
-No rows: every M7 task is `done`, so the queues are empty again. The delivered
-history is in `git log`, the criteria in `Criteria.md`, and the accepted results
-in [Archive](Archive.md) — read them by id with `teamwork.py archive --task
-<T-id>` rather than opening the file.
+No rows are open: every M11 task is `done`, so the queues are empty again. The
+delivered history is in `git log`, the criteria in `Criteria.md`, and the
+accepted results in [Archive](Archive.md) — read them by id with `teamwork.py
+archive --task <T-id>` rather than opening the file.
 
 ## Feature teams (rendered)
 
