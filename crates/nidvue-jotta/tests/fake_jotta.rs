@@ -348,3 +348,95 @@ async fn parses_a_streamed_listing_from_a_reader() {
     let parsed = parse_list_stream(xml).unwrap();
     assert_eq!(parsed.files.len(), 1);
 }
+
+#[tokio::test]
+async fn password_login_runs_the_same_oidc_grant_and_stores_no_password() {
+    let server = MockServer::start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(EncryptedFileStore::new(dir.path().join("credentials.enc")));
+
+    Mock::given(method("GET"))
+        .and(path("/well-known"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "token_endpoint": format!("{}/token", server.uri())
+        })))
+        .mount(&server)
+        .await;
+    // The grant itself: a password login must send the OIDC password form, not
+    // something invented for this client.
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .and(body_string_contains("grant_type=password"))
+        .and(body_string_contains("client_id=jottacli"))
+        .and(body_string_contains("username=alice"))
+        .and(body_string_contains("password=app-password"))
+        .and(body_string_contains("scope=openid+offline_access"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(TOKEN_JSON))
+        .mount(&server)
+        .await;
+
+    let http = JottaClient::http_client("nidvue-test", Duration::from_secs(10)).unwrap();
+    let auth = AuthManager::new(http, store.clone());
+    let account = auth
+        .login_with_password(
+            &format!("{}/well-known", server.uri()),
+            "alice",
+            nidvue_core::secret::SecretString::new("app-password"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(account, "alice");
+    assert!(auth.is_logged_in().await);
+
+    // The token is persisted and the password is nowhere in the store.
+    let raw = store.load("jotta.tokens").unwrap().unwrap();
+    assert!(raw.expose().contains("bearer-one"));
+    let on_disk = std::fs::read(dir.path().join("credentials.enc")).unwrap();
+    assert!(
+        !on_disk.windows(12).any(|w| w == b"app-password"),
+        "the account password must never be written to disk"
+    );
+}
+
+#[tokio::test]
+async fn password_login_reports_a_rejected_password_without_echoing_it() {
+    let server = MockServer::start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(EncryptedFileStore::new(dir.path().join("credentials.enc")));
+    Mock::given(method("GET"))
+        .and(path("/well-known"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "token_endpoint": format!("{}/token", server.uri())
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+            "error": "invalid_grant",
+            "error_description": "Invalid user credentials"
+        })))
+        .mount(&server)
+        .await;
+
+    let http = JottaClient::http_client("nidvue-test", Duration::from_secs(10)).unwrap();
+    let auth = AuthManager::new(http, store.clone());
+    let error = auth
+        .login_with_password(
+            &format!("{}/well-known", server.uri()),
+            "alice",
+            nidvue_core::secret::SecretString::new("wrong-password"),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("401"),
+        "the status must be reported: {error}"
+    );
+    assert!(
+        !error.contains("wrong-password"),
+        "the password must never reach an error message: {error}"
+    );
+    assert!(!auth.is_logged_in().await);
+}

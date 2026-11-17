@@ -500,6 +500,22 @@ impl Client {
         self.inner.auth.login(login_token).await
     }
 
+    /// Log in with the account password instead of a Personal Login Token.
+    ///
+    /// The password is a [`SecretString`], used for one OIDC password grant and
+    /// dropped; it is never stored. `well_known` is the account's discovery URL.
+    pub async fn login_with_password(
+        &self,
+        well_known: &str,
+        username: &str,
+        password: nidvue_core::secret::SecretString,
+    ) -> Result<String> {
+        self.inner
+            .auth
+            .login_with_password(well_known, username, password)
+            .await
+    }
+
     /// Forget the stored token.
     pub async fn logout(&self) -> Result<()> {
         self.inner.auth.logout().await

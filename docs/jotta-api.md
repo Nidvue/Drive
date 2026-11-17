@@ -35,6 +35,12 @@ Exchange it for a bearer token:
 3. The response is a standard OIDC token response: `access_token`,
    `refresh_token`, `expires_in` (typically 3600 s), `token_type`.
 
+The same grant serves a **password login**: `nidvue-cli login --username … --well-known
+<discovery-url> --token-stdin` posts exactly these fields, with the account password
+in place of the login token's `auth_token`. Nothing else differs, so a password
+login and a token login produce the same stored token. The discovery URL is
+required there because a Personal Login Token is what normally carries it.
+
 Refresh: `POST <token_endpoint>` with `grant_type=refresh_token&client_id=jottacli&refresh_token=…`.
 Nidvue also refreshes **on a 401**, once, with single-flight, and retries the
 original request; a refresh token is rotated and persisted before the retry.

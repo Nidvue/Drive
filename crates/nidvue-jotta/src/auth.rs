@@ -124,9 +124,40 @@ impl AuthManager {
     /// Exchange a Personal Login Token and persist the result.
     pub async fn login(&self, login_token: &str) -> Result<String> {
         let token = LoginToken::decode(login_token)?;
+        self.exchange_password(
+            &token.well_known_link,
+            &token.username,
+            token.auth_token.clone(),
+        )
+        .await
+    }
+
+    /// Log in with the account password instead of a Personal Login Token.
+    ///
+    /// The flow is the same OIDC password grant the token exchange uses; the
+    /// difference is where the credentials come from. The password is held in a
+    /// [`SecretString`], used for this one request and dropped: it is never
+    /// stored, never written to the config and never formatted into a log line.
+    /// `well_known` is the account's OIDC discovery URL — a Personal Login Token
+    /// carries it, which is why a token login does not need it.
+    pub async fn login_with_password(
+        &self,
+        well_known: &str,
+        username: &str,
+        password: SecretString,
+    ) -> Result<String> {
+        self.exchange_password(well_known, username, password).await
+    }
+
+    async fn exchange_password(
+        &self,
+        well_known: &str,
+        username: &str,
+        password: SecretString,
+    ) -> Result<String> {
         let discovery: WellKnown = self
             .http
-            .get(&token.well_known_link)
+            .get(well_known)
             .timeout(Duration::from_secs(30))
             .send()
             .await
@@ -140,8 +171,8 @@ impl AuthManager {
         let form = [
             ("client_id", CLIENT_ID),
             ("grant_type", "password"),
-            ("username", token.username.as_str()),
-            ("password", token.auth_token.expose()),
+            ("username", username),
+            ("password", password.expose()),
             ("scope", "openid offline_access"),
         ];
         let response = self
@@ -167,11 +198,11 @@ impl AuthManager {
             refresh_token: parsed.refresh_token.map(SecretString::new),
             expires_at_ms: now_ms() + parsed.expires_in.max(60) * 1000,
             token_endpoint: discovery.token_endpoint,
-            username: token.username.clone(),
+            username: username.to_string(),
         };
         self.persist(&set)?;
         *self.token.lock().await = Some(set);
-        Ok(token.username)
+        Ok(username.to_string())
     }
 
     /// Load a persisted token. Returns false when none is stored.

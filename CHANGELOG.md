@@ -36,6 +36,11 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   the WinFSP/macFUSE attributions in `NOTICE`.
 
 ### Added
+- **OIDC login by username and password.** `nidvue-cli login --username … --well-known
+  <discovery-url> --token-stdin` runs the same OIDC password grant as the token
+  exchange. The password is read from stdin into a `SecretString`, used for one
+  request and dropped: never stored, never in the config, never in a log line, and
+  a rejected login reports the status without echoing it.
 - **`Index::upsert_entries`**: one transaction for a whole scan instead of one
   per row. Indexing 100 000 rows went from 290 s (2.9 ms/row, one fsync each) to
   76 ms, which is what makes a first sync of a large tree practical.
