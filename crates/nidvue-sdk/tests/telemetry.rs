@@ -14,6 +14,9 @@ use nidvue_sdk::{Client, TransferState};
 
 async fn client_with(dir: &std::path::Path, configure: impl FnOnce(&mut AppConfig)) -> Client {
     let mut config = AppConfig::default();
+    // The OS keyring is per user: a file store keeps every assertion below
+    // independent of whether the developer running the suite is logged in.
+    config.secret.backend = nidvue_core::config::SecretBackend::File;
     configure(&mut config);
     config.save(dir).unwrap();
     Client::open(dir).await.unwrap()

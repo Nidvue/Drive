@@ -88,6 +88,11 @@ enum Command {
         #[command(subcommand)]
         action: PluginAction,
     },
+    /// Ask the server what a folder contains
+    Remote {
+        #[command(subcommand)]
+        action: RemoteAction,
+    },
     /// Read and write configuration values by dot path
     Config {
         #[command(subcommand)]
@@ -122,6 +127,23 @@ enum AutostartAction {
     },
     /// Remove the autostart entry
     Disable,
+}
+
+#[derive(Subcommand, Debug)]
+enum RemoteAction {
+    /// List one remote folder as the server reports it
+    Ls {
+        /// Remote path, e.g. /Archive/Documents
+        path: String,
+    },
+    /// Delete one remote path (it goes to the Jottacloud trash unless --permanent)
+    Rm {
+        /// Remote path, e.g. /Archive/Documents/old.txt
+        path: String,
+        /// Skip the trash: the server deletes it outright
+        #[arg(long)]
+        permanent: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -186,6 +208,12 @@ enum SyncAction {
     List,
     /// Run one pass (all pairs, or one by name)
     Run { name: Option<String> },
+    /// Run continuously: watch the local folders and poll the remote
+    Watch {
+        /// Stop after the first pass instead of staying up
+        #[arg(long)]
+        once: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -449,6 +477,56 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 }
                 Ok(())
             }
+            SyncAction::Watch { once } => {
+                let client = Client::open(state).await?;
+                if !client.is_logged_in().await {
+                    return Err(NidvueError::Auth("log in first: nidvue-cli login".into()));
+                }
+                // The continuous loop lives in the engine: the client watches each
+                // pair's folder, polls the remote and backs off when nothing
+                // changes. This command keeps the process alive and reports what
+                // the passes do.
+                client.start_sync_loop();
+                let mut events = client.subscribe();
+                for report in client.sync_now().await? {
+                    println!(
+                        "{}: scanned {} planned {} applied {} conflicts {} failed {}",
+                        report.pair,
+                        report.scanned,
+                        report.planned,
+                        report.applied,
+                        report.conflicts,
+                        report.failed.len()
+                    );
+                }
+                if *once {
+                    return Ok(());
+                }
+                println!("watching; Ctrl-C to stop");
+                loop {
+                    match events.recv().await {
+                        Ok(envelope) => match &envelope.event {
+                            nidvue_core::event::Event::SyncFinished {
+                                pair,
+                                applied,
+                                conflicts,
+                                ..
+                            } if *applied > 0 || *conflicts > 0 => {
+                                println!("{pair}: applied {applied}, conflicts {conflicts}")
+                            }
+                            nidvue_core::event::Event::TransferFailed { path, error, .. } => {
+                                eprintln!("{path}: {error}");
+                            }
+                            _ => {}
+                        },
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            eprintln!("{n} events dropped")
+                        }
+                        Err(_) => break,
+                    }
+                }
+                Ok(())
+            }
             SyncAction::Run { name } => {
                 let client = Client::open(state).await?;
                 if !client.is_logged_in().await {
@@ -609,6 +687,54 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
             AutostartAction::Disable => {
                 let removed = nidvue_core::autostart::disable()?;
                 println!("autostart: {}", if removed { "off" } else { "already off" });
+                Ok(())
+            }
+        },
+        Command::Remote { action } => match action {
+            RemoteAction::Ls { path } => {
+                let client = Client::open(state).await?;
+                if !client.is_logged_in().await {
+                    return Err(NidvueError::Auth("log in first: nidvue-cli login".into()));
+                }
+                let listing = client.list_remote(&RemotePath::parse(path)?).await?;
+                if cli.json {
+                    let rows: Vec<serde_json::Value> = listing
+                        .folders
+                        .iter()
+                        .map(|f| serde_json::json!({ "kind": "dir", "path": f.path }))
+                        .chain(listing.files.iter().map(|f| {
+                            serde_json::json!({
+                                "kind": "file",
+                                "path": f.path,
+                                "name": f.name,
+                                "size": f.size,
+                                "md5": f.md5,
+                            })
+                        }))
+                        .collect();
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&rows).unwrap_or_default()
+                    );
+                } else {
+                    for folder in &listing.folders {
+                        println!("dir  {}", folder.path);
+                    }
+                    for file in &listing.files {
+                        println!("file {}  {} bytes  {}", file.path, file.size, file.name);
+                    }
+                }
+                Ok(())
+            }
+            RemoteAction::Rm { path, permanent } => {
+                let client = Client::open(state).await?;
+                if !client.is_logged_in().await {
+                    return Err(NidvueError::Auth("log in first: nidvue-cli login".into()));
+                }
+                client
+                    .delete_remote(&RemotePath::parse(path)?, *permanent)
+                    .await?;
+                println!("deleted {path}");
                 Ok(())
             }
         },

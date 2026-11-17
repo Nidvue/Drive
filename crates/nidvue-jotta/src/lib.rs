@@ -46,6 +46,23 @@ pub fn http_error(status: u16, body: &str) -> nidvue_core::NidvueError {
 }
 
 fn first_line(body: &str) -> String {
+    // A JFS error body is an XML document, so its first line is the XML
+    // declaration and says nothing. Report the element that carries the message,
+    // and never a page of markup.
+    if body.trim_start().starts_with('<') {
+        for tag in ["message", "error", "reason"] {
+            if let Some(start) = body.find(&format!("<{tag}>")) {
+                let rest = &body[start + tag.len() + 2..];
+                if let Some(end) = rest.find(&format!("</{tag}>")) {
+                    let text = rest[..end].trim();
+                    if !text.is_empty() {
+                        return text.chars().take(300).collect();
+                    }
+                }
+            }
+        }
+        return "not found".to_string();
+    }
     let line = body.lines().next().unwrap_or("").trim();
     let line = line.replace(['\n', '\r'], " ");
     if line.len() > 300 {

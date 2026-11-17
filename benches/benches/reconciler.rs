@@ -40,7 +40,7 @@ fn main() {
         );
     }
     let start = Instant::now();
-    let actions = plan(&local, &remote, &baselines);
+    let actions = plan(&local, &remote, &baselines, 0);
     let elapsed = start.elapsed();
     let per = elapsed.as_secs_f64() / n as f64 * 1e6;
     println!(

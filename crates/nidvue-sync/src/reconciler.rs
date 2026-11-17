@@ -67,6 +67,17 @@ pub enum Action {
         /// The remote version.
         remote: Version,
     },
+    /// The path was renamed: the old name is gone on both sides and the content
+    /// reappeared under a new name, so the remote is renamed instead of
+    /// re-uploaded.
+    Move {
+        /// The path that disappeared.
+        from: RemotePath,
+        /// The path that appeared.
+        to: RemotePath,
+        /// The version the content still has.
+        version: Version,
+    },
     /// Both sides deleted the path: drop the baseline.
     Forget {
         /// The path.
@@ -89,6 +100,7 @@ impl Action {
             | Self::Download { path, .. }
             | Self::DeleteLocal { path }
             | Self::DeleteRemote { path }
+            | Self::Move { from: path, .. }
             | Self::Conflict { path, .. }
             | Self::Forget { path }
             | Self::Skip { path } => path,
@@ -121,8 +133,9 @@ pub fn plan_path(
                 path: path.clone(),
                 remote: Version::default(),
             },
-            (Some(_), None, Some(_)) => Action::DeleteRemote { path: path.clone() },
-            (None, Some(_), Some(_)) => Action::DeleteLocal { path: path.clone() },
+            // Mirror the deletion onto the side that still has the directory.
+            (Some(_), None, Some(_)) => Action::DeleteLocal { path: path.clone() },
+            (None, Some(_), Some(_)) => Action::DeleteRemote { path: path.clone() },
             (None, None, Some(_)) => Action::Forget { path: path.clone() },
             (None, None, None) => Action::Skip { path: path.clone() },
         };
@@ -192,6 +205,7 @@ pub fn plan(
     local: &BTreeMap<RemotePath, (EntryKind, Version)>,
     remote: &BTreeMap<RemotePath, (EntryKind, Version)>,
     baselines: &BTreeMap<RemotePath, BaselineEntry>,
+    rename_window_ms: i64,
 ) -> Vec<Action> {
     let mut paths: BTreeMap<&RemotePath, ()> = BTreeMap::new();
     for p in local.keys().chain(remote.keys()).chain(baselines.keys()) {
@@ -216,8 +230,79 @@ pub fn plan(
         })
         .filter(|a| a.is_mutation())
         .collect();
+    if rename_window_ms > 0 {
+        actions = fold_moves(actions, baselines, rename_window_ms);
+    }
     actions.sort_by(|a, b| a.path().cmp(b.path()));
     actions
+}
+
+/// Turn a local delete plus a local create of the same content into one move.
+///
+/// A rename shows up as two independent events: the old name disappeared from
+/// both sides, and a name that has no baseline appeared with content the remote
+/// does not have. When the content matches (same size, same hash) and the mtimes
+/// are within `rename_window_ms` — a rename preserves the mtime, so the window is
+/// a tolerance, not an approximation — the remote is renamed instead of being
+/// deleted and re-uploaded. That is the difference between moving a 2 GiB file
+/// and uploading it again.
+fn fold_moves(
+    actions: Vec<Action>,
+    baselines: &BTreeMap<RemotePath, BaselineEntry>,
+    rename_window_ms: i64,
+) -> Vec<Action> {
+    let mut deleted: Vec<(&RemotePath, &BaselineEntry)> = actions
+        .iter()
+        .filter_map(|action| match action {
+            Action::DeleteRemote { path } => baselines.get(path).map(|baseline| (path, baseline)),
+            _ => None,
+        })
+        .collect();
+    let mut moves: Vec<(RemotePath, RemotePath, Version)> = Vec::new();
+    let mut taken: Vec<RemotePath> = Vec::new();
+    for action in &actions {
+        let Action::CreateRemote {
+            path,
+            local: version,
+        } = action
+        else {
+            continue;
+        };
+        let Some((hash, size)) = version.hash.as_ref().map(|h| (h, version.size)) else {
+            continue;
+        };
+        let Some(index) = deleted.iter().position(|(from, baseline)| {
+            !taken.contains(*from)
+                && baseline.kind == EntryKind::File
+                && baseline.local.size == size
+                && baseline.local.hash.as_ref() == Some(hash)
+                && (baseline.local.mtime_ms - version.mtime_ms).abs() <= rename_window_ms
+        }) else {
+            continue;
+        };
+        let (from, _) = deleted.remove(index);
+        taken.push(from.clone());
+        moves.push((from.clone(), path.clone(), version.clone()));
+    }
+    if moves.is_empty() {
+        return actions;
+    }
+    let moved_from: Vec<&RemotePath> = moves.iter().map(|(from, _, _)| from).collect();
+    let moved_to: Vec<&RemotePath> = moves.iter().map(|(_, to, _)| to).collect();
+    let mut out: Vec<Action> = actions
+        .into_iter()
+        .filter(|action| match action {
+            Action::DeleteRemote { path } => !moved_from.contains(&path),
+            Action::CreateRemote { path, .. } => !moved_to.contains(&path),
+            _ => true,
+        })
+        .collect();
+    out.extend(
+        moves
+            .into_iter()
+            .map(|(from, to, version)| Action::Move { from, to, version }),
+    );
+    out
 }
 
 /// Which side keeps the original path, and where the loser is written.
@@ -272,6 +357,52 @@ mod tests {
 
     fn v(content: &[u8], mtime: i64) -> Version {
         Version::new(content.len() as u64, mtime, Some(Hash::of(content)))
+    }
+
+    #[test]
+    fn a_delete_and_a_create_of_the_same_content_fold_into_one_move() {
+        let from = RemotePath::parse("/Archive/a.txt").unwrap();
+        let to = RemotePath::parse("/Archive/b.txt").unwrap();
+        let version = v(b"payload", 1_000);
+        let baseline = BaselineEntry {
+            path: from.clone(),
+            kind: EntryKind::File,
+            local: version.clone(),
+            remote: version.clone(),
+            synced_at_ms: 1_000,
+        };
+        let actions = vec![
+            Action::DeleteRemote { path: from.clone() },
+            Action::CreateRemote {
+                path: to.clone(),
+                local: version.clone(),
+            },
+        ];
+        let mut baselines = BTreeMap::new();
+        baselines.insert(from.clone(), baseline);
+        let folded = fold_moves(actions.clone(), &baselines, 5_000);
+        assert_eq!(folded.len(), 1, "{folded:?}");
+        assert!(
+            matches!(&folded[0], Action::Move { from: f, to: t, .. } if *f == from && *t == to)
+        );
+
+        // A rename preserves the mtime, so a copy made much later is not a move:
+        // the same content ten seconds after the baseline falls outside a five
+        // second window and stays two actions.
+        let mut later = actions.clone();
+        if let Action::CreateRemote { local, .. } = &mut later[1] {
+            *local = v(b"payload", 11_000);
+        }
+        let outside = fold_moves(later.clone(), &baselines, 5_000);
+        assert_eq!(outside.len(), 2, "{outside:?}");
+        let inside = fold_moves(later, &baselines, 20_000);
+        assert_eq!(inside.len(), 1, "{inside:?}");
+        let mut changed = baselines.clone();
+        if let Some(entry) = changed.get_mut(&from) {
+            entry.local = v(b"different", 1_000);
+        }
+        let not_a_move = fold_moves(actions, &changed, 5_000);
+        assert_eq!(not_a_move.len(), 2, "{not_a_move:?}");
     }
 
     fn p() -> RemotePath {
@@ -421,7 +552,7 @@ mod tests {
         local.insert(b.clone(), (EntryKind::File, v(b"y", 1)));
         remote.insert(a.clone(), (EntryKind::File, v(b"x", 1)));
         remote.insert(b.clone(), (EntryKind::File, v(b"y", 1)));
-        let actions = plan(&local, &remote, &BTreeMap::new());
+        let actions = plan(&local, &remote, &BTreeMap::new(), 0);
         assert!(actions.is_empty(), "{actions:?}");
     }
 }
@@ -467,6 +598,12 @@ mod proptests {
             }
             Action::CreateRemote { local: l, .. } => {
                 remote.insert(key, l.clone());
+            }
+            Action::Move { from, to, version } => {
+                local.remove(from.as_str());
+                remote.remove(from.as_str());
+                local.insert(to.as_str().to_string(), version.clone());
+                remote.insert(to.as_str().to_string(), version.clone());
             }
             Action::Upload { local: l, .. } => {
                 remote.insert(key, l.clone());
@@ -526,7 +663,7 @@ mod proptests {
             if let Some(v) = version(&remote1) { remote.insert(path2.clone(), (EntryKind::File, v)); }
 
             let before: BTreeSet<String> = local.keys().chain(remote.keys()).map(|p| p.as_str().to_string()).collect();
-            let actions = plan(&local, &remote, &baselines);
+            let actions = plan(&local, &remote, &baselines, 0);
 
             let mut m_local: BTreeMap<String, Version> = local.iter().map(|(p, (_, v))| (p.as_str().to_string(), v.clone())).collect();
             let mut m_remote: BTreeMap<String, Version> = remote.iter().map(|(p, (_, v))| (p.as_str().to_string(), v.clone())).collect();
@@ -560,7 +697,7 @@ mod proptests {
                     b2.insert(p.clone(), BaselineEntry { path: p.clone(), kind: EntryKind::File, local: lv.clone(), remote: rv.clone(), synced_at_ms: 0 });
                 }
             }
-            let again = plan(&l2, &r2, &b2);
+            let again = plan(&l2, &r2, &b2, 0);
             prop_assert!(again.is_empty(), "re-plan produced {:?}", again);
         }
     }

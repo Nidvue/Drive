@@ -99,6 +99,27 @@ downgrading.
 `--read-only`, `--bench`, `--include`, `--exclude`, `--conflict-policy`,
 `--paused`).
 
+## Sync
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sync.pairs` | empty | one local folder and the remote folder it mirrors; **one remote folder belongs to one pair** (validation refuses a shared or nested remote) |
+| `sync.paused` | false | pause every pair |
+| `sync.poll_interval_ms` | 5000 | first remote poll interval; doubles on an empty pass |
+| `sync.max_poll_interval_ms` | 60000 | the backoff ceiling |
+| `sync.full_scan_interval_ms` | 21600000 | a pass runs at least this often, even when the backoff has grown |
+| `sync.debounce_ms` | 500 | how long a local change burst is coalesced before a pass |
+| `sync.rename_window_ms` | 5000 | a delete plus a create of the same content within this window is a rename: the remote is moved, not re-uploaded |
+| `sync.bulk_delete_threshold` | 100 | a pass that would delete more paths than this is refused (0 disables the guard) |
+| `sync.max_file_size_bytes` | 0 | refuse files larger than this (0 = no limit) |
+| `sync.trash_retention_days` | 30 | local trash retention for files a pass deletes |
+| `sync.conflict_policy` | `keep_both` | `keep_both`, `prefer_local` or `prefer_remote` |
+
+Continuous sync is the engine's job: `nidvue-cli sync watch` starts it in the
+foreground, and the desktop app starts it with the window. It watches each pair's
+folder, runs a pass on a local change, and otherwise polls at the adaptive
+interval. A one-shot `sync run` never starts it.
+
 ## Plugins
 
 | Key | Default | Meaning |

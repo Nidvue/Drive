@@ -64,6 +64,7 @@ the queues' state and not an opinion about it.
 | developer | T-0010 | - | done | P-0012 | 0059eed |
 | developer | T-0011 | - | done | P-0013 | 20666c9 |
 | developer | T-0012 | - | done | P-0014 | 9328bfe |
+| developer | T-0013 | - | done | P-0016 | 7ea0f56 |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
 | tester | T-0002 | - | done | P-0015 | 7ffd4c8 |
 
