@@ -50,7 +50,7 @@ the queues' state and not an opinion about it.
 |---|---|---|---|---|---|
 | ceo | T-0001 | - | done | P-0001 | 82df36f |
 | ceo | T-0002 | - | done | P-0008 | 3ae4ac2 |
-| ceo | T-0003 | - | doing | - | - |
+| ceo | T-0003 | - | done | P-0009 | f4f576d |
 | developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
@@ -81,7 +81,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
-| ceo | T-0003 · Record the push, the merge revision and the release in the team records | P1 | doing | - |
 | developer | T-0008 · CI cannot find lrelease, and its dco step duplicates the xtask check without the exemption | P0 | doing | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
