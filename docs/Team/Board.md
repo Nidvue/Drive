@@ -48,6 +48,7 @@ the queues' state and not an opinion about it.
 | role | id | area | state | pr | merged revision |
 |---|---|---|---|---|---|
 | ceo | T-0001 | - | done | P-0001 | 82df36f |
+| ceo | T-0002 | - | done | P-0008 | 3ae4ac2 |
 | developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
