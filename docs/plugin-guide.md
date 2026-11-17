@@ -1,7 +1,10 @@
 # Plugin guide
 
 A plugin extends Nidvue Drive at defined hook points. It runs in a WebAssembly
-sandbox with exactly the capabilities its manifest declares.
+sandbox with exactly the capabilities its manifest declares — or, when the user
+explicitly trusts native code, as a dylib behind a versioned C ABI.
+
+Related: [configuration](configuration.md) · [licensing](licensing.md) · [deviations](deviations.md)
 
 ## Licence rule, read this first
 
@@ -70,6 +73,42 @@ A plugin exports these functions; the host calls them in this order:
 | `pre_upload` | `{"path": "…", "local": "…"}` | `{"ok": true}` |
 | `conflict_resolve` | `{"path": "…", "local_hash": "…", "remote_hash": "…"}` | `{"winner": "local"|"remote"|"both"}` |
 | `event` | the event envelope as JSON | ignored |
+
+## Native plugins (trusted dylibs)
+
+A native plugin is a shared library loaded into the engine's own process. It
+speaks the same hooks and the same JSON payloads, through a C ABI:
+
+```c
+unsigned nidvue_plugin_abi_version(void);                     /* 1 */
+int      nidvue_plugin_init(const char *config_json);         /* 0 = ok */
+int      nidvue_plugin_call(const char *hook, const char *payload, char **out);
+void     nidvue_plugin_free(char *out);
+```
+
+`nidvue_plugin_call` writes a NUL-terminated JSON response into `*out`, allocated
+by the plugin, and the host hands it straight back to `nidvue_plugin_free`. A
+non-zero return is reported as a plugin failure; the engine keeps running.
+
+Three things must be true before one loads, and each failure names itself:
+
+| Condition | Why | Error when it is not |
+|---|---|---|
+| `plugin.allow_native = true` in `config.toml` | a dylib runs with the engine's privileges, so trusting one is a decision the user makes explicitly | `native plugins need plugin.allow_native = true` |
+| `license = "AGPL-3.0-only"` in the manifest | the library is linked into an AGPL-3.0 process and is a derivative work | `native plugin declares "MIT": it must be AGPL-3.0-only …` |
+| `nidvue_plugin_abi_version()` returns `1` | the host speaks one ABI version and refuses anything else | `native ABI 2 is not the 1 this build speaks` |
+
+```sh
+# trust native code, then load a plugin directory
+nidvue-cli config set plugin.allow_native true
+nidvue-cli plugins call com.example.native path_filter '{"path":"/Archive/x"}'
+```
+
+The fuel, memory and wall-clock limits in the manifest are wasmtime's and do not
+apply to a dylib: a native plugin is only as contained as the process it runs in,
+which is what `allow_native` is asking you to accept. The host still checks the
+declared hooks and capabilities on every call, and a plugin whose ABI call fails
+is reported rather than fatal.
 
 ## Limits
 

@@ -521,7 +521,9 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 Ok(())
             }
             PluginAction::Test { dir } => {
-                let mut host = nidvue_plugin::PluginHost::new()?;
+                let config = AppConfig::load_or_default(state)?;
+                let mut host =
+                    nidvue_plugin::PluginHost::new()?.with_native(config.plugin.allow_native);
                 let id = host.load(dir)?;
                 let hooks = host
                     .plugin_mut(&id)

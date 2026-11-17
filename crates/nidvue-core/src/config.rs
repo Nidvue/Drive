@@ -318,6 +318,19 @@ impl Default for UiConfig {
     }
 }
 
+/// Plugin hosting.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(default)]
+pub struct PluginConfig {
+    /// Trust native plugins (dylibs loaded into this process).
+    ///
+    /// Off by default: a dylib runs with the engine's own privileges, so it is a
+    /// deliberate opt-in and its manifest must declare AGPL-3.0-only.
+    pub allow_native: bool,
+}
+
 /// The hot-reloadable subset, pushed to the UI on change.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct HotConfig {
@@ -349,6 +362,8 @@ pub struct AppConfig {
     pub secret: SecretConfig,
     /// UI.
     pub ui: UiConfig,
+    /// Plugins.
+    pub plugin: PluginConfig,
 }
 
 impl AppConfig {

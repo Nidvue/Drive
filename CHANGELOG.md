@@ -36,6 +36,10 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   the WinFSP/macFUSE attributions in `NOTICE`.
 
 ### Added
+- **Native plugins behind a trusted host.** `PluginHost::with_native` loads a
+  `plugin.so`/`plugin.dll` through `libloading` over a versioned C ABI, only when
+  `plugin.allow_native = true` and the manifest declares AGPL-3.0-only. The ABI
+  version is checked before the first call, and every refusal names its reason.
 - **German translation and a working `ui.language`.** The window installs the
   catalog for `ui.language` (`system`, `en`, `de`) before the QML engine loads,
   so it is translated from the first frame; all 187 strings ship translated.

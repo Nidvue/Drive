@@ -807,7 +807,7 @@ impl Client {
 
     /// Load the plugins installed below `<state>/plugins`.
     pub fn plugins(&self) -> Result<PluginHost> {
-        let mut host = PluginHost::new()?;
+        let mut host = PluginHost::new()?.with_native(self.read_config().plugin.allow_native);
         let dir = self.read_config().state_dir.join("plugins");
         if dir.is_dir() {
             for (path, result) in host.load_all(&dir) {

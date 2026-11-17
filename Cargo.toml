@@ -52,6 +52,7 @@ keyring = { version = "3.6", default-features = false, features = [
     "crypto-rust",
 ] }
 libc = "0.2"
+libloading = "0.8"
 md-5 = "0.10"
 notify = "8"
 proptest = "1"
