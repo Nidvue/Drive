@@ -478,4 +478,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at 02c4581: cargo test -p nidvue-plugin -> 12 unit and 3 native tests pass; the native test compiles tests/fixtures/native_plugin.c with cc, loads it through dlopen and asserts include=true/false from the hook, and the refusals name themselves (plugin.allow_native, AGPL-3.0-only, plugin.so); cargo run -p xtask -- arch -> crate contract holds (11 crates) after the rule was corrected to forbid exporting C symbols rather than declaring a foreign ABI; nix-shell --run 'cargo xtask ci' -> green with 49 settings rows | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-open.log:40cc288d74b5da3b:131780 | baseline: deviation 12 refused native dylibs; the host had no trusted path | replay: cargo test -p nidvue-plugin
 - findings history: 
-- branch / merge: developer/t-0009-native-plugin-dylibs-behind-an-explicit / pending
+- branch / merge: developer/t-0009-native-plugin-dylibs-behind-an-explicit / c376d05
