@@ -41,7 +41,7 @@ the queues' state and not an opinion about it.
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
 | developer | T-0004 | - | done | P-0004 | a9fe4ba |
-| developer | T-0005 | - | doing | - | - |
+| developer | T-0005 | - | done | P-0006 | 8f78cb2 |
 | developer | T-0006 | - | doing | - | - |
 | developer | T-0007 | - | done | P-0005 | 926cbbb |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
@@ -66,7 +66,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
-| developer | T-0005 · Read ui.language: ship a translation, install a translator, expose the setting | P0 | doing | - |
 | developer | T-0006 · Measure the UI frame budget headlessly and record it | P1 | doing | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
