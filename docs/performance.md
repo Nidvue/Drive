@@ -31,18 +31,30 @@ capacity is known exactly, not against a nominal one:
 | Peak RSS during the transfer benches | — | **8.1 MiB** | — |
 
 A 100k-path initial sync, `cargo bench -p nidvue-benches --bench initial_sync`
-(2026-11-16). This measures the engine's half — scan, index, plan — not 100k
-network transfers:
+(2026-11-17). This measures the engine's half — scan, index, the remote listing
+and the plan — not 100k network transfers:
 
 | Step | Measured | Per path |
 |---|---|---|
-| `scan_local` over 100 000 files | **664 ms** | 6.6 µs |
-| index 100 000 rows | **861 ms** | 8.6 µs |
-| first three-way plan over an empty remote (100 100 actions) | **57 ms** | 0.57 µs |
-| peak RSS | **54 MiB** | 566 bytes |
+| `scan_local` over 100 000 files | **375 ms** | 3.8 µs |
+| index 100 000 rows, one transaction (`upsert_entries`) | **76 ms** | 0.8 µs |
+| parse a 13.8 MiB `liststream` of 100 000 remote entries | **93 ms** | 0.93 µs |
+| three-way plan against that remote (200 100 actions) | **75 ms** | 0.75 µs |
+| peak RSS | **183 MiB** | 1 924 bytes |
+| engine total | **619 ms** | — |
 
-Bounded memory is the claim, and 566 bytes per path is the number behind it: the
-index lives in SQLite, not in RAM.
+The remote side is real state now, not an empty map: the bench builds the
+`liststream` document the API returns for 100 000 entries and parses it with the
+production streaming parser, with every md5 changed so the plan has work to do.
+What it still does not measure is the HTTP transfer of those 13.8 MiB or of the
+files — both are bounded by the link — and peak RSS is higher because the remote
+map is held in memory alongside the local one.
+
+One finding came out of writing it. Indexing 100 000 rows one `upsert_entry` at a
+time took **290 s** on this machine (2.9 ms/row): each call is its own implicit
+transaction and its own fsync. `Index::upsert_entries` writes them in one
+transaction and takes **76 ms** — 3 800× faster. The per-file VFS path keeps
+`upsert_entry`, because there it really is one file operation.
 
 Still to be measured, and therefore listed in `docs/deviations.md` rather than
 claimed here:

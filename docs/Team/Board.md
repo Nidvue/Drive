@@ -7,8 +7,8 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 ## Snapshot
 
-- Date: 2026-11-17 · Milestone: M11 (v0.3.0, Linux only) · Verified criteria: 6/6
-  for this slice (AC-1 … AC-6).
+- Date: 2026-11-17 · Milestone: M12 (v0.4.0) · Verified criteria: 6/6 for the M11
+  slice (AC-1 … AC-6); M12 is tracked by its five tasks and their verdicts.
 - Revision of record: `355fed3` on `main`, the merge of pull request 23. The
   branch head `bd8ca01` is what CI verified: `rust (ubuntu-24.04)`,
   `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` and `links`
@@ -51,6 +51,7 @@ the queues' state and not an opinion about it.
 | ceo | T-0001 | - | done | P-0001 | 82df36f |
 | ceo | T-0002 | - | done | P-0008 | 3ae4ac2 |
 | ceo | T-0003 | - | done | P-0009 | f4f576d |
+| ceo | T-0004 | - | done | P-0010 | f03200f |
 | developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
@@ -58,8 +59,13 @@ the queues' state and not an opinion about it.
 | developer | T-0005 | - | done | P-0006 | 8f78cb2 |
 | developer | T-0006 | - | done | P-0007 | 877145e |
 | developer | T-0007 | - | done | P-0005 | 926cbbb |
-| developer | T-0008 | - | doing | - | - |
+| developer | T-0008 | - | dropped | - | bd8ca01 |
+| developer | T-0009 | - | done | P-0011 | c376d05 |
+| developer | T-0010 | - | done | P-0012 | 0059eed |
+| developer | T-0011 | - | done | P-0013 | 20666c9 |
+| developer | T-0012 | - | done | P-0014 | 9328bfe |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
+| tester | T-0002 | - | done | P-0015 | 7ffd4c8 |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
 the PR record, not from this table.
@@ -81,7 +87,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
-| developer | T-0008 · CI cannot find lrelease, and its dco step duplicates the xtask check without the exemption | P0 | doing | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
 exact state; this table only says which lanes are open.

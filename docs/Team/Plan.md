@@ -181,6 +181,25 @@ smoke, ui smoke, ui frames, dco with the record-commit exemption printed); the s
 criteria of the slice are verified; two engine defects stay open as `A-0001`
 (record commits unsigned) and `A-0002` (`clean` deletes cited artifacts).
 
+## M12 - v0.4.0: the five items that were listed as refusals or as unmeasurable
+
+Exit: `cargo xtask ci` green on the merged revision; native plugins load behind a
+trusted host; a password login stores no password; a tray-less desktop says so;
+the 100k bench plans against a real remote listing; a live-account test exists and
+refuses to pass without a token.
+
+| id | task | role | prio | deps | artifact | status |
+|---|---|---|---|---|---|---|
+| T-0009 | Native plugin dylibs behind an explicit trusted host and an AGPL licence check | developer | P0 | - | `crates/nidvue-plugin`, `plugin.allow_native` | done |
+| T-0010 | Tray best-effort on a desktop with no status-notifier host | developer | P1 | - | `Main.qml`, `SettingsPane.qml`, `ui-smoke` | done |
+| T-0011 | Measure the 100k-path initial sync against a real remote listing | developer | P1 | - | `benches/benches/initial_sync.rs`, `Index::upsert_entries` | done |
+| T-0012 | OIDC password login with no password stored | developer | P0 | - | `crates/nidvue-jotta/src/auth.rs`, `nidvue-cli login --username` | done |
+| T-0002 | Live-account end-to-end test, gated on a token | tester | P1 | developer:T-0012 | `crates/nidvue-cli/tests/live.rs` | done |
+
+Two of them produced a product fix the item did not ask for: the index needed a
+batch writer (290 s → 76 ms for 100k rows), and the architecture contract had to
+say what it means (only `ffi` exports C symbols; `plugin` declares a foreign ABI).
+
 ## Parallel rules
 
 - Freeze interfaces first, then run dev / test / design lanes concurrently.

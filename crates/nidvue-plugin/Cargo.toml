@@ -11,6 +11,7 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+libloading = { workspace = true }
 nidvue-core = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }

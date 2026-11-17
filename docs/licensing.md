@@ -5,6 +5,8 @@ SDK to its licence and how it is used. `cargo deny check licenses` enforces the
 allowlist in `deny.toml`; a dependency that is not listed here is a review
 failure.
 
+Related: [plugin-guide](plugin-guide.md) · [deviations](deviations.md) · [NOTICE](../NOTICE)
+
 ## The project
 
 | Component | Licence | Notes |

@@ -42,9 +42,15 @@ struct Cli {
 enum Command {
     /// Exchange a Personal Login Token for a bearer token
     Login {
-        /// Read the token from stdin instead of prompting
+        /// Read the token (or the password) from stdin instead of prompting
         #[arg(long)]
         token_stdin: bool,
+        /// Log in with the account password instead of a Personal Login Token
+        #[arg(long)]
+        username: Option<String>,
+        /// OIDC discovery URL for the password flow (a login token carries its own)
+        #[arg(long, requires = "username")]
+        well_known: Option<String>,
         /// Token value (visible in shell history; prefer --token-stdin or JOTTA_LOGIN_TOKEN env)
         #[arg(long, hide = true, env = "JOTTA_LOGIN_TOKEN")]
         token: Option<String>,
@@ -254,8 +260,13 @@ async fn main() {
 
 async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
     match &cli.command {
-        Command::Login { token_stdin, token } => {
-            let value =
+        Command::Login {
+            token_stdin,
+            token,
+            username,
+            well_known,
+        } => {
+            let secret =
                 match token {
                     Some(t) if !t.is_empty() => t.clone(),
                     None if *token_stdin => {
@@ -271,8 +282,28 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                     )),
                 };
             let client = Client::open(state).await?;
-            let username = client.login(&value).await?;
-            println!("logged in as {username}");
+            let account =
+                match (username, well_known) {
+                    (Some(user), Some(url)) => {
+                        // The password is read the same way as a token and lives only
+                        // as a SecretString: not in the config, not in argv history,
+                        // not in a log line.
+                        client
+                            .login_with_password(
+                                url,
+                                user,
+                                nidvue_core::secret::SecretString::new(secret),
+                            )
+                            .await?
+                    }
+                    (Some(_), None) => return Err(NidvueError::Config(
+                        "--username needs --well-known: the discovery URL a Personal Login Token \
+                         would carry"
+                            .into(),
+                    )),
+                    (None, _) => client.login(&secret).await?,
+                };
+            println!("logged in as {account}");
             println!(
                 "token stored encrypted in {}",
                 state.join("credentials.enc").display()
@@ -521,7 +552,9 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 Ok(())
             }
             PluginAction::Test { dir } => {
-                let mut host = nidvue_plugin::PluginHost::new()?;
+                let config = AppConfig::load_or_default(state)?;
+                let mut host =
+                    nidvue_plugin::PluginHost::new()?.with_native(config.plugin.allow_native);
                 let id = host.load(dir)?;
                 let hooks = host
                     .plugin_mut(&id)
