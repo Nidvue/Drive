@@ -36,10 +36,22 @@ qt_add_executable(nidvue-ui
 # The translation is compiled at configure time: the .qm has to exist before the
 # resource is compiled, and qt_add_translations (Qt 6.7+) is not available on
 # every distribution this project builds on.
-find_program(LRELEASE lrelease)
+# lrelease lives in the Qt tools directory, which is not always on PATH: Ubuntu
+# installs it to /usr/lib/qt6/bin from qt6-l10n-tools, nixpkgs to the qttools
+# package. Search PATH first, then every place Qt itself reports.
+set(NIDVUE_LRELEASE_CANDIDATES lrelease /usr/lib/qt6/bin/lrelease)
+foreach(qt_dir IN ITEMS "${Qt6Core_TOOLS_DIR}" "${Qt6Core_DIR}")
+    if(qt_dir)
+        list(APPEND NIDVUE_LRELEASE_CANDIDATES "${qt_dir}/lrelease")
+    endif()
+endforeach()
+find_program(LRELEASE NAMES ${NIDVUE_LRELEASE_CANDIDATES})
 if(NOT LRELEASE)
-    message(FATAL_ERROR "lrelease not found: install Qt Linguist tools (qttools) to build the UI")
+    message(FATAL_ERROR
+        "lrelease not found (tried ${NIDVUE_LRELEASE_CANDIDATES}): install Qt Linguist "
+        "tools (qt6-l10n-tools on Debian/Ubuntu, qttools in nixpkgs) to build the UI")
 endif()
+message(STATUS "lrelease: ${LRELEASE}")
 set(NIDVUE_I18N_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
 file(MAKE_DIRECTORY "${NIDVUE_I18N_DIR}")
 set(NIDVUE_I18N_TS "${CMAKE_CURRENT_SOURCE_DIR}/i18n/nidvue_de.ts")
