@@ -40,6 +40,7 @@ the queues' state and not an opinion about it.
 | developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
+| developer | T-0004 | - | done | P-0004 | a9fe4ba |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
