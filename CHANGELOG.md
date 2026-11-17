@@ -36,6 +36,11 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   the WinFSP/macFUSE attributions in `NOTICE`.
 
 ### Added
+- **A live-account end-to-end test.** `crates/nidvue-cli/tests/live.rs` (ignored
+  by default) logs in, pushes a file through a sync pair, pulls it back into a
+  second folder, compares the bytes and removes the pair; it needs
+  `JOTTA_LOGIN_TOKEN` and refuses to pass without one. It has not been executed in
+  this environment — there is no account here.
 - **OIDC login by username and password.** `nidvue-cli login --username … --well-known
   <discovery-url> --token-stdin` runs the same OIDC password grant as the token
   exchange. The password is read from stdin into a `SecretString`, used for one
