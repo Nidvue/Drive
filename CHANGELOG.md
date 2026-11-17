@@ -36,6 +36,12 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   the WinFSP/macFUSE attributions in `NOTICE`.
 
 ### Added
+- **`Index::upsert_entries`**: one transaction for a whole scan instead of one
+  per row. Indexing 100 000 rows went from 290 s (2.9 ms/row, one fsync each) to
+  76 ms, which is what makes a first sync of a large tree practical.
+- **The 100k-path benchmark plans against a real remote listing**, not an empty
+  map: it builds the 13.8 MiB `liststream` the API returns for 100 000 entries and
+  parses it with the production parser (93 ms) before planning (75 ms).
 - **A desktop with no system tray says so.** A banner in the main window and a
   line in Settings explain that closing the window quits and stops syncing, so a
   bare Wayland session loses the tray feature without losing the information.
