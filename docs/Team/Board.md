@@ -7,8 +7,8 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 ## Snapshot
 
-- Date: 2026-11-17 · Milestone: M11 (v0.3.0, Linux only) · Verified criteria: 6/6
-  for this slice (AC-1 … AC-6).
+- Date: 2026-11-17 · Milestone: M12 (v0.4.0) · Verified criteria: 6/6 for the M11
+  slice (AC-1 … AC-6); M12 is tracked by its five tasks and their verdicts.
 - Revision of record: `355fed3` on `main`, the merge of pull request 23. The
   branch head `bd8ca01` is what CI verified: `rust (ubuntu-24.04)`,
   `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` and `links`
