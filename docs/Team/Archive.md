@@ -465,4 +465,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at d99a0d5: gh pr view 23 --json state,mergeCommit -> MERGED at 355fed3; gh api repos/Nidvue/Drive/branches/main/protection -> required_linear_history true, enforce_admins true, strict true, the four required checks, allow_force_pushes false, allow_deletions false (read back after the merge, so the bypass the decision records was closed); the board names 355fed3 and the CI jobs that passed on bd8ca01; Release.md says the forge dco job calls cargo xtask dco; teamwork.py preflight -> 8 checks, 0 failed; teamwork.py links -> 0 issues | baseline: the board said not pushed and named a local revision | replay: gh pr view 23 --json state,mergeCommit && gh api repos/Nidvue/Drive/branches/main/protection
 - findings history: 
-- branch / merge: ceo/t-0003-record-the-push-the-merge-revision-and-t / pending
+- branch / merge: ceo/t-0003-record-the-push-the-merge-revision-and-t / f4f576d
