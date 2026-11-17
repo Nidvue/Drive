@@ -115,8 +115,15 @@ int main(int argc, char *argv[])
             tray.showPopup();
             tray.openSettingsWindow();
         });
-        QTimer::singleShot(900, &bridge, [&bridge]() {
+        QTimer::singleShot(900, &bridge, [&bridge, &engine]() {
             qInfo("smoke: settings rows=%d", int(bridge.configRows().size()));
+            // The autostart toggle is the one control that writes a file
+            // outside the state directory, so the smoke proves it was built.
+            bool autostart = false;
+            for (QObject *root : engine.rootObjects())
+                autostart = autostart
+                            || root->findChild<QObject *>(QStringLiteral("startAtLogin")) != nullptr;
+            qInfo("smoke: autostart toggle=%d", autostart ? 1 : 0);
         });
         QTimer::singleShot(1200, &app, &QCoreApplication::quit);
     }

@@ -503,6 +503,11 @@ fn ui_smoke() -> Result<(), String> {
             "the settings editor received no rows from the engine:\n{stderr}"
         ));
     }
+    if !stderr.contains("smoke: autostart toggle=1") {
+        return Err(format!(
+            "the settings window has no Start at login toggle:\n{stderr}"
+        ));
+    }
     let initialised = state.join("db").join("index.sqlite").exists();
     let _ = std::fs::remove_dir_all(&state);
     if !initialised {
