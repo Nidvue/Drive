@@ -35,7 +35,11 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 | real FUSE mount | `cargo test -p nidvue-mount -- --include-ignored` | yes, in the `fuse mount smoke` job |
 | CodeQL | `.github/workflows/codeql.yml` (C++ only) | alert, not a merge block |
 
-`cargo xtask ci` runs all of the above except the CI-hosted CodeQL job.
+`cargo xtask ci` runs all of the above except the CI-hosted CodeQL job. The
+forge runs the same steps as separate required jobs (`rust (ubuntu-24.04)`,
+`licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke`); the dco job
+calls `cargo run -p xtask -- dco` so the trailer rule and its one exemption live
+in one place.
 
 **The one exemption, stated.** The teamwork engine renders `docs/Team/Archive.md`
 and `docs/Team/Board.md` after every verdict and commits them itself, without a
