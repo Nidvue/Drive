@@ -34,10 +34,10 @@ the queues' state and not an opinion about it.
 | role | id | area | state | pr | merged revision |
 |---|---|---|---|---|---|
 | ceo | T-0001 | - | review | P-0001 | - |
-| developer | T-0001 | - | done | P-0001 | 82df36f |
+| developer | T-0001 | - | done | P-0001 | 48ead9c |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
-| tester | T-0001 | - | review | P-0001 | - |
+| tester | T-0001 | - | done | P-0001 | - |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
 the PR record, not from this table.
@@ -60,7 +60,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
 | ceo | T-0001 · Linux-only docs, CHANGELOG and 0.3.0 records | P2 | review | - |
-| tester | T-0001 · Integration test for the autostart CLI and the file it writes, on Linux | P1 | review | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
 exact state; this table only says which lanes are open.
