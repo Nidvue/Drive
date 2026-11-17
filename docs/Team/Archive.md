@@ -375,3 +375,16 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: git show b383e73 -> 2 files (CODEOWNERS 1 rule, Release.md 41 lines); gh api repos/Nidvue/Drive/branches/main/protection -> checks=5 strict, admins=true, last_push=true, codeowners=false, reviews=0, force=false, deletions=false, linear=true, conversation resolution=true; the table in Release.md matches that object field by field; teamwork.py pr merge --by Developer-1 -> refused ('only the Reviewer may merge'); teamwork.py review --by ReleaseEngineer -> refused ('only the Reviewer role may review')
 - findings history: 
 - branch / merge: releaseengineer/t-0002-protect-main-and-make-the-reviewer-the-o / 76af248
+
+## T-0003 · Cover the repository's binaries with LFS patterns  (release-engineer)
+- date: 2026-11-17
+- priority: P2
+- owner: release-engineer role (work by: ReleaseEngineer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Re-read the diff: one Rust command plus its dispatch, help and ci wiring. It reads .gitattributes, asks git check-attr about every tracked path, and fails two ways: a text file a pattern routed into LFS, and a shipped media type with no pattern. Boundary: an empty tracked list or an unreadable .gitattributes fails loudly rather than passing; a blank line from git ls-files is skipped (it crashed check-attr on the first run and is now guarded). Duplicate: no other LFS check exists (grep -rn lfs xtask/ -> only this command). Second call: the command is idempotent, it reads and reports. Scope: xtask only, no product code. | test: cargo xtask ci --skip-ui @88813db -> 'xtask ci: green' (includes 'lfs: 0 tracked path(s) through Git LFS, 12 pattern(s), no text routed in'); cargo fmt --all -- --check -> clean; cargo clippy -p xtask --all-targets -- -D warnings -> clean | preflight: PF-19cd185139d4 @- (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: git show 88813db -> xtask/src/main.rs +72; cargo xtask lfs @88813db -> 'lfs: 0 tracked path(s) through Git LFS, 12 pattern(s), no text routed in'; the negative case reproduced (a staged text file named .png) -> 'lfs: 1 / is text but routed into Git LFS'; cargo xtask ci --skip-ui @88813db -> 'xtask ci: green'
+- findings history: 
+- branch / merge: - / pending
