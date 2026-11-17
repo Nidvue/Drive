@@ -36,6 +36,17 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 
 `cargo xtask ci` runs all of the above except the CI-hosted CodeQL job.
 
+**The one exemption, stated.** The teamwork engine renders `docs/Team/Archive.md`
+and `docs/Team/Board.md` after every verdict and commits them itself, without a
+`Signed-off-by` trailer (tracked as `A-0001`; the engine should sign its own
+commits). `cargo xtask dco` therefore exempts a commit only when **both** hold:
+its subject starts with `chore(records):` **and** every path it touched is under
+`docs/Team/`. The exemption prints its count, so a run that leans on it says so.
+No authored commit is exempt: a change to code, CI, packaging or the docs outside
+`docs/Team/` still needs the trailer, and naming a commit `chore(records):` while
+touching code fails the check. Verified by
+`xtask::tests::only_a_records_commit_that_touches_records_is_exempt`.
+
 ## Branch protection
 
 `main` is protected on the forge and the Reviewer is the only approver. The
