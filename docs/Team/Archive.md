@@ -452,4 +452,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at d51eac8: the paragraph names the autostart entry, ui.language with the German catalog, ui.theme now honoured, and the gated frame budget with its command; each number matches docs/performance.md (p99 0.259 ms at 9bfd576) and the gate log, and teamwork.py links -> 0 issues; nothing else in the README changed | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-final.log:7e9d9d27b212f5a1:129708 | baseline: the Status paragraph listed only two of the four things 0.3.0 added | replay: python3 teamwork.py links
 - findings history: 
-- branch / merge: ceo/t-0002-say-in-the-readme-what-0-3-0-actually-sh / pending
+- branch / merge: ceo/t-0002-say-in-the-readme-what-0-3-0-actually-sh / 3ae4ac2
