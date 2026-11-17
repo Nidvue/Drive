@@ -61,7 +61,7 @@ the queues' state and not an opinion about it.
 | developer | T-0007 | - | done | P-0005 | 926cbbb |
 | developer | T-0008 | - | dropped | - | bd8ca01 |
 | developer | T-0009 | - | done | P-0011 | c376d05 |
-| developer | T-0010 | - | review | P-0012 | - |
+| developer | T-0010 | - | done | P-0012 | 0059eed |
 | developer | T-0011 | - | review | P-0013 | - |
 | developer | T-0012 | - | review | P-0014 | - |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
@@ -87,7 +87,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
-| developer | T-0010 · Tray best-effort on a desktop with no status-notifier host: report it, never hide | P1 | review | - |
 | developer | T-0011 · Measure the 100k-path initial sync against the fake Jotta server, not an empty remote | P1 | review | - |
 | developer | T-0012 · OIDC password login: a real token grant with no password stored | P0 | review | - |
 | tester | T-0002 · Live-account end-to-end test, gated on a token the runner provides | P1 | review | - |
