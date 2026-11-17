@@ -6,6 +6,62 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-17
+
+**Linux only.** macOS and Windows support is dropped for now: their mount
+adapters, packaging recipes, CI legs and keyring backends are removed from the
+tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
+
+### Added
+- **Start at login.** `nidvue-core::autostart` writes an XDG autostart entry
+  (`$XDG_CONFIG_HOME/autostart/nidvue-drive.desktop`), `nidvue-cli autostart
+  status|enable|disable` drives it headlessly, the C ABI exposes
+  `nidvue_autostart_enabled` / `nidvue_autostart_set`, and the Settings window
+  has a **Start at login** toggle that writes the same file. `cargo xtask
+  ui-smoke` fails when the toggle is not built.
+
+### Changed
+- `cargo xtask ci` and the release workflow run one platform (`ubuntu-24.04`).
+- `nidvue-cli doctor` checks `/dev/fuse` unconditionally; the Windows-only
+  WinFSP check is gone with the platform.
+- `deny.toml` judges the dependency graph for `x86_64-unknown-linux-gnu` and
+  `aarch64-unknown-linux-gnu` only.
+- `packaging/linux.sh` is the only recipe; `cargo xtask package` runs it.
+
+### Removed
+- `crates/nidvue-mount`: the macFUSE and WinFSP adapters and the `Unsupported`
+  fallback for other platforms. The crate is FUSE3 on Linux, one adapter.
+- `packaging/macos.sh`, `packaging/windows.ps1`, the `windows-2022` CI and
+  release legs, the `apple-native` and `windows-native` keyring features, and
+  the WinFSP/macFUSE attributions in `NOTICE`.
+
+### Added
+- **German translation and a working `ui.language`.** The window installs the
+  catalog for `ui.language` (`system`, `en`, `de`) before the QML engine loads,
+  so it is translated from the first frame; all 187 strings ship translated.
+  The Settings window has a language control next to the theme choice.
+- `cargo xtask ui-smoke` now runs under a throwaway `XDG_CONFIG_HOME` and asserts
+  three first-frame settings: `theme: mode=dark`, `i18n: language=de
+  catalog=:/i18n/nidvue_de.qm`, and a translated window title. It previously read
+  the developer's own `QSettings`, which is why a configured theme could not be
+  observed.
+
+### Added
+- `cargo xtask ui-frames` measures the cost of one rendered frame and is part of
+  the gate: 1040×560 renders in p50 0.039 ms / p99 0.303 ms / max 0.682 ms against
+  the 16 ms budget (software rasteriser, offscreen). The budget was previously
+  listed as unmeasurable without a windowed session.
+
+### Fixed
+- `ui.theme` was never honoured: `nidvue_config_peek` answers with the JSON form
+  of a value, so the app compared `"dark"` against `dark` and always started in
+  `system`. The value is decoded now, and `ui-smoke` fails when the configured
+  theme does not reach the first frame.
+- The credential probe no longer races itself: two probes in one process share
+  the Secret Service session, deleted each other's throwaway entry and reported
+  a working store as broken. The probe is serialised and its key is per call, so
+  the suite is deterministic instead of failing about once in twelve runs.
+
 ## [0.2.1] - 2026-11-16
 
 ### Added

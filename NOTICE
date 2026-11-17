@@ -26,17 +26,6 @@ libfuse3
     Linking: dynamically linked (Linux). Notice reproduced here as required;
     the library is not modified.
 
-WinFSP (Windows mount backend)
-    License: GPL-3.0 with a FLOSS exception.
-    Use: this project is free software released under AGPL-3.0-only, which the
-    WinFSP FLOSS exception permits. WinFSP is installed separately by the user
-    or by the MSI as a prerequisite and is not statically linked.
-
-macFUSE (macOS mount backend)
-    License: BSD-3-Clause (SDK); the kext/system extension is installed
-    separately by the user.
-    Attribution: Copyright (c) 2006-2024 Benjamin Fleischer and contributors.
-
 Rust dependencies
     Every crate in the dependency graph passes the allowlist in deny.toml
     (MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0, Unicode, CC0, Unlicense,

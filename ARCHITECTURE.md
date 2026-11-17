@@ -26,8 +26,8 @@ the reasons for the big calls. Each "big call" also has an ADR in `docs/adr/`.
                                               │
    ┌──────────────┬──────────────┬────────────┴───┬───────────────┐
    │ nidvue-sync  │  nidvue-vfs  │  nidvue-mount  │ nidvue-plugin │
-   │ journal      │  read/write  │  FUSE3/macFUSE │ WASM host     │
-   │ scanner      │  pipeline    │  adapters      │ capabilities  │
+   │ journal      │  read/write  │  FUSE3 (Linux) │ WASM host     │
+   │ scanner      │  pipeline    │  adapter       │ capabilities  │
    │ reconciler   │              │                │               │
    └──────┬───────┴──────┬───────┴────────┬───────┴───────┬───────┘
           │              │                │               │
@@ -177,13 +177,15 @@ enforced exactly by refusing a write that would exceed it after eviction.
 
 ## 8. Mount / VFS
 
-One async trait (`nidvue-vfs::Vfs`) with three thin adapters:
+One async trait (`nidvue-vfs::Vfs`) with one thin adapter:
 
 | Platform | Backend | Notes |
 |---|---|---|
 | Linux | FUSE3 via `fuser` | libfuse3 dynamically linked (LGPL-2.1) |
-| Windows | WinFSP | GPLv3 + FLOSS exception; permitted, attributed in `NOTICE` |
-| macOS | macFUSE | BSD-3-Clause SDK; File Provider is the documented alternative |
+
+macOS (macFUSE) and Windows (WinFSP) are out of scope since `v0.3.0`: their
+adapters, packaging recipes and CI legs were removed rather than left as stubs,
+and they are recoverable from tag `v0.2.1` ([deviations](docs/deviations.md)).
 
 Semantics are identical: `lookup`, `getattr`, `readdir` (paged), `read`, `write`,
 `create`, `mkdir`, `unlink`, `rmdir`, `rename`, `truncate`, `statfs`, `xattr`
@@ -271,8 +273,9 @@ an in-app log viewer, an opt-in OTLP exporter and an opt-in Prometheus endpoint.
 - Qt 6 is **dynamically linked**, LGPLv3-compatible modules only. No GPL-only Qt
   module is used (no Qt Charts, Virtual Keyboard, Data Visualization or Graphs);
   the graphs are drawn in QML `Canvas`, which keeps the module set clean.
-- libfuse3 is LGPL-2.1 and dynamically linked. WinFSP is GPLv3 with a FLOSS
-  exception and is attributed in `NOTICE`. The macFUSE SDK is BSD-3-Clause.
+- libfuse3 is LGPL-2.1 and dynamically linked; it is the only kernel interface
+  this project links against. WinFSP and macFUSE left the tree with the platform
+  support in `v0.3.0`, so `NOTICE` no longer attributes them.
 - The dependency allowlist is in `deny.toml` and `cargo deny check licenses` is
   a CI gate. GPLv3 is accepted because it is one-way compatible into AGPLv3.
 - **AGPL §13 (network use).** A desktop client does not trigger it. Any future

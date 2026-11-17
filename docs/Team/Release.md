@@ -3,7 +3,7 @@
 Owner: Release Engineer. The canonical answer to "how does this get built, shipped,
 verified and reverted". Keep it executable: every command here must run as written.
 
-Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Architecture](Architecture.md) · [Decisions](Decisions.md) · [Research](Research.md) · [Design](Design.md) · [Risks](Risks.md) · [Costs](Costs.md) · [Release](Release.md) · [Archive](Archive.md) · [Features](Features.md) · [Evolution](Evolution.md)
+Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Architecture](Architecture.md) · [Decisions](Decisions.md) · [Research](Research.md) · [Design](Design.md) · [Risks](Risks.md) · [Costs](Costs.md) · [Release](Release.md) · [Archive](Archive.md) · [Features](Features.md) · [Evolution](Evolution.md) · [deviations](../deviations.md) · [packaging](../packaging.md)
 
 ## Build
 
@@ -14,7 +14,6 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 | build | `cargo build --release` | engine, CLI and the C ABI library |
 | UI build | `cargo xtask ui` | `apps/nidvue-ui/build/nidvue-ui` |
 | package | `bash packaging/linux.sh` | `dist/nidvue-drive_<version>_<arch>.tar.gz`, `dist/SHA256SUMS` |
-| macOS / Windows | `packaging/macos.sh`, `packaging/windows.ps1` | `.app`/`.dmg`, MSI/zip — recipe present, see [deviations](../deviations.md) 1 and 2 |
 | provenance | `sha256sum -c dist/SHA256SUMS` | every artefact matches |
 
 ## CI gates
@@ -31,11 +30,23 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 | secret scan | `cargo xtask secrets` | yes |
 | DCO | `cargo xtask dco` | yes, on pull requests |
 | UI | `cargo xtask ui && cargo xtask ui-smoke` | yes |
+| UI frame budget | `cargo xtask ui-frames` (p99 ≤ 16 ms) | yes |
 | C ABI | `cargo xtask ffi-smoke` (compile, link and run a C consumer) | yes |
 | real FUSE mount | `cargo test -p nidvue-mount -- --include-ignored` | yes, in the `fuse mount smoke` job |
 | CodeQL | `.github/workflows/codeql.yml` (C++ only) | alert, not a merge block |
 
 `cargo xtask ci` runs all of the above except the CI-hosted CodeQL job.
+
+**The one exemption, stated.** The teamwork engine renders `docs/Team/Archive.md`
+and `docs/Team/Board.md` after every verdict and commits them itself, without a
+`Signed-off-by` trailer (tracked as `A-0001`; the engine should sign its own
+commits). `cargo xtask dco` therefore exempts a commit only when **both** hold:
+its subject starts with `chore(records):` **and** every path it touched is under
+`docs/Team/`. The exemption prints its count, so a run that leans on it says so.
+No authored commit is exempt: a change to code, CI, packaging or the docs outside
+`docs/Team/` still needs the trailer, and naming a commit `chore(records):` while
+touching code fails the check. Verified by
+`xtask::tests::only_a_records_commit_that_touches_records_is_exempt`.
 
 ## Branch protection
 
@@ -49,7 +60,7 @@ gh api repos/Nidvue/Drive/branches/main/protection
 | setting | value | why |
 |---|---|---|
 | pull request required | yes | no direct push to `main`; every change is a pull request |
-| required status checks (strict) | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | green on the merged revision, and the branch must be up to date with `main` |
+| required status checks (strict) | `rust (ubuntu-24.04)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | green on the merged revision, and the branch must be up to date with `main` |
 | required approvals | 0 - see the constraint below | one forge identity cannot approve its own pull request |
 | dismiss stale approvals | yes | a new push invalidates the earlier approval |
 | approval of the last push | off - see the constraint below | measured: it blocks every pull request while one identity exists |
@@ -128,7 +139,7 @@ gh api repos/Nidvue/Drive/branches/main/protection
 
 | setting | value | why |
 |---|---|---|
-| required status checks | `rust (ubuntu-24.04)`, `rust (windows-2022)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | the five jobs that gate the product; they were **empty** before 2026-11-16, so nothing was actually enforced |
+| required status checks | `rust (ubuntu-24.04)`, `licences, advisories, spdx, secrets`, `qt ui`, `fuse mount smoke` | the four jobs that gate the product; `rust (windows-2022)` left the list in `v0.3.0` with the platform |
 | strict | true | a branch must be rebased on the current `main` before it merges |
 | required approvals | 0 | the repository has one collaborator who authors every pull request, so a required approval is a deadlock rather than a gate; the review that applies is the recorded verdict plus these checks ([Decisions](Decisions.md) D-20261116-CEO-7) |
 | enforce admins | true | the owner cannot bypass the checks either |

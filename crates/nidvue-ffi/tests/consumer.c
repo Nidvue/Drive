@@ -9,7 +9,10 @@
  * library that actually links.
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "nidvue.h"
@@ -101,6 +104,21 @@ int main(int argc, char **argv)
               && wanted != NULL && strcmp(wanted, "true") == 0);
     nidvue_string_free(wanted);
 
+
+    /* Autostart writes $XDG_CONFIG_HOME/autostart, so point it at the state
+       directory this smoke owns instead of the runner's home. */
+    setenv("XDG_CONFIG_HOME", argv[1], 1);
+    check("autostart starts disabled", nidvue_autostart_enabled() == 0);
+    check("autostart_set enables", nidvue_autostart_set("/usr/bin/nidvue-ui", 1, &err) == NIDVUE_OK);
+    check("autostart_enabled reads it back", nidvue_autostart_enabled() == 1);
+    check("autostart_set refuses an empty command",
+          nidvue_autostart_set("", 1, &err) == NIDVUE_ERR);
+    if (err != NULL) {
+        nidvue_string_free(err);
+        err = NULL;
+    }
+    check("autostart_set disables", nidvue_autostart_set(NULL, 0, &err) == NIDVUE_OK);
+    check("autostart is disabled again", nidvue_autostart_enabled() == 0);
 
     char *conflicts = NULL;
     check("conflicts_json returns 0", nidvue_client_conflicts_json(client, &conflicts) == NIDVUE_OK);

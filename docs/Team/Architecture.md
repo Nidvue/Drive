@@ -55,7 +55,7 @@ ci` runs it before clippy.
 ## 5. Runtime, deployment, security
 
 - Linux: FUSE3 through `fuser` 0.18 (0.15 carries RUSTSEC-2021-0154).
-- Windows and macOS mount adapters return a typed `Unsupported` rather than
+- The Windows and macOS mount adapters were removed in `v0.3.0` rather than
   shipping an unbuildable backend ([`../deviations.md`](../deviations.md)).
 - The mount never runs setuid; it uses the kernel's unprivileged FUSE path.
 - Plugins are WASM under wasmtime with fuel, memory and wall-clock limits and no

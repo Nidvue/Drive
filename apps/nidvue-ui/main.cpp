@@ -9,7 +9,12 @@
 #include <QApplication>
 #include <QDebug>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFont>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QLocale>
+#include <QTranslator>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -17,6 +22,9 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QVector>
+
+#include <algorithm>
 
 #include "bridge.h"
 #include "nidvue.h"
@@ -60,18 +68,42 @@ int main(int argc, char *argv[])
     // flashing on screen and then hiding.
     const QString state = qEnvironmentVariable("NIDVUE_STATE",
         QDir::homePath() + QStringLiteral("/.local/share/nidvue-drive"));
+    // `nidvue_config_peek` answers with the JSON form of the value, so a string
+    // arrives quoted. Comparing `"dark"` against `dark` silently ignored the
+    // configured theme; the value is decoded here instead.
     const auto peek = [&state](const char *key) {
         char *out = nullptr;
         char *err = nullptr;
         QString value;
         if (nidvue_config_peek(state.toUtf8().constData(), key, &out, &err) == NIDVUE_OK) {
-            value = QString::fromUtf8(out);
+            // The answer is the JSON form of the value. A bare scalar is not a
+            // document, so it is wrapped in an array to decode it (and to
+            // unescape a string): comparing a quoted `"dark"` against `dark`
+            // silently ignored the configured theme.
+            const QByteArray json(out);
+            const auto array = QJsonDocument::fromJson("[" + json + "]").array();
+            value = array.isEmpty() ? QString() : array.first().toVariant().toString();
             nidvue_string_free(out);
         } else if (err) {
             nidvue_string_free(err);
         }
         return value;
     };
+    // The window is translated before it is built: a translator installed after
+    // the first load leaves the frame in the source language.
+    const QString configuredLanguage = peek("ui.language");
+    const QString language = configuredLanguage.isEmpty()
+                                     || configuredLanguage == QStringLiteral("system")
+                                 ? QLocale::system().name().section('_', 0, 0)
+                                 : configuredLanguage;
+    QTranslator translator;
+    const QString catalog = QStringLiteral(":/i18n/nidvue_%1.qm").arg(language);
+    if (language != QStringLiteral("en") && translator.load(catalog)) {
+        QCoreApplication::installTranslator(&translator);
+        qInfo("i18n: language=%s catalog=%s", qPrintable(language), qPrintable(catalog));
+    } else {
+        qInfo("i18n: language=%s source=English", qPrintable(language));
+    }
     const QString configTheme = peek("ui.theme");
     if (configTheme == QStringLiteral("light") || configTheme == QStringLiteral("dark"))
         Preferences::setConfigDefaultTheme(configTheme);
@@ -107,6 +139,44 @@ int main(int argc, char *argv[])
             window->requestActivate();
         });
     }
+    // `--measure-frames N` renders the live window N times and prints the cost
+    // of one frame. `grabWindow` forces the scene graph to paint into an image,
+    // which is the only way to measure a frame headlessly: the offscreen
+    // platform's render loop fires the frame signals without rasterising
+    // anything, so a signal-timed run reports microseconds and means nothing.
+    // The rasteriser is Qt's software backend, so this is a conservative upper
+    // bound on the CPU side of a frame; the GPU path on a real screen still needs
+    // a windowed session.
+    if (app.arguments().contains(QStringLiteral("--measure-frames"))) {
+        const int index = app.arguments().indexOf(QStringLiteral("--measure-frames"));
+        const int wanted = app.arguments().value(index + 1).toInt();
+        const int frames = wanted > 0 ? wanted : 300;
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        window->show();
+        QTimer::singleShot(500, &app, [window, frames]() {
+            QVector<qint64> costs;
+            costs.reserve(frames);
+            QElapsedTimer clock;
+            QImage frame;
+            for (int i = 0; i < frames; ++i) {
+                clock.start();
+                frame = window->grabWindow();
+                costs.append(clock.nsecsElapsed());
+            }
+            const auto ms = [](qint64 ns) { return double(ns) / 1e6; };
+            const auto percentile = [&ms](QVector<qint64> values, qsizetype p) {
+                std::sort(values.begin(), values.end());
+                return ms(values.at(values.size() * p / 100));
+            };
+            const qint64 worst = *std::max_element(costs.begin(), costs.end());
+            const bool painted = !frame.isNull() && frame.width() > 0;
+            qInfo("frames: n=%lld size=%dx%d painted=%d cost p50=%.3f p99=%.3f max=%.3f ms",
+                  static_cast<long long>(costs.size()), frame.width(), frame.height(),
+                  painted ? 1 : 0, percentile(costs, 50), percentile(costs, 99), ms(worst));
+            QCoreApplication::quit();
+        });
+    }
+
     // `--smoke-windows` opens the tray popup and the detailed settings window
     // once, so a headless CI run proves they instantiate without QML errors, and
     // reports how many settings rows arrived from the engine.
@@ -115,8 +185,20 @@ int main(int argc, char *argv[])
             tray.showPopup();
             tray.openSettingsWindow();
         });
-        QTimer::singleShot(900, &bridge, [&bridge]() {
+        QTimer::singleShot(900, &bridge, [&bridge, &engine]() {
             qInfo("smoke: settings rows=%d", int(bridge.configRows().size()));
+            // The autostart toggle is the one control that writes a file
+            // outside the state directory, so the smoke proves it was built.
+            bool autostart = false;
+            for (QObject *root : engine.rootObjects())
+                autostart = autostart
+                            || root->findChild<QObject *>(QStringLiteral("startAtLogin")) != nullptr;
+            qInfo("smoke: autostart toggle=%d", autostart ? 1 : 0);
+            // A translated window title proves the catalog reaches QML strings,
+            // not just the translator object.
+            const auto windows = QGuiApplication::allWindows();
+            for (const QWindow *window : windows)
+                qInfo("smoke: window title=%s", qPrintable(window->title()));
         });
         QTimer::singleShot(1200, &app, &QCoreApplication::quit);
     }

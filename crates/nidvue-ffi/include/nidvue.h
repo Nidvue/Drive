@@ -99,6 +99,15 @@ int32_t nidvue_client_sync_pair_set_filters(NidvueClient *client, const char *na
 int32_t nidvue_client_config_list_json(NidvueClient *client, char **out,
                                        char **err);
 
+/* 1 when the desktop application starts at login, 0 when it does not, a
+   negative error code on a contained panic. */
+int32_t nidvue_autostart_enabled(void);
+
+/* Enable or disable starting the application at login. `exec` is the command
+   the desktop runs, normally the application binary; it is ignored when
+   `enabled` is 0. */
+int32_t nidvue_autostart_set(const char *exec, int32_t enabled, char **err);
+
 /* Read one value straight from config.toml without opening the engine. */
 int32_t nidvue_config_peek(const char *state_dir, const char *key, char **out,
                            char **err);

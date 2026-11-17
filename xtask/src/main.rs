@@ -39,6 +39,7 @@ fn run_task(task: &str, rest: &[String]) -> Result<(), String> {
         "dco" => dco(rest.first().map(String::as_str)),
         "ui" => ui(),
         "ui-smoke" => ui_smoke(),
+        "ui-frames" => ui_frames(),
         "ffi-smoke" => ffi_smoke(),
         "plugins" => plugins(),
         "bench" => bench(),
@@ -70,6 +71,7 @@ fn help() {
          dco       verify Signed-off-by trailers (default: origin/main..HEAD)\n\
          ui        configure and build the Qt/QML application
          ui-smoke  launch the built UI headlessly and assert it initialises
+         ui-frames measure the cost of one rendered frame against the 16 ms budget
          ffi-smoke build a C consumer against include/nidvue.h and run it
          plugins   build the two example WASM plugins\n\
          bench     run the performance suite\n\
@@ -149,6 +151,7 @@ fn ci(skip_ui: bool) -> Result<(), String> {
     } else {
         ui()?;
         ui_smoke()?;
+        ui_frames()?;
     }
     println!("\nxtask ci: green");
     Ok(())
@@ -462,6 +465,14 @@ fn ui_smoke() -> Result<(), String> {
     }
     let state = std::env::temp_dir().join(format!("nidvue-ui-smoke-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
+    // Two settings are read before the first frame, and both are only visible in
+    // the window's own diagnostics: the theme and the language.
+    std::fs::create_dir_all(&state).map_err(|e| format!("state dir: {e}"))?;
+    std::fs::write(
+        state.join("config.toml"),
+        "[ui]\ntheme = \"dark\"\nlanguage = \"de\"\n",
+    )
+    .map_err(|e| format!("config.toml: {e}"))?;
     let mut child = Command::new(&binary)
         .arg("--smoke-windows")
         .env("QT_QPA_PLATFORM", "offscreen")
@@ -469,6 +480,11 @@ fn ui_smoke() -> Result<(), String> {
         // stderr and the check below would see an empty log.
         .env("QT_ASSUME_STDERR_HAS_CONSOLE", "1")
         .env("NIDVUE_STATE", &state)
+        // QSettings and the autostart entry are per-user files. Without this the
+        // smoke reads the developer's own preferences, so a configured
+        // `ui.theme` could never be observed and the run would touch the
+        // machine it runs on.
+        .env("XDG_CONFIG_HOME", state.join("config"))
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -503,6 +519,26 @@ fn ui_smoke() -> Result<(), String> {
             "the settings editor received no rows from the engine:\n{stderr}"
         ));
     }
+    if !stderr.contains("theme: mode=dark") {
+        return Err(format!(
+            "the configured ui.theme did not reach the first frame:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("i18n: language=de catalog=:/i18n/nidvue_de.qm") {
+        return Err(format!(
+            "the configured ui.language did not load its catalog:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("Einstellungen") {
+        return Err(format!(
+            "the German catalog did not reach the QML window titles:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("smoke: autostart toggle=1") {
+        return Err(format!(
+            "the settings window has no Start at login toggle:\n{stderr}"
+        ));
+    }
     let initialised = state.join("db").join("index.sqlite").exists();
     let _ = std::fs::remove_dir_all(&state);
     if !initialised {
@@ -512,18 +548,67 @@ fn ui_smoke() -> Result<(), String> {
     Ok(())
 }
 
+/// The UI frame budget from `docs/performance.md`: one frame, rendered, inside
+/// 16 ms so a 60 Hz display is never held up by the window.
+fn ui_frames() -> Result<(), String> {
+    const BUDGET_MS: f64 = 16.0;
+    let root = workspace_root();
+    let binary = root.join("apps/nidvue-ui/build/nidvue-ui");
+    if !binary.exists() {
+        return Err(format!(
+            "{} is missing; run `cargo xtask ui` first",
+            binary.display()
+        ));
+    }
+    let state = std::env::temp_dir().join(format!("nidvue-ui-frames-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&state);
+    std::fs::create_dir_all(&state).map_err(|e| format!("state dir: {e}"))?;
+    std::fs::write(
+        state.join("config.toml"),
+        "[ui]\ntheme = \"dark\"\nlanguage = \"de\"\n",
+    )
+    .map_err(|e| format!("config.toml: {e}"))?;
+    let output = Command::new(&binary)
+        .arg("--measure-frames")
+        .arg("300")
+        .env("QT_QPA_PLATFORM", "offscreen")
+        .env("QT_ASSUME_STDERR_HAS_CONSOLE", "1")
+        .env("NIDVUE_STATE", &state)
+        .env("XDG_CONFIG_HOME", state.join("config"))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("launch ui: {e}"))?;
+    let _ = std::fs::remove_dir_all(&state);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let line = stderr
+        .lines()
+        .find(|line| line.contains("frames:"))
+        .ok_or_else(|| format!("the UI reported no frames:\n{stderr}"))?;
+    if !line.contains("painted=1") {
+        return Err(format!(
+            "the UI rendered nothing, so the number is not a frame: {line}"
+        ));
+    }
+    let field = |name: &str| -> Result<f64, String> {
+        line.split_whitespace()
+            .find_map(|part| part.strip_prefix(name))
+            .and_then(|value| value.trim_end_matches("ms").parse::<f64>().ok())
+            .ok_or_else(|| format!("{name} missing from {line}"))
+    };
+    let p99 = field("p99=")?;
+    if p99 > BUDGET_MS {
+        return Err(format!(
+            "frame budget missed: p99 {p99:.3} ms > {BUDGET_MS:.0} ms ({line})"
+        ));
+    }
+    println!("+ ui frames: {line} (budget {BUDGET_MS:.0} ms)");
+    Ok(())
+}
+
 fn package() -> Result<(), String> {
     cmd("cargo", &["build", "--release", "--workspace"])?;
-    let root = workspace_root();
-    for script in [
-        "packaging/linux.sh",
-        "packaging/macos.sh",
-        "packaging/windows.ps1",
-    ] {
-        if root.join(script).exists() && script.ends_with(".sh") && script.contains("linux") {
-            cmd("bash", &[script])?;
-        }
-    }
+    cmd("bash", &["packaging/linux.sh"])?;
     println!("packaging: see packaging/ and docs/packaging.md");
     Ok(())
 }
@@ -673,17 +758,33 @@ fn lfs() -> Result<(), String> {
     }
 }
 
+/// True when `needle` appears followed by at least `body` key-shaped
+/// characters.
+///
+/// A bare prefix is not a credential: `sk-` alone matches a path such as
+/// `xtask-ci.log`, which is a false positive that trains people to ignore the
+/// gate. Every real key in the table below carries a long body.
+fn credential_shaped(text: &str, needle: &str, body: usize) -> bool {
+    text.match_indices(needle).any(|(at, _)| {
+        text[at + needle.len()..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+            .count()
+            >= body
+    })
+}
+
 fn secrets() -> Result<(), String> {
     let files = capture("git", &["ls-files"])?;
-    let patterns: &[(&str, &str)] = &[
-        ("Jotta personal login token", "eyJ3ZWxsX2tub3duX2xpbmsi"),
-        ("OpenAI-style key", "sk-"),
-        ("GitHub token", "ghp_"),
-        ("GitHub fine-grained token", "github_pat_"),
-        ("AWS access key", "AKIA"),
-        ("private key", "BEGIN RSA PRIVATE KEY"),
-        ("private key", "BEGIN OPENSSH PRIVATE KEY"),
-        ("Jottacloud bearer", "Bearer eyJ"),
+    let patterns: &[(&str, &str, usize)] = &[
+        ("Jotta personal login token", "eyJ3ZWxsX2tub3duX2xpbmsi", 0),
+        ("OpenAI-style key", "sk-", 20),
+        ("GitHub token", "ghp_", 20),
+        ("GitHub fine-grained token", "github_pat_", 20),
+        ("AWS access key", "AKIA", 12),
+        ("private key", "BEGIN RSA PRIVATE KEY", 0),
+        ("private key", "BEGIN OPENSSH PRIVATE KEY", 0),
+        ("Jottacloud bearer", "Bearer eyJ", 0),
     ];
     let mut hits = Vec::new();
     for path in files.lines() {
@@ -694,8 +795,8 @@ fn secrets() -> Result<(), String> {
             // The scanner's own pattern table.
             continue;
         }
-        for (what, needle) in patterns {
-            if text.contains(needle) {
+        for (what, needle, body) in patterns {
+            if credential_shaped(&text, needle, *body) {
                 hits.push(format!("{path}: {what}"));
             }
         }
@@ -753,22 +854,117 @@ fn dco(range: Option<&str>) -> Result<(), String> {
     };
 
     let mut bad = Vec::new();
+    let mut records = 0usize;
     for sha in shas.lines().map(str::to_string) {
         let body = capture("git", &["log", "-1", "--format=%B", &sha])?;
         if body.starts_with("Merge ") {
             continue;
         }
-        if !body.contains("Signed-off-by:") {
-            bad.push(sha);
+        if body.contains("Signed-off-by:") {
+            continue;
         }
+        if is_generated_record(&sha, body.lines().next().unwrap_or_default())? {
+            records += 1;
+            continue;
+        }
+        bad.push(sha);
+    }
+    if !records.eq(&0) {
+        println!(
+            "dco: {records} generated record commit(s) carry no trailer: the teamwork engine \
+             writes docs/Team records itself and signs none of them (A-0001)"
+        );
     }
     if bad.is_empty() {
-        println!("dco: every commit carries a Signed-off-by trailer");
+        println!("dco: every authored commit carries a Signed-off-by trailer");
         Ok(())
     } else {
         Err(format!(
             "dco: missing Signed-off-by in\n  {}",
             bad.join("\n  ")
         ))
+    }
+}
+
+/// The subject the teamwork engine writes when it renders a project record.
+fn record_subject(subject: &str) -> bool {
+    subject.starts_with("chore(records):")
+}
+
+/// True when every path a commit touched is a committed project record.
+fn record_paths(paths: &[&str]) -> bool {
+    !paths.is_empty() && paths.iter().all(|p| p.starts_with("docs/Team/"))
+}
+
+/// A commit the teamwork engine generated: its subject and nothing outside the
+/// committed project records.
+///
+/// The engine renders `docs/Team/Archive.md` and `docs/Team/Board.md` after every
+/// verdict and commits them on its own identity without a trailer, so a sign-off
+/// check over `origin/main..HEAD` fails on bookkeeping nobody authored. The
+/// exemption is deliberately narrow - an exact subject prefix *and* every path
+/// under `docs/Team/` - so a contributor cannot dodge the check by naming a
+/// commit `chore(records):` while changing code.
+fn is_generated_record(sha: &str, subject: &str) -> Result<bool, String> {
+    if !record_subject(subject) {
+        return Ok(false);
+    }
+    let listing = capture("git", &["show", "--name-only", "--format=", sha])?;
+    let touched: Vec<&str> = listing
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    Ok(record_paths(&touched))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_records_commit_that_touches_records_is_exempt() {
+        assert!(record_subject(
+            "chore(records): re-render docs/Team/Board.md at the merge"
+        ));
+        assert!(!record_subject("chore(merge): merge of developer/t-1"));
+        assert!(!record_subject("feat(ui): a feature"));
+        assert!(record_paths(&["docs/Team/Board.md"]));
+        assert!(record_paths(&[
+            "docs/Team/Board.md",
+            "docs/Team/Archive.md",
+            "docs/Team/AuditManifest.json"
+        ]));
+        assert!(!record_paths(&[
+            "docs/Team/Board.md",
+            "crates/nidvue-core/src/lib.rs"
+        ]));
+        assert!(!record_paths(&[]));
+        assert!(!is_generated_record("HEAD", "feat(ui): a feature").unwrap());
+    }
+
+    #[test]
+    fn a_key_shaped_body_is_a_hit_and_a_bare_prefix_is_not() {
+        assert!(credential_shaped(
+            "OPENAI_KEY=sk-proj-abc123DEF456ghi789JKL012mno345",
+            "sk-",
+            20
+        ));
+        assert!(credential_shaped(
+            "token ghp_0123456789abcdefghijABCDEFGHIJ012345",
+            "ghp_",
+            20
+        ));
+        assert!(!credential_shaped(
+            ".pi/Teamwork/Teams/Drive/Agents/CEO/Reports/xtask-ci.log",
+            "sk-",
+            20
+        ));
+        assert!(!credential_shaped("sk- short", "sk-", 20));
+        assert!(credential_shaped(
+            "eyJ3ZWxsX2tub3duX2xpbmsi",
+            "eyJ3ZWxsX2tub3duX2xpbmsi",
+            0
+        ));
     }
 }

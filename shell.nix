@@ -6,6 +6,7 @@ pkgs.mkShell {
     cmake
     qt6.qtbase
     qt6.qtdeclarative
+    qt6.qttools
     qt6.qtwayland
     fuse3
     gcc

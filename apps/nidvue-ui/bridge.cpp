@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QTime>
 
@@ -437,6 +438,7 @@ void Worker::resolve(const QString &id, const QString &resolution)
 Bridge::Bridge(QObject *parent)
     : QObject(parent)
 {
+    m_startAtLogin = nidvue_autostart_enabled() == 1;
     m_thread = new QThread(this);
     m_worker = new Worker();
     m_worker->moveToThread(m_thread);
@@ -606,6 +608,27 @@ void Bridge::setConfigValue(const QString &key, const QString &value)
     emit requestSetConfigValue(key, value);
 }
 
+void Bridge::setLanguage(const QString &language)
+{
+    setConfigValue(QStringLiteral("ui.language"), language);
+}
+
+void Bridge::setStartAtLogin(bool enabled)
+{
+    const QByteArray exec = QCoreApplication::applicationFilePath().toUtf8();
+    char *err = nullptr;
+    if (nidvue_autostart_set(exec.constData(), enabled ? 1 : 0, &err) != NIDVUE_OK) {
+        if (err != nullptr) {
+            m_lastError = QString::fromUtf8(err);
+            nidvue_string_free(err);
+        }
+        emit lastErrorChanged();
+        return;
+    }
+    m_startAtLogin = nidvue_autostart_enabled() == 1;
+    emit startAtLoginChanged();
+}
+
 void Bridge::setSyncPairPaused(const QString &name, bool paused)
 {
     emit requestSetSyncPairPaused(name, paused);
@@ -727,6 +750,9 @@ void Bridge::onConfig(const QString &json)
         rows.append(row);
     }
     m_configRows = rows;
+    m_language = object.value(QStringLiteral("ui.language")).toString();
+    if (m_language.isEmpty())
+        m_language = QStringLiteral("system");
     emit configChanged();
 }
 

@@ -14,6 +14,7 @@
 //! assert_eq!(p.encoded(), "/Archive/Photos/a.jpg");
 //! ```
 
+pub mod autostart;
 pub mod config;
 pub mod conflict;
 pub mod error;

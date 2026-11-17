@@ -2,6 +2,7 @@
 
 **Two-way, real-time sync and a mountable filesystem for Jottacloud — one Rust
 engine, one cache, one conflict model, a Qt desktop app, and a plugin system.**
+**Linux only in this release** (macOS and Windows support is dropped for now).
 
 Nidvue Drive is an unofficial desktop client for [Jottacloud](https://jottacloud.com).
 It is not affiliated with, endorsed by, or supported by Jottacloud AS.
@@ -30,7 +31,7 @@ Jottacloud is a trademark of its owner. Licensed **AGPL-3.0-only**.
   the newest stays at the original path and the other becomes
   `name (conflict Nidvue 2026-11-14 101500).ext`, listed in the Conflict Center
   with a preview and one-click resolve.
-- **Tray icon** — a cross-platform system-tray icon shows sync health at a
+- **Tray icon** — a status-notifier tray icon shows sync health at a
   glance (green/amber/grey/red), offers pause, sync now, mount and settings, and
   opens a compact popup with the live numbers. Closing the main window hides it;
   the tray is the way back. On a desktop without a status-notifier host the app
@@ -41,15 +42,19 @@ Jottacloud is a trademark of its owner. Licensed **AGPL-3.0-only**.
 
 ## Status
 
-`v0.2.0` — second pre-release. The engine, cache, sync planner, journal, FUSE3
-mount, WASM plugin host, CLI, SDK and Qt UI are implemented and tested. `v0.2.0`
-adds the OS keyring credential store, a Prometheus scrape endpoint, an
-OTLP/HTTP metrics exporter, a bounded transfer list in the SDK, the C ABI and
-the UI, and dot-path configuration from the CLI.
+`v0.3.0` — third pre-release, **Linux only**. The engine, cache, sync planner,
+journal, FUSE3 mount, WASM plugin host, CLI, SDK and Qt UI are implemented and
+tested. `v0.3.0` lands the XDG autostart entry ("start at login", from the CLI
+and from Settings), reads `ui.language` and ships a German catalog (the window is
+translated from its first frame, and `ui.theme` is honoured for the first time),
+measures the UI frame budget in the gate (`cargo xtask ui-frames`: p99 0.26 ms
+against 16 ms), and removes the macOS and Windows surfaces: their mount adapters,
+packaging recipes, CI legs and keyring backends are gone rather than shipped as
+stubs, and are recoverable from tag `v0.2.1`.
 
-The Linux FUSE mount is exercised against a real mount in CI; the Windows and
-macOS mount backends are not compiled yet. What is not done is listed honestly
-in [`docs/deviations.md`](docs/deviations.md) — with numbers, not adjectives.
+The FUSE mount is exercised against a real mount in CI. What is not done is
+listed honestly in [`docs/deviations.md`](docs/deviations.md) — with numbers,
+not adjectives.
 
 ## Quickstart
 
@@ -118,7 +123,7 @@ cargo xtask ui      # Qt/QML app
 | [`docs/plugin-guide.md`](docs/plugin-guide.md) | writing a plugin, and the licence rule |
 | [`docs/performance.md`](docs/performance.md) | the budgets and the measured results |
 | [`docs/configuration.md`](docs/configuration.md) | every configuration key, its default and its meaning |
-| [`docs/packaging.md`](docs/packaging.md) | AppImage/deb, dmg, MSI and the mount helper |
+| [`docs/packaging.md`](docs/packaging.md) | AppImage/deb, the login entry and the mount helper |
 | [`docs/vfs-semantics.md`](docs/vfs-semantics.md) | exactly what the mount guarantees |
 
 ## Repository layout
@@ -129,7 +134,7 @@ crates/nidvue-jotta    auth, JFS XML, Allocate API, rate limiting
 crates/nidvue-cache    blob store, SQLite index, eviction, readahead
 crates/nidvue-vfs      virtual filesystem, read/write pipeline
 crates/nidvue-sync     journal, scanner, reconciler, scheduler
-crates/nidvue-mount    FUSE3 / WinFSP / macFUSE adapters
+crates/nidvue-mount    FUSE3 adapter (Linux)
 crates/nidvue-plugin   WASM host, manifest, capabilities
 crates/nidvue-telemetry Prometheus scrape endpoint, OTLP/HTTP exporter
 crates/nidvue-sdk      stable Rust API, events, JSON schema

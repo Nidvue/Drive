@@ -375,3 +375,81 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: git show b383e73 -> 2 files (CODEOWNERS 1 rule, Release.md 41 lines); gh api repos/Nidvue/Drive/branches/main/protection -> checks=5 strict, admins=true, last_push=true, codeowners=false, reviews=0, force=false, deletions=false, linear=true, conversation resolution=true; the table in Release.md matches that object field by field; teamwork.py pr merge --by Developer-1 -> refused ('only the Reviewer may merge'); teamwork.py review --by ReleaseEngineer -> refused ('only the Reviewer role may review')
 - findings history: 
 - branch / merge: releaseengineer/t-0002-protect-main-and-make-the-reviewer-the-o / 76af248
+
+## T-0001 · Drop macOS and Windows from every active surface (keyring features, mount adapters, deny targets, CI and release matrices, packaging)  (developer)
+- date: 2026-11-17
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the crate now compiles only for Linux, so every cfg gate that named another platform is gone rather than left false. The empty/duplicate/second-call case: mount() has one implementation, and the fallback Unsupported arm that answered for unknown platforms went with the platform branches - the crate no longer pretends to build elsewhere. Contract surface: nidvue_mount::{mount, MountHandle, FuseVfs, MountOptions} is unchanged, so the CLI, SDK and FFI need no edit; the deleted packaging scripts are recoverable from tag v0.2.1 and the user authorised the deletion. Concurrency and shared writes: none touched; the secret.rs change in this branch is a separate bug task with its own commit. Scope: code, CI, packaging and NOTICE only; docs/deviations, packaging.md, README, ARCHITECTURE, Release, CHANGELOG, Plan and Board are the CEO's T-0001 and are not in this diff. | test: cargo test --workspace --all-features @ccb99ee -> every suite ok, 0 failed; cargo clippy --workspace --all-targets --all-features -- -D warnings @ccb99ee -> clean; cargo xtask arch|spdx|secrets|lfs @ccb99ee -> all green; rg -n 'target_os = "macos"|target_os = "windows"|macfuse|winfsp' crates/ @ccb99ee -> no match | preflight: PF-b31f14c83382 @ccb99ee8ba13 (10 checks, 0 failed) || [pass] Delta after review finding F1: the *.wasm LFS pattern is gone, so the example plugins stay real bytes and a clone without git-lfs still runs the plugin tests. Boundary unchanged: one platform, one adapter, no dead cfg branch. Empty/duplicate/second-call: the fallback Unsupported arm is gone with the platform branches, so mount() has exactly one implementation. Contract surface unchanged: nidvue_mount::{mount, MountHandle, FuseVfs, MountOptions}. Scope: the F1 fix touches .gitattributes only; nothing else changed since the failed revision. Mechanical: the full gate was re-run at the fixed head, not just the touched file. | test: cargo xtask ci @ca361b9 -> xtask ci: green; cargo xtask lfs @ca361b9 -> 0 tracked path(s) through Git LFS, 62 pattern(s), no text routed in; git checkout -- plugins/ @ca361b9 -> clean, no pointer warning | preflight: PF-b211d53ebd38 @ca361b9e62a2 (10 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: delta review at ca361b9: F1 fixed (.gitattributes has no *.wasm; git checkout -- plugins/ -> clean, no pointer warning; cargo xtask lfs -> 62 patterns, 0 tracked through LFS, no text routed in); requirement re-run: rg -n 'target_os = "macos"|target_os = "windows"|macfuse|winfsp|apple-native|windows-native' crates/ Cargo.toml deny.toml packaging/ @ca361b9 -> no match; ls packaging -> linux.sh; cargo xtask arch @ca361b9 -> crate contract holds (11 crates) | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/xtask-ci.log:6966201bc9180829:128838 | credited: TS-0006 feature/platform by TeamLeader @ca361b9 | baseline: failed at 4e07e73 on F1; the fix is one line in .gitattributes and the gate was re-run | replay: nix-shell --run 'cargo xtask ci'
+- findings history: detects: a tracked real-binary routed into LFS by a pattern added with the constitution, which breaks every fresh checkout of the plugin examples | F1 .gitattributes line 49 routes *.wasm into Git LFS, but the two example plugins are committed as real bytes on purpose (the file's own comment at line 7 says a pointer would make their tests fail on a clone without git-lfs) and the plugin tests load them from the checkout. Evidence: git checkout -- plugins/example-*/com_example_*.wasm -> 'Encountered 2 files that should have been pointers, but weren't', and git status shows both wasm files modified after every cargo xtask ci. cargo xtask lfs misses it because the gate excludes .wasm from the text-in-LFS check by name. Fix: drop the *.wasm pattern; the other 50 added patterns catch no tracked file (checked with fnmatch over git ls-files).
+- branch / merge: developer/t-0001-drop-macos-and-windows-from-every-active / 82df36f
+
+## T-0004 · The secret scan reads any 'sk-' as an OpenAI key, so it flags the path xtask-ci.log  (developer)
+- date: 2026-11-17
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the gate must catch real credentials and nothing else; a prefix alone is not a credential, so the scanner now reads the key-shaped body after the prefix. Empty/duplicate/second-call: a bare 'sk-' is not a hit, the path xtask-ci.log is not a hit, a real-shaped sk-/ghp_ key is; the pattern table keeps one row per credential type. Contract surface: internal to xtask; the command and its exit codes are unchanged, and every other pattern keeps its previous behaviour (body 0 = contains). Scope: one function, one table, one test. Not a weakening: the body length is 20 for sk-/ghp_/github_pat_ and 12 for AKIA, all shorter than a real key. | test: cargo run -p xtask -- secrets @3b61a1f -> no credential-shaped strings in tracked files; cargo test -p xtask @3b61a1f -> 1 passed; cargo clippy -p xtask --all-targets -- -D warnings @3b61a1f -> clean | preflight: PF-74046a687e35 @3b61a1f7227c (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at 3b61a1f: cargo run -p xtask -- secrets -> no credential-shaped strings in tracked files (was FAIL: docs/Team/Archive.md: OpenAI-style key); cargo test -p xtask -> 1 passed, and the test proves both directions (a real-shaped sk-/ghp_ key is a hit, the xtask-ci.log path and a bare 'sk-' are not); the other six patterns keep body 0, so their behaviour is unchanged; the body lengths (20/20/20/12) are shorter than any real key, so the gate is not weakened | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/xtask-ci-final.log:b0c1ad9f46e2f8f3:132017 | baseline: the gate was red at 9ff06dd on a false positive | replay: cargo run -p xtask -- secrets && cargo test -p xtask
+- findings history: 
+- branch / merge: developer/t-0004-the-secret-scan-reads-any-sk-as-an-opena / a9fe4ba
+
+## T-0007 · The DCO step fails on the engine's own record commits, so every branch inherits a red gate  (developer)
+- date: 2026-11-17
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the exemption is two conditions ANDed - an exact subject prefix and every touched path under docs/Team/ - so a commit that names itself chore(records) but changes code is not exempt (unit test). Empty/duplicate/second-call: an empty path list is not exempt; a merge commit is skipped by the existing --no-merges; a signed record commit is skipped by the trailer check before the exemption is consulted. Contract surface: xtask only; the dco command's exit codes are unchanged and it still prints every offending SHA for a real miss. Concurrency and shared writes: none. Scope: xtask, the Release.md rule and the decision record; no product code. | test: cargo test -p xtask @056f758 -> 2 passed; cargo run -p xtask -- dco @056f758 -> 10 generated record commit(s) exempted, every authored commit carries a Signed-off-by trailer; nix-shell --run 'cargo xtask ci' @056f758 -> xtask ci: green | preflight: PF-a66934e73856 @056f758b79c6 (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at 056f758: cargo test -p xtask -> 2 passed, and the test proves the exemption cannot be abused (a chore(records) subject with a code path is not exempt, an empty path list is not exempt); cargo run -p xtask -- dco -> 10 generated record commits exempted and every authored commit signed, printed on every run; nix-shell --run 'cargo xtask ci' -> xtask ci: green including ffi smoke and ui smoke; Release.md states the exemption and its two conditions, so a reader cannot mistake it for a blanket waiver | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-dco.log:3d3625d6863d313c:129823 | baseline: dco was red on 13 unsigned engine commits at 64e0b0b, blocking every branch's gate | replay: cargo run -p xtask -- dco && nix-shell --run 'cargo xtask ci'
+- findings history: 
+- branch / merge: developer/t-0007-the-dco-step-fails-on-the-engine-s-own-r / 926cbbb
+
+## T-0005 · Read ui.language: ship a translation, install a translator, expose the setting  (developer)
+- date: 2026-11-17
+- priority: P0
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the translator is installed before the QML engine loads, so no frame renders in the wrong language; a locale with no catalog falls back to English and says so on stderr. Empty/duplicate/second-call: an empty ui.language falls back to the system locale, system resolves through QLocale, and a missing catalog is not an error. Contract surface: no C ABI change; the language control writes ui.language through the existing config_set, and the CMake configure step now needs lrelease (added to CI, the release workflow and shell.nix; the CI edit is authorised by the CEO). Concurrency and shared writes: none; the smoke now runs under a throwaway XDG_CONFIG_HOME so it cannot read or write the developer's QSettings or autostart directory. Scope: one coherent slice - the catalog, the loader, the control and the smoke that proves all three - because the feature is unprovable in pieces: a catalog with no loader is dead weight, and a loader with no assertion is untested. It is 13 files but one contract. | test: nix-shell --run 'cargo xtask ci' @deda8c7 -> exit 0, xtask ci: green (preflight gate check); nix-shell --run 'cargo xtask ui-smoke' @deda8c7 -> engine initialised, 48 settings rows, no QML errors, with theme: mode=dark, i18n: language=de catalog=:/i18n/nidvue_de.qm and a German window title asserted; lrelease -> 187 translation(s), 187 finished, 0 unfinished | preflight: PF-dc847b39dd85 @deda8c7688cd (10 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at deda8c7: the reviewer ran the app under a config.toml with theme=dark and language=de -> theme: mode=dark dark=1, i18n: language=de catalog=:/i18n/nidvue_de.qm, and a QML window title rendered in German (Nidvue Drive – Einstellungen), which proves the catalog reaches bindings and not only the translator object; cargo xtask ui-smoke -> green under a throwaway XDG_CONFIG_HOME; lrelease -> 187 finished, 0 unfinished; the SettingsPane language control writes ui.language through the existing config_set and the Advanced card lists the same key | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/reviewer-i18n.log:1ed34ff530f55545:584 | credited: TS-0011 integration/window by Tester @deda8c7 | baseline: deviation 14: ui.language reserved, and ui.theme silently ignored | replay: XDG_CONFIG_HOME=<tmp> apps/nidvue-ui/build/nidvue-ui --smoke-windows
+- findings history: 
+- branch / merge: developer/t-0005-read-ui-language-ship-a-translation-inst / 8f78cb2
+
+## T-0006 · Measure the UI frame budget headlessly and record it  (developer)
+- date: 2026-11-17
+- priority: P1
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the measurement forces a paint (grabWindow) instead of timing the platform's frame signals, because the offscreen platform fires those without rasterising - proved by scaling the surface 16x and seeing no change. Empty/duplicate/second-call: a render that produced no image fails the check (painted=1 is asserted), and a second run is cheap and independent. Contract surface: a new --measure-frames argument on the app and a new xtask step in the gate; no ABI, no config key. Concurrency and shared writes: the measurement blocks the GUI thread deliberately, and runs in its own throwaway state directory and XDG_CONFIG_HOME. Scope: the measurement, the gate step and the three docs that carried the open budget. | test: nix-shell --run 'cargo xtask ci' @9bfd576 -> exit 0, xtask ci: green including '+ ui frames: ... p99=0.295 max=0.553 ms (budget 16 ms)'; cargo clippy -p xtask --all-targets -- -D warnings @9bfd576 -> clean; QT_SCALE_FACTOR=4 -> p50 8.897 ms at 4160x2240 (the cost scales, so the number is a render) | preflight: PF-0ac28cced7ad @9bfd576233a6 (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at 9bfd576: the reviewer ran cargo xtask ui-frames itself -> p50 0.036 / p99 0.330 / max 0.702 ms against 16 ms with painted=1, and re-ran the scaling check the author used to prove the measurement is real (0.033 ms at 1040x560, 7.544 ms at 4160x2240); the step is in cargo xtask ci and the gate log shows '+ ui frames: ... (budget 16 ms)'; the docs state the two limits (software rasteriser, cost of a frame rather than a display refresh) instead of implying a GPU measurement | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/reviewer-frames.log:3b980609603da8a8:1065 | baseline: deviation 7 listed the UI frame budget as unmeasurable | replay: nix-shell --run 'cargo xtask ui-frames'
+- findings history: 
+- branch / merge: developer/t-0006-measure-the-ui-frame-budget-headlessly-a / 877145e
+
+## T-0002 · Say in the README what 0.3.0 actually ships  (ceo)
+- date: 2026-11-17
+- priority: P2
+- owner: ceo role (work by: CEO)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: every number quoted is the one already recorded in performance.md and deviations.md at 9bfd576, and the sentence names the command so a reader can reproduce it. Empty/duplicate/second-call: the paragraph replaces the old one rather than appending a second status. Contract surface: README prose only. Scope: one paragraph. | test: teamwork.py links @d51eac8 -> 36 markdown file(s), 219 internal link(s), # issues: 0; the quoted p99 0.26 ms matches '+ ui frames: ... p99=0.259 ... (budget 16 ms)' in the gate log at db526b8 | preflight: PF-17c88c0f1f39 @d51eac86543f (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at d51eac8: the paragraph names the autostart entry, ui.language with the German catalog, ui.theme now honoured, and the gated frame budget with its command; each number matches docs/performance.md (p99 0.259 ms at 9bfd576) and the gate log, and teamwork.py links -> 0 issues; nothing else in the README changed | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-final.log:7e9d9d27b212f5a1:129708 | baseline: the Status paragraph listed only two of the four things 0.3.0 added | replay: python3 teamwork.py links
+- findings history: 
+- branch / merge: ceo/t-0002-say-in-the-readme-what-0-3-0-actually-sh / 3ae4ac2

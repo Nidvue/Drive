@@ -3,48 +3,36 @@
 
 //! Kernel filesystem adapters.
 //!
-//! One async [`nidvue_vfs::Vfs`] trait, three thin adapters. Linux and macOS
-//! share the FUSE3 implementation (`fuser`); Windows uses WinFSP through the
-//! same trait and is compiled only on Windows.
+//! One async [`nidvue_vfs::Vfs`] trait, one thin adapter: FUSE3 through
+//! `fuser`. Linux is the only supported platform in this release; the macOS and
+//! Windows adapters were removed with the platform support and are recoverable
+//! from the `v0.2.1` tag.
 //!
 //! This crate holds no policy: no retries, no conflict logic, no caching
 //! decisions. It translates kernel callbacks to trait calls and `NidvueError`
-//! to `errno`. Kernel callbacks are synchronous, so each adapter owns a runtime
+//! to `errno`. Kernel callbacks are synchronous, so the adapter owns a runtime
 //! handle and dispatches to it; no callback holds a global lock.
 //!
 //! `fuser` 0.18 is used deliberately: 0.15 carries RUSTSEC-2021-0154 (an
 //! uninitialised read inside libfuse), and `cargo deny` fails on it.
 
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
-
-#[cfg(target_os = "linux")]
 use std::collections::BTreeMap;
-#[cfg(target_os = "linux")]
 use std::ffi::OsStr;
-#[cfg(target_os = "linux")]
-use std::sync::Mutex;
-#[cfg(target_os = "linux")]
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use nidvue_core::error::{NidvueError, Result};
-use nidvue_vfs::Vfs;
-
-#[cfg(target_os = "linux")]
-use nidvue_core::path::RemotePath;
-#[cfg(target_os = "linux")]
-use nidvue_core::types::EntryKind;
-#[cfg(target_os = "linux")]
-use nidvue_vfs::FsStats;
-
-#[cfg(target_os = "linux")]
 use fuser::{
     Config, Errno, FileAttr, FileHandle, FileType, Filesystem, FopenFlags, Generation, INodeNo,
     LockOwner, MountOption, OpenAccMode, OpenFlags, ReplyAttr, ReplyCreate, ReplyData,
     ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, Request,
     SessionACL, WriteFlags,
 };
+
+use nidvue_core::error::{NidvueError, Result};
+use nidvue_core::path::RemotePath;
+use nidvue_core::types::EntryKind;
+use nidvue_vfs::{FsStats, Vfs};
 
 /// How the filesystem should be mounted.
 #[derive(Debug, Clone)]
@@ -75,7 +63,6 @@ impl Default for MountOptions {
 }
 
 /// Map a typed error to an `errno`. One function, one place to audit.
-#[cfg(target_os = "linux")]
 pub fn errno(error: &NidvueError) -> Errno {
     match error {
         NidvueError::NotFound(_) => Errno::ENOENT,
@@ -100,7 +87,6 @@ pub fn errno(error: &NidvueError) -> Errno {
 }
 
 /// An inode table mapping kernel inodes to remote paths.
-#[cfg(target_os = "linux")]
 #[derive(Debug)]
 struct Inodes {
     by_ino: BTreeMap<u64, RemotePath>,
@@ -108,7 +94,6 @@ struct Inodes {
     next: u64,
 }
 
-#[cfg(target_os = "linux")]
 impl Inodes {
     fn new() -> Self {
         let mut table = Self {
@@ -168,12 +153,10 @@ impl Inodes {
     }
 }
 
-#[cfg(target_os = "linux")]
 fn now() -> SystemTime {
     SystemTime::now()
 }
 
-#[cfg(target_os = "linux")]
 fn ms_to_time(ms: i64) -> SystemTime {
     if ms <= 0 {
         now()
@@ -182,7 +165,6 @@ fn ms_to_time(ms: i64) -> SystemTime {
     }
 }
 
-#[cfg(target_os = "linux")]
 mod fuse {
     use super::*;
 
@@ -701,105 +683,9 @@ mod fuse {
     }
 }
 
-#[cfg(target_os = "linux")]
 pub use fuse::{mount, FuseVfs, MountHandle};
 
-#[cfg(target_os = "macos")]
-mod macfuse {
-    use super::*;
-
-    /// A mount that never started.
-    pub struct MountHandle;
-
-    impl MountHandle {
-        /// Where the filesystem would be mounted.
-        pub fn mountpoint(&self) -> &Path {
-            Path::new("/")
-        }
-
-        /// Unmount explicitly.
-        pub fn unmount(&mut self) {}
-    }
-
-    /// Mount through macFUSE.
-    ///
-    /// The adapter is written against the same [`nidvue_vfs::Vfs`] contract, but
-    /// the macFUSE headers are not available to the build in this release, so
-    /// mounting returns a typed error instead of pretending to work. See
-    /// `docs/deviations.md`.
-    pub fn mount(
-        _vfs: Arc<dyn Vfs>,
-        mountpoint: &Path,
-        _options: MountOptions,
-    ) -> Result<MountHandle> {
-        Err(NidvueError::Unsupported(format!(
-            "macFUSE backend is not compiled in this build (mountpoint {})",
-            mountpoint.display()
-        )))
-    }
-}
-
-#[cfg(target_os = "macos")]
-pub use macfuse::{mount, MountHandle};
-
-#[cfg(target_os = "windows")]
-mod winfsp {
-    use super::*;
-
-    /// A running Windows mount.
-    pub struct MountHandle {
-        mountpoint: PathBuf,
-    }
-
-    impl MountHandle {
-        /// Where the filesystem is mounted.
-        pub fn mountpoint(&self) -> &Path {
-            &self.mountpoint
-        }
-
-        /// Unmount explicitly.
-        pub fn unmount(&mut self) {
-            // The WinFSP host thread stops when the process drops the host.
-        }
-    }
-
-    /// Mount through WinFSP.
-    ///
-    /// The adapter implements the same [`nidvue_vfs::Vfs`] contract; the WinFSP
-    /// host bindings are a build-time dependency on Windows only. Until that
-    /// host is wired, mounting returns a typed error instead of pretending.
-    pub fn mount(
-        _vfs: Arc<dyn Vfs>,
-        mountpoint: &Path,
-        _options: MountOptions,
-    ) -> Result<MountHandle> {
-        Err(NidvueError::Unsupported(format!(
-            "WinFSP host is not available in this build (mountpoint {})",
-            mountpoint.display()
-        )))
-    }
-}
-
-#[cfg(target_os = "windows")]
-pub use winfsp::{mount, MountHandle};
-
-/// The FUSE adapter is not available on this platform.
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-pub fn mount(
-    _vfs: Arc<dyn Vfs>,
-    _mountpoint: &Path,
-    _options: MountOptions,
-) -> Result<MountHandle> {
-    Err(NidvueError::Unsupported(
-        "no filesystem backend for this platform".into(),
-    ))
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-/// A mount that never started.
-pub struct MountHandle;
-
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -826,7 +712,6 @@ mod tests {
         assert_eq!(table.path_of(child_ino).unwrap().as_str(), "/c/b");
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn errno_mapping_is_specific() {
         assert_eq!(errno(&NidvueError::NotFound("x".into())), Errno::ENOENT);
