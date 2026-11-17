@@ -33,8 +33,8 @@ the queues' state and not an opinion about it.
 
 | role | id | area | state | pr | merged revision |
 |---|---|---|---|---|---|
-| ceo | T-0001 | - | review | P-0001 | - |
-| developer | T-0001 | - | done | P-0001 | 48ead9c |
+| ceo | T-0001 | - | done | P-0001 | - |
+| developer | T-0001 | - | done | P-0001 | 0a79d1b |
 | developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | done | P-0003 | 6489eba |
 | tester | T-0001 | - | done | P-0001 | - |
@@ -59,7 +59,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
-| ceo | T-0001 · Linux-only docs, CHANGELOG and 0.3.0 records | P2 | review | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
 exact state; this table only says which lanes are open.
