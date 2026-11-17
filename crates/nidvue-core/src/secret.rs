@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
@@ -224,8 +225,8 @@ pub fn redact_token(token: &str) -> String {
 /// The service name every keyring entry is filed under.
 pub const KEYRING_SERVICE: &str = "nidvue-drive";
 
-/// Credentials in the OS keyring: Secret Service on Linux, the Security
-/// framework on macOS, the Credential Manager on Windows.
+/// Credentials in the OS keyring: Secret Service on Linux, the only platform
+/// this build supports.
 ///
 /// Every operation maps the platform error onto [`NidvueError::Secret`], and a
 /// missing entry is `Ok(None)` rather than an error, so the caller cannot tell a
@@ -303,11 +304,23 @@ impl StoreSelection {
 
 /// Probe the OS keyring with a throwaway entry.
 fn keyring_is_usable(store: &KeyringStore) -> Result<()> {
-    let probe = "__nidvue_probe";
+    // The Secret Service client keeps one session per process: two probes at
+    // once tear each other's session down. The key is per call so a probe in
+    // another process cannot delete the entry this one reads back.
+    static PROBE_LOCK: Mutex<()> = Mutex::new(());
+    let _probe = PROBE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    static PROBE: AtomicU64 = AtomicU64::new(0);
+    let probe = format!(
+        "__nidvue_probe_{}_{}",
+        std::process::id(),
+        PROBE.fetch_add(1, Ordering::Relaxed)
+    );
     let value = SecretString::new("probe");
-    store.store(probe, &value)?;
-    let read_back = store.load(probe)?;
-    store.delete(probe)?;
+    store.store(&probe, &value)?;
+    let read_back = store.load(&probe)?;
+    store.delete(&probe)?;
     match read_back {
         Some(v) if v.expose() == "probe" => Ok(()),
         _ => Err(NidvueError::Secret(
@@ -466,14 +479,21 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let sel = open_store(SecretBackend::Keyring, dir.path().join("credentials.enc"));
         assert_eq!(sel.backend, SecretBackend::Keyring);
-        match keyring_is_usable(&KeyringStore::default_service()) {
-            Ok(()) => assert!(!sel.degraded, "a working keyring is not degraded"),
-            Err(_) => {
+        // One observation, not a second probe: whether this machine's keyring
+        // answers is not the fact under test, and probing twice let a busy
+        // session bus report two different verdicts for one store.
+        match &sel.fallback_reason {
+            Some(reason) => {
                 assert!(sel.degraded, "an unusable keyring must not report ok");
+                assert!(
+                    reason.starts_with("requested but unusable:"),
+                    "unexpected reason: {reason}"
+                );
                 assert!(sel
                     .describe()
                     .starts_with("keyring (requested but unusable:"));
             }
+            None => assert!(!sel.degraded, "a working keyring is not degraded"),
         }
     }
 

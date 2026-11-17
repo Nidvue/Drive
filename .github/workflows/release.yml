@@ -16,24 +16,13 @@ permissions:
 
 jobs:
   build:
-    name: build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            artifact: linux-x86_64
-          # macOS is omitted: this organisation cannot start a macOS runner.
-          # The packaging recipe is in packaging/macos.sh, ready for a runner.
-          - os: windows-2022
-            artifact: windows-x86_64
+    name: build (linux-x86_64)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: system packages (linux)
-        if: runner.os == 'Linux'
+      - name: system packages
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -43,30 +32,17 @@ jobs:
             qml6-module-qtquick-layouts qml6-module-qtquick-window \
             qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
             libqt6svg6-dev
-      - name: qt (macos, windows)
-        if: runner.os != 'Linux'
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.1"
-          cache: true
       - name: build
         run: cargo build --release --workspace
       - name: build ui
         run: cargo xtask ui
-      - name: package (linux)
-        if: runner.os == 'Linux'
+      - name: package
         run: bash packaging/linux.sh
-      - name: package (macos)
-        if: runner.os == 'macOS'
-        run: bash packaging/macos.sh
-      - name: package (windows)
-        if: runner.os == 'Windows'
-        run: pwsh packaging/windows.ps1
       - name: checksums
         shell: bash
         run: |
           cd dist
-          sha256sum * > SHA256SUMS || shasum -a 256 * > SHA256SUMS
+          sha256sum * > SHA256SUMS
           cp ../LICENSE .
           printf '%s\n' \
             "Corresponding source for this release:" \
@@ -77,7 +53,7 @@ jobs:
           ls -l
       - uses: actions/upload-artifact@v4
         with:
-          name: nidvue-drive-${{ matrix.artifact }}
+          name: nidvue-drive-linux-x86_64
           path: dist/*
           if-no-files-found: error
 

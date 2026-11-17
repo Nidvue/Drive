@@ -1,12 +1,10 @@
 # Packaging
 
-Related: [Release](Team/Release.md) · [deviations](deviations.md)
+Related: [Release](Team/Release.md) · [deviations](deviations.md) · [configuration](configuration.md)
 
 | Platform | Format | Recipe | Mount helper |
 |---|---|---|---|
 | Linux | AppImage + `.deb` | `packaging/linux.sh` | none: unprivileged FUSE3 (`fusermount3`, `user_allow_other` only for `allow_other`) |
-| macOS | `.dmg` | `packaging/macos.sh` | none: macFUSE system extension installed by the user |
-| Windows | `.msi` | `packaging/windows.ps1` | none: WinFSP service installed as a prerequisite |
 
 Every artifact ships with:
 
@@ -26,24 +24,20 @@ Every artifact ships with:
 - The `.deb` installs a `nidvue-drive` systemd **user** unit (not system) for
   optional auto-mount.
 
-## macOS
+## Login entry
 
-- `.dmg` containing `Nidvue Drive.app` and a symlink to `/Applications`.
-- macFUSE is a prerequisite installed by the user; the app detects its absence
-  and explains it rather than failing with `ENODEV`.
-- Hardened runtime and notarisation hooks are documented in the script; they
-  require an Apple Developer identity and are skipped when it is absent, so CI
-  passes without secrets.
+`nidvue-cli autostart enable` writes
+`$XDG_CONFIG_HOME/autostart/nidvue-drive.desktop` (`~/.config/autostart` when
+`XDG_CONFIG_HOME` is unset), pointing at the application binary. The Settings
+window's **Start at login** toggle writes the same file through the C ABI, so
+either front door is enough. `autostart disable` removes it; `autostart status
+--json` reports the state, the path and the command.
 
-## Windows
-
-- MSI built with the WiX toolset; WinFSP is a prerequisite (GPL-3.0 with FLOSS
-  exception — see `NOTICE`) and the MSI offers to install it.
-- The mount runs in-process through WinFSP's user-mode filesystem API; no driver
-  is bundled by this project.
+The `.deb` does not add a second login entry: a desktop that reads XDG autostart
+and a systemd user unit would otherwise start the app twice.
 
 ## Signing
 
-Signing hooks exist for all three platforms and are opt-in: without the relevant
+Signing hooks are opt-in and Linux-only in this release: without the relevant
 secret the artifact is produced unsigned and the release notes say so. Signing
 never gates a release build.

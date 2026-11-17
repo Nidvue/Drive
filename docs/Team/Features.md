@@ -19,4 +19,4 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - depends-on: -
 - state: active
 - created: 2026-11-15
-- updated: 2026-11-16
+- updated: 2026-11-17

@@ -6,11 +6,12 @@ Every requirement that is not fully met is listed here with the reason and the
 upgrade path. An empty row is not allowed: "works" without evidence is not a
 status.
 
-Status at `v0.2.1`. Closed so far: 3, 4 and 5 in v0.2.0; 8, 10 and 13 in v0.2.1.
-Item 14 is narrowed to `ui.language`. Everything still in **Open** carries the
-measurement or the build prerequisite that keeps it open — four of them need a
-platform or a session this build environment does not have, and two are
-deliberate refusals.
+Status at `v0.3.0`. Closed so far: 3, 4 and 5 in v0.2.0; 8, 10 and 13 in v0.2.1.
+Item 14 is narrowed to `ui.language`. Items 1, 1b and 2 are **dropped, not
+closed**: Linux is the only supported platform, so the macOS and Windows mount
+backends are no longer requirements. Everything still in **Open** carries the
+measurement or the build prerequisite that keeps it open — two need a session
+this build environment does not have, and two are deliberate refusals.
 
 ## Closed in v0.2.0
 
@@ -28,14 +29,21 @@ deliberate refusals.
 | 10 | Virtualised 100k-row views | partial | The transfer list is a `ListView` with `reuseItems` over a bounded model (512 rows, live rows never evicted); the log list is virtualised with a filter box. |
 | 13 | Cache cap changes while the client runs | applies on restart | `Cache` keeps the cap in an `AtomicU64`; `set_capacity` evicts to the new low watermark before returning, and the SDK applies it on every config write, so the Settings slider and `config set cache.max_size_bytes` take effect at once. Watermarks, eviction policy and prefetch still need a restart. |
 
+## Dropped with the platform support (v0.3.0)
+
+Linux is the only supported platform. These three were requirements of the
+original brief and are now out of scope; nothing in the tree pretends otherwise.
+
+| # | Requirement | What was there | How to bring it back |
+|---|---|---|---|
+| 1 | macOS mount backend (macFUSE) | The adapter compiled behind `cfg(target_os = "macos")` and returned a typed `Unsupported`; `fuser` 0.18 supports macOS through `macfuse-4-compat` | Restore `crates/nidvue-mount/src/lib.rs` from tag `v0.2.1`, add the `macfuse-4-compat` feature, and build on a runner with the macFUSE SDK. The `Vfs` contract is unchanged. |
+| 1b | macOS CI job | Omitted: this organisation's Actions cannot start a macOS runner (the job is cancelled before it runs) | A macOS runner, then the job back in the `ci` and `release` matrices. |
+| 2 | Windows mount backend (WinFSP) | A typed `Unsupported` stub; `fuser` 0.18 has no WinFSP backend, so this is a second host implementation, not a build flag | Restore the stub and the `windows-native` keyring feature from `v0.2.1`, then implement the WinFSP host against the same `Vfs` trait. |
+
 ## Open
 
 | # | Requirement | Status | Reason / upgrade path |
-|---|---|---|---|
-| 1 | macOS mount backend (macFUSE) | not compiled | `fuser` 0.18 supports macOS (`macfuse-4-compat`), so the adapter is the same code as Linux behind a different `cfg`; what is missing is the macFUSE headers at build time. `nidvue-mount` returns a typed `Unsupported` on macOS rather than shipping an unbuildable module. Enabling it is a build flag plus a runner with the SDK. |
-| 1b | macOS CI job | omitted | This organisation's Actions cannot start a macOS runner: the job is cancelled before it runs (three attempts, no runner assigned). The macOS packaging recipe and the adapter contract exist; a runner is all that is missing. |
-| 2 | Windows mount backend (WinFSP) | not implemented | `fuser` 0.18 has no Windows backend (its feature list is `libfuse`, `libfuse2`, `libfuse3`, `macfuse-4-compat`, `macos-no-mount`, `async-trait`, `tokio`, `serde`, `serializable`, `experimental` — no WinFSP), so this is a second host implementation against the WinFSP API, not a build flag. `nidvue-mount` returns a typed `Unsupported` on Windows instead of pretending. The VFS contract and the errno mapping are platform-independent and tested. |
-| 6 | 100k-file initial sync measurement | synthetic, measured | Measured, but against a local filesystem and an empty remote, not the real service: `cargo bench -p nidvue-benches --bench initial_sync` scans 100 000 paths in 664 ms, indexes them in 861 ms, and plans the first pass in 57 ms with a 54 MiB peak RSS (566 bytes/path). What this does not cover is 100k network transfers, which are bounded by the link, not by the engine. Numbers in [`performance.md`](performance.md). |
+|---|---|---|---|| 6 | 100k-file initial sync measurement | synthetic, measured | Measured, but against a local filesystem and an empty remote, not the real service: `cargo bench -p nidvue-benches --bench initial_sync` scans 100 000 paths in 664 ms, indexes them in 861 ms, and plans the first pass in 57 ms with a 54 MiB peak RSS (566 bytes/path). What this does not cover is 100k network transfers, which are bounded by the link, not by the engine. Numbers in [`performance.md`](performance.md). |
 | 7 | Cold read / sustained transfer / UI frame budgets | measured, UI frame not | Cold read and sustained transfer are measured against an emulated 50 Mbit/s link: 189 ms for 1 MiB (budget 400 ms) and 86.8 % of link capacity sustained (budget 80 %). The UI frame budget is still unmeasured — it needs a windowed session on a real display, and `cargo xtask ui-smoke` only proves the QML engine starts headless. |
 | 9 | Qt end-to-end against a live account | manual | CI builds the UI, launches it headlessly (`QT_QPA_PLATFORM=offscreen`) and asserts it initialises the engine with no QML errors. A live account is not available to CI. |
 | 9b | Tray on desktops without a status-notifier host | best-effort | `QSystemTrayIcon` needs a tray host; on a bare Wayland session without one the icon is absent and the app behaves as if it had no tray (closing the window quits). The controller checks `isSystemTrayAvailable()` rather than showing a dead icon. |

@@ -851,6 +851,54 @@ pub unsafe extern "C" fn nidvue_config_peek(
     }
 }
 
+/// Whether the desktop application starts at login (XDG autostart).
+#[no_mangle]
+pub extern "C" fn nidvue_autostart_enabled() -> i32 {
+    match catch_unwind(nidvue_core::autostart::enabled) {
+        Ok(true) => 1,
+        Ok(false) => 0,
+        Err(_) => NIDVUE_PANIC,
+    }
+}
+
+/// Enable or disable starting the desktop application at login.
+///
+/// `exec` is the command the desktop runs at login, normally the application
+/// binary. It is ignored when `enabled` is zero.
+///
+/// # Safety
+/// `exec` must be a valid NUL-terminated string when `enabled` is non-zero;
+/// `err` must be a valid out-pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn nidvue_autostart_set(
+    exec: *const c_char,
+    enabled: i32,
+    err: *mut *mut c_char,
+) -> i32 {
+    let exec = if enabled == 0 { None } else { cstr(exec) };
+    if enabled != 0 && exec.is_none() {
+        set_err(err, "exec is required to enable autostart");
+        return NIDVUE_INVALID;
+    }
+    match catch_unwind(AssertUnwindSafe(|| {
+        if let Some(exec) = exec {
+            nidvue_core::autostart::enable(exec).map(|_| ())
+        } else {
+            nidvue_core::autostart::disable().map(|_| ())
+        }
+    })) {
+        Ok(Ok(())) => NIDVUE_OK,
+        Ok(Err(e)) => {
+            set_err(err, e.to_string());
+            NIDVUE_ERR
+        }
+        Err(_) => {
+            set_err(err, "panic contained in nidvue_autostart_set");
+            NIDVUE_PANIC
+        }
+    }
+}
+
 /// Open conflicts as a JSON array.
 ///
 /// # Safety

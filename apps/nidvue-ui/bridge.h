@@ -87,6 +87,7 @@ class Bridge : public QObject {
     Q_PROPERTY(QVariantList transfers READ transfers NOTIFY transfersChanged)
     Q_PROPERTY(int transferLimit READ transferLimit CONSTANT)
     Q_PROPERTY(int liveTransfers READ liveTransfers NOTIFY transfersChanged)
+    Q_PROPERTY(bool startAtLogin READ startAtLogin NOTIFY startAtLoginChanged)
     Q_PROPERTY(QStringList logs READ logs NOTIFY logsChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
@@ -116,6 +117,7 @@ public:
     QVariantList transfers() const { return m_transfers; }
     int transferLimit() const { return m_transferLimit; }
     int liveTransfers() const { return m_liveTransfers; }
+    bool startAtLogin() const { return m_startAtLogin; }
     QStringList logs() const { return m_logs; }
     QString lastError() const { return m_lastError; }
 
@@ -136,6 +138,7 @@ public:
     Q_INVOKABLE void refreshPlugins();
     Q_INVOKABLE void refreshConfig();
     Q_INVOKABLE void setConfigValue(const QString &key, const QString &value);
+    Q_INVOKABLE void setStartAtLogin(bool enabled);
     Q_INVOKABLE void openMount();
     Q_INVOKABLE void showMainWindow();
     Q_INVOKABLE void resolve(const QString &id, const QString &resolution);
@@ -162,6 +165,7 @@ signals:
     void transfersChanged();
     void logsCleared();
     void logsChanged();
+    void startAtLoginChanged();
     void lastErrorChanged();
     void requestLogin(const QString &token);
     void requestLogout();
@@ -212,6 +216,7 @@ private:
     int m_bandwidthMbps = 0;
     QString m_mountpoint;
     bool m_busy = false;
+    bool m_startAtLogin = false;
     QString m_busyWhat;
     QVariantList m_conflicts;
     QVariantList m_syncPairs;

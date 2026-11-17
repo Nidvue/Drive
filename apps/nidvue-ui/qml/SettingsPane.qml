@@ -66,6 +66,17 @@ ColumnLayout {
                 font.pixelSize: Theme.fontCaption
                 Layout.fillWidth: true
             }
+
+            ToggleRow {
+                objectName: "startAtLogin"
+                Layout.fillWidth: true
+                label: qsTr("Start at login")
+                description: qsTr("Writes an XDG autostart entry for this desktop session.")
+                checked: Bridge.startAtLogin
+                onToggled: function (checked) {
+                    Bridge.setStartAtLogin(checked)
+                }
+            }
         }
     }
 

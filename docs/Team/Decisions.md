@@ -145,3 +145,19 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - evidence: gh api repos/Nidvue/Drive/branches/main/protection @2026-11-16 -> required_approving_review_count=1, enforce_admins=true, contexts=[]; gh pr merge 13 --rebase --admin -> refused; owner instruction recorded above @2026-11-16
 - falsified by: a pull request merged with a red required check, or a recorded reviewer verdict contradicted by the merged tree.
 - consequences: the review evidence is a PR comment plus an Archive entry, not a GitHub approval; the settings are re-read after the merge and recorded in `docs/Team/Release.md`; a second collaborator, if one is ever added, restores `required_approving_review_count: 1`.
+
+## D-20261117-CEO - Linux is the only supported platform in v0.3.0
+
+- date: 2026-11-17
+- kind: scope
+- status: accepted
+- deciders: CEO (ceo)
+- decided by: CEO
+- task: developer:T-0001
+- context: -
+- options considered: (a) keep the stubs and the recipes (rejected: the deviations stay open and nothing verifies them); (b) remove the surfaces and record the restore path (chosen); (c) implement WinFSP now (rejected: out of scope and untestable here)
+- decision: Remove macOS and Windows from every active surface: the macFUSE and WinFSP mount adapters, the apple-native and windows-native keyring features, the windows-2022 CI and release legs, packaging/macos.sh and packaging/windows.ps1, the deny targets for darwin and msvc, and the WinFSP/macFUSE attributions in NOTICE. Restoring a platform means restoring it from tag v0.2.1 and staffing it, not flipping a flag.
+- why: The user asked for Linux only, temporarily dropping Windows and macOS. Both were deviations that could not close: this organisation cannot start a macOS runner, and fuser 0.18 has no WinFSP backend, so Windows was a second host implementation. Keeping stubs, recipes and CI legs for a platform nobody builds keeps three deviations permanently open and costs review attention on every change.
+- evidence: git tag v0.2.1 -> both adapters and recipes recoverable; rg -n 'target_os = "macos"|target_os = "windows"|macfuse|winfsp' crates/ @ccb99ee -> no match; cargo test --workspace --all-features @ccb99ee -> every suite ok, 0 failed
+- falsified by: A user needs the macOS or Windows build before the Linux product is finished, or a runner/backend appears: then restore from v0.2.1 and staff the platform.
+- consequences: One platform to build, test, package and document. The macOS and Windows deviations become 'dropped', not 'open'. NOTICE drops two attributions. Reinstating a platform is a task, not a flag.

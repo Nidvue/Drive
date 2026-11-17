@@ -503,6 +503,11 @@ fn ui_smoke() -> Result<(), String> {
             "the settings editor received no rows from the engine:\n{stderr}"
         ));
     }
+    if !stderr.contains("smoke: autostart toggle=1") {
+        return Err(format!(
+            "the settings window has no Start at login toggle:\n{stderr}"
+        ));
+    }
     let initialised = state.join("db").join("index.sqlite").exists();
     let _ = std::fs::remove_dir_all(&state);
     if !initialised {
@@ -514,16 +519,7 @@ fn ui_smoke() -> Result<(), String> {
 
 fn package() -> Result<(), String> {
     cmd("cargo", &["build", "--release", "--workspace"])?;
-    let root = workspace_root();
-    for script in [
-        "packaging/linux.sh",
-        "packaging/macos.sh",
-        "packaging/windows.ps1",
-    ] {
-        if root.join(script).exists() && script.ends_with(".sh") && script.contains("linux") {
-            cmd("bash", &[script])?;
-        }
-    }
+    cmd("bash", &["packaging/linux.sh"])?;
     println!("packaging: see packaging/ and docs/packaging.md");
     Ok(())
 }

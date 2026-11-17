@@ -87,6 +87,35 @@ enum Command {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// Start the desktop application at login (XDG autostart)
+    Autostart {
+        #[command(subcommand)]
+        action: AutostartAction,
+    },
+}
+
+/// The command a login session should start: `nidvue-ui` next to this binary
+/// when it is installed beside it, otherwise the name a PATH lookup resolves.
+fn default_exec() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("nidvue-ui")))
+        .filter(|candidate| candidate.is_file())
+        .unwrap_or_else(|| PathBuf::from("nidvue-ui"))
+}
+
+#[derive(Subcommand, Debug)]
+enum AutostartAction {
+    /// Print whether the application starts at login
+    Status,
+    /// Write the autostart entry
+    Enable {
+        /// Command the desktop runs at login (default: nidvue-ui beside this binary)
+        #[arg(long)]
+        exec: Option<PathBuf>,
+    },
+    /// Remove the autostart entry
+    Disable,
 }
 
 #[derive(Subcommand, Debug)]
@@ -515,6 +544,41 @@ async fn run(cli: &Cli, state: &Path) -> Result<(), NidvueError> {
                 Ok(())
             }
         },
+        Command::Autostart { action } => match action {
+            AutostartAction::Status => {
+                let enabled = nidvue_core::autostart::enabled();
+                if cli.json {
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "enabled": enabled,
+                            "path": nidvue_core::autostart::path(),
+                            "exec": nidvue_core::autostart::exec(),
+                        })
+                    );
+                } else if enabled {
+                    println!(
+                        "autostart: on ({} -> {})",
+                        nidvue_core::autostart::path().display(),
+                        nidvue_core::autostart::exec().unwrap_or_default()
+                    );
+                } else {
+                    println!("autostart: off");
+                }
+                Ok(())
+            }
+            AutostartAction::Enable { exec } => {
+                let exec = exec.clone().unwrap_or_else(default_exec);
+                let file = nidvue_core::autostart::enable(&exec.to_string_lossy())?;
+                println!("autostart: on -> {} ({})", file.display(), exec.display());
+                Ok(())
+            }
+            AutostartAction::Disable => {
+                let removed = nidvue_core::autostart::disable()?;
+                println!("autostart: {}", if removed { "off" } else { "already off" });
+                Ok(())
+            }
+        },
         Command::Config { action } => match action {
             ConfigAction::Path => {
                 println!("{}", AppConfig::path_in(state).display());
@@ -633,17 +697,8 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         }
         .into(),
     ));
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        let fuse = Path::new("/dev/fuse").exists();
-        checks.push(("fuse".into(), fuse, "/dev/fuse present".into()));
-    }
-    #[cfg(target_os = "windows")]
-    checks.push((
-        "winfsp".into(),
-        false,
-        "WinFSP host is not enabled in this build".into(),
-    ));
+    let fuse = Path::new("/dev/fuse").exists();
+    checks.push(("fuse".into(), fuse, "/dev/fuse present".into()));
     let status = client.status().await?;
     checks.push(match &status.prometheus_url {
         Some(url) => ("metrics".into(), true, format!("scrape {url}")),

@@ -37,7 +37,8 @@ archive is bigger than their disk.
 ## 4. What practitioners ship
 
 - Mount adapters are per platform: FUSE3 on Linux, WinFSP on Windows, macFUSE on
-  macOS. The contract is portable; the adapter is not (ADR 0003).
+  macOS. The contract is portable; the adapter is not (ADR 0003). `v0.3.0`
+  ships the Linux adapter only.
 - Plugin hosts converge on WebAssembly with explicit capabilities and resource
   limits because it contains a trapped plugin (ADR 0004).
 - Desktop clients that hide to a tray need a status-notifier host; on a bare
