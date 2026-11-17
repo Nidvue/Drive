@@ -427,3 +427,16 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: review at deda8c7: the reviewer ran the app under a config.toml with theme=dark and language=de -> theme: mode=dark dark=1, i18n: language=de catalog=:/i18n/nidvue_de.qm, and a QML window title rendered in German (Nidvue Drive – Einstellungen), which proves the catalog reaches bindings and not only the translator object; cargo xtask ui-smoke -> green under a throwaway XDG_CONFIG_HOME; lrelease -> 187 finished, 0 unfinished; the SettingsPane language control writes ui.language through the existing config_set and the Advanced card lists the same key | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/reviewer-i18n.log:1ed34ff530f55545:584 | credited: TS-0011 integration/window by Tester @deda8c7 | baseline: deviation 14: ui.language reserved, and ui.theme silently ignored | replay: XDG_CONFIG_HOME=<tmp> apps/nidvue-ui/build/nidvue-ui --smoke-windows
 - findings history: 
 - branch / merge: developer/t-0005-read-ui-language-ship-a-translation-inst / 8f78cb2
+
+## T-0006 · Measure the UI frame budget headlessly and record it  (developer)
+- date: 2026-11-17
+- priority: P1
+- owner: developer role (work by: Developer)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: the measurement forces a paint (grabWindow) instead of timing the platform's frame signals, because the offscreen platform fires those without rasterising - proved by scaling the surface 16x and seeing no change. Empty/duplicate/second-call: a render that produced no image fails the check (painted=1 is asserted), and a second run is cheap and independent. Contract surface: a new --measure-frames argument on the app and a new xtask step in the gate; no ABI, no config key. Concurrency and shared writes: the measurement blocks the GUI thread deliberately, and runs in its own throwaway state directory and XDG_CONFIG_HOME. Scope: the measurement, the gate step and the three docs that carried the open budget. | test: nix-shell --run 'cargo xtask ci' @9bfd576 -> exit 0, xtask ci: green including '+ ui frames: ... p99=0.295 max=0.553 ms (budget 16 ms)'; cargo clippy -p xtask --all-targets -- -D warnings @9bfd576 -> clean; QT_SCALE_FACTOR=4 -> p50 8.897 ms at 4160x2240 (the cost scales, so the number is a render) | preflight: PF-0ac28cced7ad @9bfd576233a6 (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at 9bfd576: the reviewer ran cargo xtask ui-frames itself -> p50 0.036 / p99 0.330 / max 0.702 ms against 16 ms with painted=1, and re-ran the scaling check the author used to prove the measurement is real (0.033 ms at 1040x560, 7.544 ms at 4160x2240); the step is in cargo xtask ci and the gate log shows '+ ui frames: ... (budget 16 ms)'; the docs state the two limits (software rasteriser, cost of a frame rather than a display refresh) instead of implying a GPU measurement | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/reviewer-frames.log:3b980609603da8a8:1065 | baseline: deviation 7 listed the UI frame budget as unmeasurable | replay: nix-shell --run 'cargo xtask ui-frames'
+- findings history: 
+- branch / merge: developer/t-0006-measure-the-ui-frame-budget-headlessly-a / pending
