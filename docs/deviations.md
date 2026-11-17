@@ -6,8 +6,8 @@ Every requirement that is not fully met is listed here with the reason and the
 upgrade path. An empty row is not allowed: "works" without evidence is not a
 status.
 
-Status at `v0.3.0`. Closed so far: 3, 4 and 5 in v0.2.0; 8, 10 and 13 in v0.2.1.
-Item 14 is narrowed to `ui.language`. Items 1, 1b and 2 are **dropped, not
+Status at `v0.3.0`. Closed so far: 3, 4 and 5 in v0.2.0; 8, 10 and 13 in v0.2.1;
+14 in v0.3.0. Items 1, 1b and 2 are **dropped, not
 closed**: Linux is the only supported platform, so the macOS and Windows mount
 backends are no longer requirements. Everything still in **Open** carries the
 measurement or the build prerequisite that keeps it open — two need a session
@@ -49,7 +49,7 @@ original brief and are now out of scope; nothing in the tree pretends otherwise.
 | 9b | Tray on desktops without a status-notifier host | best-effort | `QSystemTrayIcon` needs a tray host; on a bare Wayland session without one the icon is absent and the app behaves as if it had no tray (closing the window quits). The controller checks `isSystemTrayAvailable()` rather than showing a dead icon. |
 | 11 | OIDC login by username/password | not implemented | Only the Personal Login Token flow is supported, which is the flow Jottacloud documents for command-line clients. No password is ever collected or stored. |
 | 12 | Native plugin dylibs | refused | `PluginHost::load` refuses a native plugin with a typed error. Loading one is a licence decision (it must be AGPL-3.0) and needs a trusted-dylib host; neither is half-done. |
-| 14 | `ui.theme`, `ui.language`, `ui.start_minimised` | partial: `ui.language` unread | `ui.start_minimised` and `ui.theme` are read before the first frame through `nidvue_config_peek` (the app decides whether to show its window and which theme to start in before the engine exists). A theme the user picks in the window still wins over the configured default, and `ui.start_minimised` is ignored on a desktop with no tray so the app cannot start invisible. `ui.language` stays reserved: no translation ships. |
+| 14 | `ui.theme`, `ui.language`, `ui.start_minimised` | closed in v0.3.0 | All three are read before the first frame through `nidvue_config_peek`. `ui.language` (`system`, `en`, `de`) installs the matching catalog from `:/i18n/nidvue_<lang>.qm` before the QML engine loads, and a German translation of all 187 strings ships; a language the build has no catalog for falls back to English with the reason on stderr. `ui.start_minimised` is ignored on a desktop with no tray so the app cannot start invisible, and a theme picked in the window still wins over the configured default. Verified by `cargo xtask ui-smoke`, which now runs under a throwaway `XDG_CONFIG_HOME` and fails when `theme: mode=dark`, `i18n: language=de catalog=...` or a translated window title is missing. |
 
 ## Sources
 

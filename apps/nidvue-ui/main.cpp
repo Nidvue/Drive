@@ -10,6 +10,10 @@
 #include <QDebug>
 #include <QDir>
 #include <QFont>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QLocale>
+#include <QTranslator>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -60,18 +64,42 @@ int main(int argc, char *argv[])
     // flashing on screen and then hiding.
     const QString state = qEnvironmentVariable("NIDVUE_STATE",
         QDir::homePath() + QStringLiteral("/.local/share/nidvue-drive"));
+    // `nidvue_config_peek` answers with the JSON form of the value, so a string
+    // arrives quoted. Comparing `"dark"` against `dark` silently ignored the
+    // configured theme; the value is decoded here instead.
     const auto peek = [&state](const char *key) {
         char *out = nullptr;
         char *err = nullptr;
         QString value;
         if (nidvue_config_peek(state.toUtf8().constData(), key, &out, &err) == NIDVUE_OK) {
-            value = QString::fromUtf8(out);
+            // The answer is the JSON form of the value. A bare scalar is not a
+            // document, so it is wrapped in an array to decode it (and to
+            // unescape a string): comparing a quoted `"dark"` against `dark`
+            // silently ignored the configured theme.
+            const QByteArray json(out);
+            const auto array = QJsonDocument::fromJson("[" + json + "]").array();
+            value = array.isEmpty() ? QString() : array.first().toVariant().toString();
             nidvue_string_free(out);
         } else if (err) {
             nidvue_string_free(err);
         }
         return value;
     };
+    // The window is translated before it is built: a translator installed after
+    // the first load leaves the frame in the source language.
+    const QString configuredLanguage = peek("ui.language");
+    const QString language = configuredLanguage.isEmpty()
+                                     || configuredLanguage == QStringLiteral("system")
+                                 ? QLocale::system().name().section('_', 0, 0)
+                                 : configuredLanguage;
+    QTranslator translator;
+    const QString catalog = QStringLiteral(":/i18n/nidvue_%1.qm").arg(language);
+    if (language != QStringLiteral("en") && translator.load(catalog)) {
+        QCoreApplication::installTranslator(&translator);
+        qInfo("i18n: language=%s catalog=%s", qPrintable(language), qPrintable(catalog));
+    } else {
+        qInfo("i18n: language=%s source=English", qPrintable(language));
+    }
     const QString configTheme = peek("ui.theme");
     if (configTheme == QStringLiteral("light") || configTheme == QStringLiteral("dark"))
         Preferences::setConfigDefaultTheme(configTheme);
@@ -124,6 +152,11 @@ int main(int argc, char *argv[])
                 autostart = autostart
                             || root->findChild<QObject *>(QStringLiteral("startAtLogin")) != nullptr;
             qInfo("smoke: autostart toggle=%d", autostart ? 1 : 0);
+            // A translated window title proves the catalog reaches QML strings,
+            // not just the translator object.
+            const auto windows = QGuiApplication::allWindows();
+            for (const QWindow *window : windows)
+                qInfo("smoke: window title=%s", qPrintable(window->title()));
         });
         QTimer::singleShot(1200, &app, &QCoreApplication::quit);
     }

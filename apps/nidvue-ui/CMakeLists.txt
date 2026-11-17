@@ -33,6 +33,33 @@ qt_add_executable(nidvue-ui
     tray.h
 )
 
+# The translation is compiled at configure time: the .qm has to exist before the
+# resource is compiled, and qt_add_translations (Qt 6.7+) is not available on
+# every distribution this project builds on.
+find_program(LRELEASE lrelease)
+if(NOT LRELEASE)
+    message(FATAL_ERROR "lrelease not found: install Qt Linguist tools (qttools) to build the UI")
+endif()
+set(NIDVUE_I18N_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
+file(MAKE_DIRECTORY "${NIDVUE_I18N_DIR}")
+set(NIDVUE_I18N_TS "${CMAKE_CURRENT_SOURCE_DIR}/i18n/nidvue_de.ts")
+execute_process(
+    COMMAND "${LRELEASE}" "${NIDVUE_I18N_TS}" -qm "${NIDVUE_I18N_DIR}/nidvue_de.qm"
+    RESULT_VARIABLE NIDVUE_LRELEASE_RESULT
+    OUTPUT_QUIET)
+if(NOT NIDVUE_LRELEASE_RESULT EQUAL 0)
+    message(FATAL_ERROR "lrelease failed on ${NIDVUE_I18N_TS}")
+endif()
+
+# A generated file is an absolute path, so the resource needs an explicit alias:
+# without it Qt refuses to compile the resource at all.
+set_source_files_properties("${NIDVUE_I18N_DIR}/nidvue_de.qm"
+    PROPERTIES QT_RESOURCE_ALIAS "nidvue_de.qm")
+qt_add_resources(nidvue-ui "i18n"
+    PREFIX "/i18n"
+    FILES "${NIDVUE_I18N_DIR}/nidvue_de.qm"
+)
+
 qt_add_resources(nidvue-ui "qml"
     PREFIX "/"
     FILES

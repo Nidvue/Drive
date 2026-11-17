@@ -77,7 +77,7 @@ Each `[[sync.pairs]]` entry has `name`, `local`, `remote`, `paused`,
 | `log.otel_interval_s` | 15 | seconds between OTLP metric exports |
 | `log.prometheus_bind` | none | bind address for the scrape endpoint, e.g. `127.0.0.1:9464` |
 | `ui.theme` | `system` | the theme the app starts in; a choice made in the window wins over it |
-| `ui.language` | `en` | reserved: no translation ships yet |
+| `ui.language` | `en` | `system`, `en` or `de`; installed before the first frame (see [Language](#language)) |
 | `ui.start_minimised` | false | start in the tray instead of showing the window; ignored when the desktop has no tray |
 
 ## `[secret]`
@@ -98,6 +98,28 @@ downgrading.
 `nidvue-cli` exposes `--state`, `--json`, and per-command flags (`--token-stdin`,
 `--read-only`, `--bench`, `--include`, `--exclude`, `--conflict-policy`,
 `--paused`).
+
+## Language
+
+| Key | Default | Meaning |
+|---|---|---|
+| `ui.language` | `en` | `system`, `en` or `de` |
+
+The window is translated before its first frame: the value is read straight from
+`config.toml` and the matching catalog is installed before the QML engine loads,
+so nothing appears in English and then flips. `system` follows the desktop
+locale; a locale the build ships no catalog for falls back to English and says so
+on stderr (`i18n: language=<tag> source=English`). A change applies the next time
+the window opens.
+
+The catalogs are `apps/nidvue-ui/i18n/nidvue_<lang>.ts` (the translator's source)
+compiled by `lrelease` at configure time and embedded in the binary, so a package
+ships nothing extra. Adding a language is one `.ts` file plus a row in
+`SettingsPane.qml`:
+
+```sh
+lupdate apps/nidvue-ui/qml apps/nidvue-ui/*.cpp -ts apps/nidvue-ui/i18n/nidvue_xx.ts
+```
 
 ## Login entry
 

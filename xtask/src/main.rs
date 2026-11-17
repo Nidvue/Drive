@@ -462,6 +462,14 @@ fn ui_smoke() -> Result<(), String> {
     }
     let state = std::env::temp_dir().join(format!("nidvue-ui-smoke-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
+    // Two settings are read before the first frame, and both are only visible in
+    // the window's own diagnostics: the theme and the language.
+    std::fs::create_dir_all(&state).map_err(|e| format!("state dir: {e}"))?;
+    std::fs::write(
+        state.join("config.toml"),
+        "[ui]\ntheme = \"dark\"\nlanguage = \"de\"\n",
+    )
+    .map_err(|e| format!("config.toml: {e}"))?;
     let mut child = Command::new(&binary)
         .arg("--smoke-windows")
         .env("QT_QPA_PLATFORM", "offscreen")
@@ -469,6 +477,11 @@ fn ui_smoke() -> Result<(), String> {
         // stderr and the check below would see an empty log.
         .env("QT_ASSUME_STDERR_HAS_CONSOLE", "1")
         .env("NIDVUE_STATE", &state)
+        // QSettings and the autostart entry are per-user files. Without this the
+        // smoke reads the developer's own preferences, so a configured
+        // `ui.theme` could never be observed and the run would touch the
+        // machine it runs on.
+        .env("XDG_CONFIG_HOME", state.join("config"))
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -501,6 +514,21 @@ fn ui_smoke() -> Result<(), String> {
     if rows == 0 {
         return Err(format!(
             "the settings editor received no rows from the engine:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("theme: mode=dark") {
+        return Err(format!(
+            "the configured ui.theme did not reach the first frame:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("i18n: language=de catalog=:/i18n/nidvue_de.qm") {
+        return Err(format!(
+            "the configured ui.language did not load its catalog:\n{stderr}"
+        ));
+    }
+    if !stderr.contains("Einstellungen") {
+        return Err(format!(
+            "the German catalog did not reach the QML window titles:\n{stderr}"
         ));
     }
     if !stderr.contains("smoke: autostart toggle=1") {

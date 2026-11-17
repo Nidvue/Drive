@@ -35,7 +35,22 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   release legs, the `apple-native` and `windows-native` keyring features, and
   the WinFSP/macFUSE attributions in `NOTICE`.
 
+### Added
+- **German translation and a working `ui.language`.** The window installs the
+  catalog for `ui.language` (`system`, `en`, `de`) before the QML engine loads,
+  so it is translated from the first frame; all 187 strings ship translated.
+  The Settings window has a language control next to the theme choice.
+- `cargo xtask ui-smoke` now runs under a throwaway `XDG_CONFIG_HOME` and asserts
+  three first-frame settings: `theme: mode=dark`, `i18n: language=de
+  catalog=:/i18n/nidvue_de.qm`, and a translated window title. It previously read
+  the developer's own `QSettings`, which is why a configured theme could not be
+  observed.
+
 ### Fixed
+- `ui.theme` was never honoured: `nidvue_config_peek` answers with the JSON form
+  of a value, so the app compared `"dark"` against `dark` and always started in
+  `system`. The value is decoded now, and `ui-smoke` fails when the configured
+  theme does not reach the first frame.
 - The credential probe no longer races itself: two probes in one process share
   the Secret Service session, deleted each other's throwaway entry and reported
   a working store as broken. The probe is serialised and its key is per call, so
