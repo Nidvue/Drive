@@ -413,4 +413,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at 056f758: cargo test -p xtask -> 2 passed, and the test proves the exemption cannot be abused (a chore(records) subject with a code path is not exempt, an empty path list is not exempt); cargo run -p xtask -- dco -> 10 generated record commits exempted and every authored commit signed, printed on every run; nix-shell --run 'cargo xtask ci' -> xtask ci: green including ffi smoke and ui smoke; Release.md states the exemption and its two conditions, so a reader cannot mistake it for a blanket waiver | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-dco.log:3d3625d6863d313c:129823 | baseline: dco was red on 13 unsigned engine commits at 64e0b0b, blocking every branch's gate | replay: cargo run -p xtask -- dco && nix-shell --run 'cargo xtask ci'
 - findings history: 
-- branch / merge: developer/t-0007-the-dco-step-fails-on-the-engine-s-own-r / pending
+- branch / merge: developer/t-0007-the-dco-step-fails-on-the-engine-s-own-r / 926cbbb
