@@ -65,7 +65,7 @@ the queues' state and not an opinion about it.
 | developer | T-0011 | - | done | P-0013 | 20666c9 |
 | developer | T-0012 | - | done | P-0014 | 9328bfe |
 | tester | T-0001 | - | done | P-0001 | 82df36f |
-| tester | T-0002 | - | review | P-0015 | - |
+| tester | T-0002 | - | done | P-0015 | 7ffd4c8 |
 
 Rows whose PR is not merged carry no merged revision; the revision is read from
 the PR record, not from this table.
@@ -87,7 +87,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
-| tester | T-0002 · Live-account end-to-end test, gated on a token the runner provides | P1 | review | - |
 
 The task queue (`teamwork.py task list <role>`) is authoritative for a task's
 exact state; this table only says which lanes are open.
