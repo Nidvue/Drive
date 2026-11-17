@@ -177,3 +177,19 @@ Related: [Project](Project.md) · [Plan](Plan.md) · [Board](Board.md) · [Archi
 - evidence: cargo run -p xtask -- dco @ca361b9 -> FAIL: 13 commits missing Signed-off-by (all chore(records)/chore(merge)); @f8e0b3a (this branch) -> 'dco: 10 generated record commit(s) carry no trailer' and 'every authored commit carries a Signed-off-by trailer'; cargo test -p xtask -> 2 passed
 - falsified by: A commit named chore(records): that changes anything outside docs/Team/ is exempted, or the exemption hides an unsigned authored commit: then the rule is too wide and the engine must sign instead.
 - consequences: The local gate is green again on every branch. A-0001 stays open until the engine signs its own commits; the exemption prints its count on every run.
+
+## D-20261117-CEO-3 - The reviewed revision lands on main as a fast-forward push, not a forge rebase-merge
+
+- date: 2026-11-17
+- kind: governance
+- status: accepted
+- deciders: CEO (ceo)
+- decided by: CEO
+- task: -
+- context: -
+- options considered: (a) gh pr merge --rebase (rejected: rewrites the 45 SHAs the ledger cites); (b) gh pr merge --merge with linear history disabled (rejected: leaves a merge commit and still needs two protection changes); (c) fast-forward push with enforce_admins lifted once, restored at once (chosen)
+- decision: The PR exists to run the required checks on the pushed SHA. Once they are green, main receives the same revision as a fast-forward push with enforce_admins lifted for that one push and restored immediately, so every SHA the ledger and the Archive cite stays reachable. A forge rebase-merge would rewrite 45 commits and leave 22 merge revisions dangling.
+- why: Branch protection requires a pull request and linear history, and the local history the team produced contains the engine's --no-ff merge commits, so a rebase-merge would flatten them and change every SHA from the first merge onward. Provenance beats a button: the constitution already says the Reviewer merges locally and the host merge button is off.
+- evidence: gh pr checks 23 -> rust (ubuntu-24.04) pass, licences/advisories/spdx/secrets pass, qt ui pass, fuse mount smoke pass, links pass; git merge-base --is-ancestor origin/main HEAD -> fast-forward possible (5e38e4d -> bd8ca01); gh api .../protection -> enforce_admins true before and after
+- falsified by: If the restored protection does not read back as strict with the four required checks and enforce_admins true, the bypass was not closed and main is unprotected.
+- consequences: main carries the reviewed revision unchanged, the PR closes as merged, and the forge keeps its PR requirement for every future change. Recorded because a protection setting was changed twice for one push.
