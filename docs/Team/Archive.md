@@ -439,4 +439,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at 9bfd576: the reviewer ran cargo xtask ui-frames itself -> p50 0.036 / p99 0.330 / max 0.702 ms against 16 ms with painted=1, and re-ran the scaling check the author used to prove the measurement is real (0.033 ms at 1040x560, 7.544 ms at 4160x2240); the step is in cargo xtask ci and the gate log shows '+ ui frames: ... (budget 16 ms)'; the docs state the two limits (software rasteriser, cost of a frame rather than a display refresh) instead of implying a GPU measurement | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/reviewer-frames.log:3b980609603da8a8:1065 | baseline: deviation 7 listed the UI frame budget as unmeasurable | replay: nix-shell --run 'cargo xtask ui-frames'
 - findings history: 
-- branch / merge: developer/t-0006-measure-the-ui-frame-budget-headlessly-a / pending
+- branch / merge: developer/t-0006-measure-the-ui-frame-budget-headlessly-a / 877145e
