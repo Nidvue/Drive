@@ -1,11 +1,11 @@
 # Audit report
 
-- generated: 2026-11-17T14:15:05
+- generated: 2026-11-17T15:32:06
 - team: Drive
-- ledger: 232 records, chain verified: True
-- checkpoint: record #232 (the ledger.export event behind this manifest; later records are work that happened after it)
-- head hash: `115c2aee712ae604f793aaf793e665d6`
-- git: f541d49b5693 on main, dirty: False
+- ledger: 242 records, chain verified: True
+- checkpoint: record #242 (the ledger.export event behind this manifest; later records are work that happened after it)
+- head hash: `80a250ef973dc7aa5aa15ea002d97c63`
+- git: 25066e3dc806 on main, dirty: False
 - externally verifiable artifacts: 4
 - local-only state files: 30
 
