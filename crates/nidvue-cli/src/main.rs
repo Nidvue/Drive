@@ -633,17 +633,8 @@ async fn doctor(state: &Path, bench: bool, json: bool) -> Result<(), NidvueError
         }
         .into(),
     ));
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        let fuse = Path::new("/dev/fuse").exists();
-        checks.push(("fuse".into(), fuse, "/dev/fuse present".into()));
-    }
-    #[cfg(target_os = "windows")]
-    checks.push((
-        "winfsp".into(),
-        false,
-        "WinFSP host is not enabled in this build".into(),
-    ));
+    let fuse = Path::new("/dev/fuse").exists();
+    checks.push(("fuse".into(), fuse, "/dev/fuse present".into()));
     let status = client.status().await?;
     checks.push(match &status.prometheus_url {
         Some(url) => ("metrics".into(), true, format!("scrape {url}")),

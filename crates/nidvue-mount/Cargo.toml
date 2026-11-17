@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Nidvue
 [package]
 name = "nidvue-mount"
-description = "Nidvue Drive FUSE3 / WinFSP / macFUSE mount adapters"
+description = "Nidvue Drive FUSE3 mount adapter (Linux)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,9 +17,6 @@ libc = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
-# fuser's build script requires libfuse, which does not exist on Windows; the
-# Windows adapter does not use it.
-[target.'cfg(target_os = "linux")'.dependencies]
 fuser = { workspace = true }
 
 [dev-dependencies]

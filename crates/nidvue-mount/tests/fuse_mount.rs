@@ -6,8 +6,6 @@
 //! Skipped gracefully where the kernel, `/dev/fuse` or `fusermount3` is not
 //! available, so the suite is green on a container without FUSE and in CI.
 
-#![cfg(any(target_os = "linux", target_os = "macos"))]
-
 use std::sync::Arc;
 
 use nidvue_core::path::RemotePath;

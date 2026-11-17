@@ -514,16 +514,7 @@ fn ui_smoke() -> Result<(), String> {
 
 fn package() -> Result<(), String> {
     cmd("cargo", &["build", "--release", "--workspace"])?;
-    let root = workspace_root();
-    for script in [
-        "packaging/linux.sh",
-        "packaging/macos.sh",
-        "packaging/windows.ps1",
-    ] {
-        if root.join(script).exists() && script.ends_with(".sh") && script.contains("linux") {
-            cmd("bash", &[script])?;
-        }
-    }
+    cmd("bash", &["packaging/linux.sh"])?;
     println!("packaging: see packaging/ and docs/packaging.md");
     Ok(())
 }

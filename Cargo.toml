@@ -50,8 +50,6 @@ hex = "0.4"
 keyring = { version = "3.6", default-features = false, features = [
     "sync-secret-service",
     "crypto-rust",
-    "apple-native",
-    "windows-native",
 ] }
 libc = "0.2"
 md-5 = "0.10"
