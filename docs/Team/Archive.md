@@ -440,3 +440,16 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - reviewer evidence: review at 9bfd576: the reviewer ran cargo xtask ui-frames itself -> p50 0.036 / p99 0.330 / max 0.702 ms against 16 ms with painted=1, and re-ran the scaling check the author used to prove the measurement is real (0.033 ms at 1040x560, 7.544 ms at 4160x2240); the step is in cargo xtask ci and the gate log shows '+ ui frames: ... (budget 16 ms)'; the docs state the two limits (software rasteriser, cost of a frame rather than a display refresh) instead of implying a GPU measurement | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/reviewer-frames.log:3b980609603da8a8:1065 | baseline: deviation 7 listed the UI frame budget as unmeasurable | replay: nix-shell --run 'cargo xtask ui-frames'
 - findings history: 
 - branch / merge: developer/t-0006-measure-the-ui-frame-budget-headlessly-a / 877145e
+
+## T-0002 · Say in the README what 0.3.0 actually ships  (ceo)
+- date: 2026-11-17
+- priority: P2
+- owner: ceo role (work by: CEO)
+- reviewer: Reviewer-1
+- task / issue: -
+- area: -
+- self-check: [pass] Boundary: every number quoted is the one already recorded in performance.md and deviations.md at 9bfd576, and the sentence names the command so a reader can reproduce it. Empty/duplicate/second-call: the paragraph replaces the old one rather than appending a second status. Contract surface: README prose only. Scope: one paragraph. | test: teamwork.py links @d51eac8 -> 36 markdown file(s), 219 internal link(s), # issues: 0; the quoted p99 0.26 ms matches '+ ui frames: ... p99=0.259 ... (budget 16 ms)' in the gate log at db526b8 | preflight: PF-17c88c0f1f39 @d51eac86543f (8 checks, 0 failed)
+- author evidence: 
+- reviewer evidence: review at d51eac8: the paragraph names the autostart entry, ui.language with the German catalog, ui.theme now honoured, and the gated frame budget with its command; each number matches docs/performance.md (p99 0.259 ms at 9bfd576) and the gate log, and teamwork.py links -> 0 issues; nothing else in the README changed | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/gate-final.log:7e9d9d27b212f5a1:129708 | baseline: the Status paragraph listed only two of the four things 0.3.0 added | replay: python3 teamwork.py links
+- findings history: 
+- branch / merge: ceo/t-0002-say-in-the-readme-what-0-3-0-actually-sh / pending
