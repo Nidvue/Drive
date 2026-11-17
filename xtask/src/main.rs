@@ -669,17 +669,33 @@ fn lfs() -> Result<(), String> {
     }
 }
 
+/// True when `needle` appears followed by at least `body` key-shaped
+/// characters.
+///
+/// A bare prefix is not a credential: `sk-` alone matches a path such as
+/// `xtask-ci.log`, which is a false positive that trains people to ignore the
+/// gate. Every real key in the table below carries a long body.
+fn credential_shaped(text: &str, needle: &str, body: usize) -> bool {
+    text.match_indices(needle).any(|(at, _)| {
+        text[at + needle.len()..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+            .count()
+            >= body
+    })
+}
+
 fn secrets() -> Result<(), String> {
     let files = capture("git", &["ls-files"])?;
-    let patterns: &[(&str, &str)] = &[
-        ("Jotta personal login token", "eyJ3ZWxsX2tub3duX2xpbmsi"),
-        ("OpenAI-style key", "sk-"),
-        ("GitHub token", "ghp_"),
-        ("GitHub fine-grained token", "github_pat_"),
-        ("AWS access key", "AKIA"),
-        ("private key", "BEGIN RSA PRIVATE KEY"),
-        ("private key", "BEGIN OPENSSH PRIVATE KEY"),
-        ("Jottacloud bearer", "Bearer eyJ"),
+    let patterns: &[(&str, &str, usize)] = &[
+        ("Jotta personal login token", "eyJ3ZWxsX2tub3duX2xpbmsi", 0),
+        ("OpenAI-style key", "sk-", 20),
+        ("GitHub token", "ghp_", 20),
+        ("GitHub fine-grained token", "github_pat_", 20),
+        ("AWS access key", "AKIA", 12),
+        ("private key", "BEGIN RSA PRIVATE KEY", 0),
+        ("private key", "BEGIN OPENSSH PRIVATE KEY", 0),
+        ("Jottacloud bearer", "Bearer eyJ", 0),
     ];
     let mut hits = Vec::new();
     for path in files.lines() {
@@ -690,8 +706,8 @@ fn secrets() -> Result<(), String> {
             // The scanner's own pattern table.
             continue;
         }
-        for (what, needle) in patterns {
-            if text.contains(needle) {
+        for (what, needle, body) in patterns {
+            if credential_shaped(&text, needle, *body) {
                 hits.push(format!("{path}: {what}"));
             }
         }
@@ -766,5 +782,35 @@ fn dco(range: Option<&str>) -> Result<(), String> {
             "dco: missing Signed-off-by in\n  {}",
             bad.join("\n  ")
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_key_shaped_body_is_a_hit_and_a_bare_prefix_is_not() {
+        assert!(credential_shaped(
+            "OPENAI_KEY=sk-proj-abc123DEF456ghi789JKL012mno345",
+            "sk-",
+            20
+        ));
+        assert!(credential_shaped(
+            "token ghp_0123456789abcdefghijABCDEFGHIJ012345",
+            "ghp_",
+            20
+        ));
+        assert!(!credential_shaped(
+            ".pi/Teamwork/Teams/Drive/Agents/CEO/Reports/xtask-ci.log",
+            "sk-",
+            20
+        ));
+        assert!(!credential_shaped("sk- short", "sk-", 20));
+        assert!(credential_shaped(
+            "eyJ3ZWxsX2tub3duX2xpbmsi",
+            "eyJ3ZWxsX2tub3duX2xpbmsi",
+            0
+        ));
     }
 }
