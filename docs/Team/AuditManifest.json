@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-11-17T12:08:26",
+  "generated_at": "2026-11-17T12:57:22",
   "team": "Drive",
   "team_id": "54f6a87a85fe4e73a244e74c64cb0999",
   "project": "Drive",
   "ledger": {
-    "records": 170,
-    "checkpoint_n": 170,
-    "head": "e4a6309599cc2f962cc219bfef58fa7b97ee0a24bf355f5500ae5bf83527fafc",
+    "records": 189,
+    "checkpoint_n": 189,
+    "head": "2955a5d2c5b372c5a6f97553abece80a557f9aa751aa7f884ac9b48d3a0f2ba1",
     "verified": true,
     "problems": []
   },
   "git": {
-    "head": "a9f263b8c901266ffefaafd1c57391a7cc17cf16",
+    "head": "30f20156649d8d7553430614239ed93d456eac86",
     "branch": "main",
     "dirty": false,
     "lfs_files": 0
@@ -24,8 +24,8 @@
     },
     {
       "path": "docs/Team/Decisions.md",
-      "sha256": "b8d1cfd2ca008083b518861e9b3f055fcb4e572d6dbd5b94f05ac948b2155e87",
-      "bytes": 16430
+      "sha256": "993b11a720d63189286c6c63cca6d9f65c3b176a876b72e7779f9f565afe5ebb",
+      "bytes": 18388
     },
     {
       "path": "docs/Team/Plan.md",
@@ -56,8 +56,8 @@
     },
     {
       "path": ".pi/Teamwork/Teams/Drive/Reviews.md",
-      "sha256": "1fed04f7cd1796955169e8288412212aaffec79542415b479835d63a6abe31eb",
-      "bytes": 18810
+      "sha256": "5e4273f0aac6db09026d5472c4472ef3edd06c1ad1307b7603b7d2dcdf9ae0e3",
+      "bytes": 22513
     },
     {
       "path": ".pi/Teamwork/Teams/Drive/Roles/Architect/ArchivedMemory.md",
@@ -96,8 +96,8 @@
     },
     {
       "path": ".pi/Teamwork/Teams/Drive/Roles/CEO/TaskQueue.md",
-      "sha256": "f27d2ad0c13d191b7f3713a2b208b3d5180625893692e1bd1f73fa280b409916",
-      "bytes": 5970
+      "sha256": "338627b0df1f2fd03a6c7dc844bcc17156dda9f13b47c7cb2bfe84814108661d",
+      "bytes": 11018
     },
     {
       "path": ".pi/Teamwork/Teams/Drive/Roles/Developer/ArchivedMemory.md",
@@ -116,8 +116,8 @@
     },
     {
       "path": ".pi/Teamwork/Teams/Drive/Roles/Developer/TaskQueue.md",
-      "sha256": "6f34ffb072c0fa6affe3dcdbfd27414ab31450e28f1e31f7c7ab1a7988ec6f67",
-      "bytes": 25623
+      "sha256": "29deeae1a205c0b8b1eeb618094f63ed2acbf43be7de092c37b4e90e48b9b6af",
+      "bytes": 27018
     },
     {
       "path": ".pi/Teamwork/Teams/Drive/Roles/Reviewer/ArchivedMemory.md",
@@ -192,7 +192,7 @@
   ],
   "how_to_verify": [
     "1. teamwork.py ledger verify   # recompute the sha256 chain over Ledger.jsonl",
-    "2. take record #170 (the ledger.export event) and compare its hash with ledger.head above: the chain up to this checkpoint must reproduce, and any record after it is work that happened later (a rebuilt or truncated trail cannot reproduce the checkpoint)",
+    "2. take record #189 (the ledger.export event) and compare its hash with ledger.head above: the chain up to this checkpoint must reproduce, and any record after it is work that happened later (a rebuilt or truncated trail cannot reproduce the checkpoint)",
     "3. sha256sum each artifact in this manifest",
     "4. git cat-file -t <git.head>   # the reviewed revision still exists",
     "5. teamwork.py trace <T-id|AC-id|P-id>   # follow any single claim",
