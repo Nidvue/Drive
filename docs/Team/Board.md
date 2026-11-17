@@ -35,7 +35,7 @@ the queues' state and not an opinion about it.
 |---|---|---|---|---|---|
 | ceo | T-0001 | - | review | P-0001 | - |
 | developer | T-0001 | - | done | P-0001 | 82df36f |
-| developer | T-0002 | - | review | P-0002 | - |
+| developer | T-0002 | - | done | P-0002 | 3709df1 |
 | developer | T-0003 | - | review | P-0003 | - |
 | tester | T-0001 | - | review | P-0001 | - |
 
@@ -60,7 +60,6 @@ Shared services serve every feature and are attached to none: Architect, CEO, CF
 | agent | task | prio | state | artifact |
 |---|---|---|---|---|
 | ceo | T-0001 · Linux-only docs, CHANGELOG and 0.3.0 records | P2 | review | - |
-| developer | T-0002 · Land XDG autostart end to end: core module, C ABI, CLI subcommand, Settings toggle | P0 | review | - |
 | developer | T-0003 · Keyring probe key is shared, so concurrent probes fail each other and the suite is red | P0 | review | - |
 | tester | T-0001 · Integration test for the autostart CLI and the file it writes, on Linux | P1 | review | - |
 
