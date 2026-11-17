@@ -400,4 +400,4 @@ not task records: the delivered work predates the task queue (see [Plan](Plan.md
 - author evidence: 
 - reviewer evidence: review at 3b61a1f: cargo run -p xtask -- secrets -> no credential-shaped strings in tracked files (was FAIL: docs/Team/Archive.md: OpenAI-style key); cargo test -p xtask -> 1 passed, and the test proves both directions (a real-shaped sk-/ghp_ key is a hit, the xtask-ci.log path and a bare 'sk-' are not); the other six patterns keep body 0, so their behaviour is unchanged; the body lengths (20/20/20/12) are shorter than any real key, so the gate is not weakened | artifacts: .pi/Teamwork/Teams/Drive/Agents/CEO/Reports/xtask-ci-final.log:b0c1ad9f46e2f8f3:132017 | baseline: the gate was red at 9ff06dd on a false positive | replay: cargo run -p xtask -- secrets && cargo test -p xtask
 - findings history: 
-- branch / merge: developer/t-0004-the-secret-scan-reads-any-sk-as-an-opena / pending
+- branch / merge: developer/t-0004-the-secret-scan-reads-any-sk-as-an-opena / a9fe4ba
