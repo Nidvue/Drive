@@ -37,7 +37,7 @@ ApplicationWindow {
     ]
 
     onClosing: function (close) {
-        if (Tray.available) {
+        if (trayAvailable) {
             close.accepted = false
             window.hide()
         } else {
@@ -241,6 +241,33 @@ ApplicationWindow {
                         text: qsTr("Activity")
                         onClicked: stack.currentIndex = 3
                         Accessible.name: qsTr("Open the activity log")
+                    }
+                }
+            }
+
+            Rectangle {
+                // A desktop with no status-notifier host has no tray, so closing
+                // this window quits and the only way back is to start the app
+                // again. Say so where the user is, not only in a log line.
+                objectName: "noTrayNotice"
+                visible: !trayAvailable
+                Layout.fillWidth: true
+                implicitHeight: notice.implicitHeight + Theme.gapSm * 2
+                color: Theme.surfaceAlt
+
+                RowLayout {
+                    id: notice
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.pageGutter
+                    anchors.rightMargin: Theme.pageGutter
+                    spacing: Theme.gapSm
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontCaption
+                        text: qsTr("No system tray on this desktop: closing this window quits Nidvue Drive and stops syncing.")
                     }
                 }
             }

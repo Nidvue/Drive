@@ -36,6 +36,10 @@ tree instead of shipping as stubs, and are recoverable from tag `v0.2.1`.
   the WinFSP/macFUSE attributions in `NOTICE`.
 
 ### Added
+- **A desktop with no system tray says so.** A banner in the main window and a
+  line in Settings explain that closing the window quits and stops syncing, so a
+  bare Wayland session loses the tray feature without losing the information.
+  `ui-smoke` asserts the banner on a tray-less desktop.
 - **Native plugins behind a trusted host.** `PluginHost::with_native` loads a
   `plugin.so`/`plugin.dll` through `libloading` over a versioned C ABI, only when
   `plugin.allow_native = true` and the manifest declares AGPL-3.0-only. The ABI

@@ -529,6 +529,11 @@ fn ui_smoke() -> Result<(), String> {
             "the configured ui.language did not load its catalog:\n{stderr}"
         ));
     }
+    if !stderr.contains("smoke: tray available=0 notice=1") {
+        return Err(format!(
+            "a desktop without a tray must show the notice that closing quits:\n{stderr}"
+        ));
+    }
     if !stderr.contains("Einstellungen") {
         return Err(format!(
             "the German catalog did not reach the QML window titles:\n{stderr}"
