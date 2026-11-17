@@ -6,6 +6,40 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-17
+
+Continuous sync, verified against a live account. Most of this release is what the
+first real login exposed.
+
+### Added
+- **Continuous sync.** The engine watches every unpaused pair's folder, runs a pass
+  on a local change and otherwise polls at an adaptive interval that doubles on an
+  empty pass and is bounded by `sync.full_scan_interval_ms`. `nidvue-cli sync
+  watch` runs it in the foreground; the app starts it with the window. Before this,
+  `poll_interval_ms`, `max_poll_interval_ms`, `full_scan_interval_ms`,
+  `debounce_ms` and `rename_window_ms` were configuration nobody read and sync only
+  happened on an explicit `sync run`.
+- **Renames are server-side moves.** A delete plus a create of the same content
+  within `sync.rename_window_ms` becomes one `Move`; the remote is renamed and the
+  local file moved, so a 2 GiB rename is not a 2 GiB upload.
+- **A bulk-delete guard.** A pass that would delete more paths than
+  `sync.bulk_delete_threshold` is refused and names the setting.
+- **`nidvue-cli remote ls|rm`.** Ask the server what a folder contains, and delete
+  one path (to the Jottacloud trash unless `--permanent`).
+- **`Index::upsert_entries`**: one transaction for a whole scan.
+
+### Fixed
+- **Uploads never worked against the real API.** `allocate_path` produced
+  `/jfs/JottaArchive/Archive/...` — the separator was missing and the mountpoint
+  appeared twice — so every upload answered 409. The JFS URL had the same doubling
+  (`/Archive/Archive/...` folders appeared in the account).
+- A pair's remote folder is created on the first pass instead of failing the pass
+  with a 404 from the listing.
+- A listing of a missing path reports the path, not the XML body it came with.
+- `DELETE` is used for a permanent delete; the file flag answered 404 for a folder.
+- A pass no longer deletes the pair's own root, and a folder that already exists is
+  not an upload failure.
+
 ## [0.4.0] - 2026-11-17
 
 The five items this project had listed as refusals, or as "cannot be measured

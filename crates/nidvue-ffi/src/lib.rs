@@ -1077,6 +1077,14 @@ mod tests {
     #[test]
     fn opens_reports_and_frees() {
         let dir = tempfile::tempdir().unwrap();
+        // The OS keyring is per user, not per state directory: without this the
+        // test would read the developer's own token and the assertion below would
+        // depend on whether they are logged in.
+        std::fs::write(
+            dir.path().join("config.toml"),
+            "[secret]\nbackend = \"file\"\n",
+        )
+        .unwrap();
         let state = CString::new(dir.path().to_str().unwrap()).unwrap();
         let mut err: *mut c_char = ptr::null_mut();
         // SAFETY: all pointers are valid for the duration of the test.
